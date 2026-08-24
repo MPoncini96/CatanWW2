@@ -65,6 +65,7 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 24px;
+  min-width: 0;
   padding: 10px 18px;
   background: linear-gradient(180deg, rgba(18, 26, 38, 0.95), rgba(12, 18, 28, 0.9));
   border-bottom: 1px solid var(--panel-border);
@@ -75,6 +76,18 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex: none;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand h1 {
+  white-space: nowrap;
+}
+
+.topbar__actions {
+  flex: none;
+  margin-left: auto;
 }
 
 .brand__mark {
@@ -121,11 +134,50 @@ button:disabled {
   color: var(--muted);
 }
 
-/* ---------- map stage ---------- */
+/* ---------- the page ---------- */
+/* Twenty per cent of the width is the rail — who you are, what you may do, and
+   whatever cell you last clicked. The other eighty is the board, in the top
+   right corner, with one bar under it carrying the cursor readout and the date.
+   The globe watches its own box with a ResizeObserver, so the split is a grid
+   rule and nothing has to be told about it. */
+
+.layout {
+  display: grid;
+  /* The board takes 80% and sits in the top right. The rail takes the rest —
+     but never less than it needs to be legible: below a 1200px window the map
+     gives way rather than the writing. */
+  grid-template-columns: minmax(240px, 20%) 1fr;
+  flex: 1;
+  min-height: 0;
+}
+
+.rail {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  min-width: 0;
+  padding: 14px;
+  overflow-y: auto;
+  border-right: 1px solid var(--panel-border);
+  background: rgba(10, 15, 23, 0.5);
+}
+
+.rail__stats {
+  margin: 4px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.field {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-width: 0;
+  min-height: 0;
+}
 
 .stage {
   position: relative;
-  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
@@ -141,33 +193,6 @@ button:disabled {
 
 .map.is-dragging {
   cursor: grabbing;
-}
-
-.overlay {
-  position: absolute;
-  top: 16px;
-  bottom: 44px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  pointer-events: none;
-  z-index: 2;
-}
-
-.overlay > * {
-  pointer-events: auto;
-}
-
-.overlay--left {
-  left: 16px;
-  width: 260px;
-  justify-content: flex-start;
-}
-
-.overlay--right {
-  right: 16px;
-  align-items: flex-end;
-  justify-content: space-between;
 }
 
 /* ---------- tile inspector ---------- */
@@ -293,6 +318,10 @@ button:disabled {
 /* ---------- zoom control ---------- */
 
 .zoom {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -334,38 +363,10 @@ button:disabled {
 
 /* ---------- minimap ---------- */
 
-.minimap {
-  padding: 8px;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius);
-  backdrop-filter: blur(10px);
-}
-
-.minimap canvas {
-  display: block;
-  border-radius: 6px;
-  cursor: crosshair;
-}
-
-.minimap__label {
-  display: block;
-  margin-top: 6px;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-/* ---------- status bar ---------- */
-
 .statusbar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: flex;
-  gap: 24px;
+  align-items: center;
+  gap: 18px;
   padding: 8px 18px;
   background: rgba(9, 13, 20, 0.9);
   border-top: 1px solid var(--panel-border);
@@ -375,8 +376,35 @@ button:disabled {
 }
 
 .statusbar__cursor {
-  margin-left: auto;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--text);
+}
+
+.clock {
+  margin-left: auto;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding-left: 16px;
+  border-left: 1px solid var(--panel-border);
+  white-space: nowrap;
+}
+
+.clock strong {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.clock em {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .statusbar__zoom {
@@ -484,8 +512,11 @@ button:disabled {
 .layers {
   display: flex;
   gap: 3px;
+  min-width: 0;
   padding: 3px;
   margin-left: 24px;
+  overflow-x: auto;
+  scrollbar-width: none;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--panel-border);
   border-radius: 9px;
@@ -617,145 +648,104 @@ button:disabled {
 /* ------------------------------------------------------------------ seats */
 /* Taking a seat. Covers the board until you say who you are, because the
    calendar means nothing until the table knows who is at it. */
-.gate {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(4, 8, 14, 0.86);
-  backdrop-filter: blur(6px);
-  z-index: 40;
-}
-
-.gate__card {
-  width: min(560px, calc(100vw - 32px));
-  padding: 26px 28px 24px;
-  border-radius: 14px;
-  background: var(--panel, #131a24);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
-}
-
-.gate__card h2 {
-  margin: 0 0 6px;
-  font-size: 19px;
-}
-
-.gate__note {
-  margin: 0 0 18px;
-  font-size: 12.5px;
-  color: var(--muted);
-}
-
-.gate__name {
-  display: block;
-  margin-bottom: 16px;
-}
-
-.gate__name span {
-  display: block;
-  margin-bottom: 5px;
-  font-size: 11px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.gate__name input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 7px;
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-}
-
-.gate__seats {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.gate__seat {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.gate__seat:hover:not(:disabled) {
-  border-color: rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.09);
-}
-
-.gate__seat:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-}
-
-.gate__seat i {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  flex: none;
-}
-
-.gate__seatName {
-  flex: 1;
-}
-
-.gate__seat em {
-  font-style: normal;
-  font-size: 10.5px;
-  color: var(--muted);
-}
-
-.gate__error {
-  margin: 14px 0 0;
-  font-size: 12.5px;
-  color: #e88b7d;
-}
-
 /* --------------------------------------------------------------- war room */
 .war {
-  width: 232px;
   padding: 13px 14px 12px;
   border-radius: 12px;
   background: var(--panel, rgba(19, 26, 36, 0.92));
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--panel-border);
 }
 
-.war__date {
+.war__nation {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 2px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
-.war__date strong {
-  font-size: 14.5px;
+.war__crest {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
 
-.war__date span {
-  font-size: 10.5px;
-  letter-spacing: 0.05em;
+.war__nation h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.war__standing {
+  margin: 1px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.war__claim {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.war__claim label {
+  display: grid;
+  gap: 4px;
+}
+
+.war__claim label span {
+  font-size: 10px;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
-.war__standing {
-  margin: 0 0 11px;
+.war__claim input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.war__claim button {
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: #b8894a;
+  color: #17110a;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.war__claim button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.war__error {
+  margin: 8px 0 0;
   font-size: 11px;
+  color: #e88b7d;
+}
+
+.war__links {
+  margin: 10px 0 0;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.war__links a {
   color: var(--muted);
 }
 
@@ -797,6 +787,12 @@ button:disabled {
 
 .war__seatName {
   flex: 1;
+  color: inherit;
+  text-decoration: none;
+}
+
+.war__seatName:hover {
+  text-decoration: underline;
 }
 
 .war__seats em {
@@ -902,7 +898,6 @@ button:disabled {
 }
 
 .war__leave {
-  margin-top: 9px;
   padding: 0;
   border: 0;
   background: none;
@@ -1181,5 +1176,120 @@ button:disabled {
   max-width: 320px;
   font-size: 10.5px;
   line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------- what you may know */
+.output--unknown p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------- the index */
+/* Eight nations, eight pages. No globe here: the front door should open in a
+   tenth of a second, not in the second it takes to build a world. */
+.index {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 32px 20px;
+  overflow-y: auto;
+}
+
+.index__inner {
+  width: min(760px, 100%);
+}
+
+.index__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.index__head h1 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.index__head p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.index__date {
+  margin-left: auto;
+  text-align: right;
+}
+
+.index__date strong {
+  display: block;
+  font-size: 14px;
+}
+
+.index__date span {
+  font-size: 10px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.index__note,
+.index__foot {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.index__foot {
+  margin: 18px 0 0;
+}
+
+.index__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.index__card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.index__card:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.index__flag {
+  grid-row: span 3;
+  align-self: start;
+  width: 12px;
+  height: 12px;
+  margin-top: 3px;
+  border-radius: 3px;
+}
+
+.index__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.index__seat,
+.index__war {
+  font-size: 10.5px;
   color: var(--muted);
 }

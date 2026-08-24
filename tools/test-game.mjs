@@ -22,7 +22,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TILE_COUNT, grid, neighbours } from '../src/world/sphere.js';
 import { nearestTerritory, territoryFor } from '../src/world/territories.js';
-import { SEA } from '../src/world/nations.js';
 import { dateOf, dayOf, formatDate, formatDateShort } from '../src/game/calendar.js';
 import { EVENTS_1939, eventsOn, nextEventAfter } from '../src/game/events.js';
 import {
@@ -36,7 +35,8 @@ import { PLAYER_IDS } from '../src/game/players.js';
 import * as G from '../src/game/state.js';
 import { TERRITORIES_1939, territoryAt } from '../src/world/territories.js';
 import { countryFor } from '../src/world/countries.js';
-import { NATION_INDEX } from '../src/world/nations.js';
+import { NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
+import { canSeeForces } from '../src/world/intel.js';
 
 let checks = 0;
 let failures = 0;
@@ -354,6 +354,43 @@ section('who holds what');
   eq(country(11.86, -15.6), 'Portuguese Guinea', 'Bissau is Portuguese');
   eq(country(9.51, -13.71), 'French West Africa', 'and Conakry French');
   eq(country(8.48, -13.23), 'Sierra Leone', 'while Freetown is British');
+}
+
+// ------------------------------------------------------- what a seat may know
+section('what a seat may know');
+{
+  const sees = (viewer, owner) => canSeeForces(viewer, NATION_INDEX[owner]);
+
+  ok(sees('germany', 'germany'), 'a power sees its own garrisons');
+  ok(sees('germany', 'italy'), 'and the garrisons of its own side');
+  ok(sees('germany', 'japan'), 'across the world if need be');
+  ok(!sees('germany', 'uk'), 'and not the other side, however plainly it is standing there');
+  ok(!sees('germany', 'france'), 'nor France');
+  ok(!sees('germany', 'ussr'), 'nor the Soviet Union');
+  ok(sees('uk', 'france'), 'the Allies see each other');
+  ok(sees('uk', 'ussr'), 'including the Soviet Union, on paper an ally from 1941');
+  ok(!sees('uk', 'germany'), 'and not Germany');
+  ok(!sees('uk', 'japan'), 'nor Japan');
+
+  // The neutrals are nobody's secret: the Independent army is thirty armies
+  // that never fought as one, and Poland's divisions on 1 September are the
+  // reason the war started where it did.
+  ok(sees('germany', 'neutral'), 'everyone sees the neutrals');
+  ok(sees('uk', 'neutral'), 'from both sides');
+
+  ok(canSeeForces(null, NATION_INDEX.germany), 'nobody at the table hides nothing');
+  ok(!canSeeForces('germany', SEA), 'and the sea has no garrison to hide');
+  ok(canSeeForces('germany', NEUTRAL), 'NEUTRAL is a nation index, not a missing one');
+
+  // The rule has to be symmetric, or one side would be able to count an army
+  // that could not count it back.
+  let symmetric = true;
+  for (const a of PLAYER_IDS) {
+    for (const b of PLAYER_IDS) {
+      if (sees(a, b) !== sees(b, a)) symmetric = false;
+    }
+  }
+  ok(symmetric, 'and it reads the same from either side');
 }
 
 // ------------------------------------------------- every cell has a region

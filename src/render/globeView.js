@@ -2,6 +2,7 @@ import { formatGeo, grid } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
+import { canSeeForces } from '../world/intel.js';
 import { Globe } from './globe.js';
 import { GlobeCamera, MAX_DISTANCE, MIN_DISTANCE } from './globeCamera.js';
 import { drawCountryLabels } from './labels.js';
@@ -31,6 +32,9 @@ export class GlobeView {
 
     this.showCities = true;
     this.showLabels = true;
+    // The seat this board is being drawn for, set by the page. Null means
+    // nobody is sitting here and nothing is hidden.
+    this.viewer = handlers.viewer ?? null;
     this.pointers = new Map();
     this.dragging = false;
     this.moved = 0;
@@ -109,6 +113,11 @@ export class GlobeView {
   describe(index) {
     if (index < 0) return null;
     const cityIndex = this.world.cityAt ? this.world.cityAt[index] : -1;
+    // The garrison is the one thing on a cell that is somebody's secret. It is
+    // dropped here rather than hidden in the panel, so that there is no path by
+    // which a component can render a number this seat should not have.
+    const owner = this.world.ownership ? this.world.ownership.get(index) : null;
+    const known = owner === null || canSeeForces(this.viewer, owner);
     return {
       index,
       terrain: TERRAIN[this.world.biome[index]],
@@ -123,11 +132,14 @@ export class GlobeView {
           )
         : [],
       sites: this.world.sitesByTile?.get(index) ?? [],
-      forces: this.world.forces
-        ? UNITS.map((u, n) => ({ ...u, count: this.world.forces[n][index] })).filter(
-            (u) => u.count > 0,
-          )
-        : [],
+      forces:
+        this.world.forces && known
+          ? UNITS.map((u, n) => ({ ...u, count: this.world.forces[n][index] })).filter(
+              (u) => u.count > 0,
+            )
+          : [],
+      // Told apart from "nobody is there", which is a different fact.
+      forcesUnknown: !known,
       nation: this.world.ownership ? this.world.ownership.nationAt(index) : null,
       territory: this.world.territoryName?.[index] ?? null,
       country:
@@ -260,6 +272,14 @@ export class GlobeView {
     this.needsDraw = true;
   }
 
+  /** Whose seat is looking at the board. */
+  setViewer(viewer) {
+    if (this.viewer === viewer) return;
+    this.viewer = viewer;
+    this.globe.setViewer(viewer);
+    this.needsDraw = true;
+  }
+
   zoomBy(factor) {
     this.camera.zoomBy(factor);
     this.needsDraw = true;
@@ -289,7 +309,7 @@ export class GlobeView {
       lat: this.camera.lat,
       lon: this.camera.lon,
       distance: this.camera.distance,
-      pixelsPerCell: this.camera.pixelsPerCell(this.height ?? 800),
+      pixelsPerCell: this.camera.pixelsPerCell(this.width ?? 1200, this.height ?? 800),
       atMax: this.camera.distance <= MIN_DISTANCE + 1e-6,
       atMin: this.camera.distance >= MAX_DISTANCE - 1e-6,
     });

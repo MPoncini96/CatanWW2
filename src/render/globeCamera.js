@@ -14,6 +14,19 @@ const MAX_DISTANCE = 4.2; // the whole globe, with room around it
 const MAX_LAT = 89.5;
 const FOV = 42 * DEG;
 
+/**
+ * Half-extents of the view at unit depth, for a given width/height.
+ *
+ * The globe is round, so it has to fit the *shorter* side of the canvas. A
+ * fixed vertical field is right while the canvas is wider than it is tall, and
+ * wrong the moment it is not: the board is a panel in a page now, and a tall
+ * narrow one pushed half the planet out through the sides.
+ */
+function fieldOf(aspect) {
+  const t = Math.tan(FOV / 2);
+  return aspect >= 1 ? { x: t * aspect, y: t } : { x: t, y: t / aspect };
+}
+
 /** Radians of arc a cell spans, for turning zoom into pixels per cell. */
 function cellArc(sphere) {
   // 10n^2 + 2 cells over the whole sphere; a cell's radius in arc is roughly
@@ -66,10 +79,10 @@ export class GlobeCamera {
   }
 
   /** How many pixels a cell covers vertically at the centre of the view. */
-  pixelsPerCell(viewportHeight) {
+  pixelsPerCell(width, height) {
     // Half the viewport spans this much arc at the sub-viewer point.
-    const halfWorld = Math.tan(FOV / 2) * (this.distance - 1);
-    return (this.arc / halfWorld) * (viewportHeight / 2);
+    const halfWorld = fieldOf(width / height).y * (this.distance - 1);
+    return (this.arc / halfWorld) * (height / 2);
   }
 
   /**
@@ -79,6 +92,7 @@ export class GlobeCamera {
    * spin west by the longitude, then tilt down by the latitude.
    */
   matrices(mvp, rot, aspect) {
+    const field = fieldOf(aspect);
     const cl = Math.cos(-this.lon * DEG);
     const sl = Math.sin(-this.lon * DEG);
     const cp = Math.cos(this.lat * DEG);
@@ -90,7 +104,6 @@ export class GlobeCamera {
     r[1] = sp * sl; r[4] = cp;   r[7] = -sp * cl;
     r[2] = -cp * sl; r[5] = sp;  r[8] = cp * cl;
 
-    const f = 1 / Math.tan(FOV / 2);
     // Fit the depth range to what is actually visible: the nearest ground is
     // directly below at distance - 1, the furthest is the horizon at
     // sqrt(distance^2 - 1). Pinning the near plane near zero instead costs all
@@ -102,8 +115,8 @@ export class GlobeCamera {
 
     // proj * translate(0, 0, -distance) * rot, written out rather than
     // multiplied: it is three known matrices and this runs every frame.
-    const px = f / aspect;
-    const py = f;
+    const px = 1 / field.x;
+    const py = 1 / field.y;
     const pz = (far + near) * nf;
     const pw = 2 * far * near * nf;
 
@@ -131,11 +144,11 @@ export class GlobeCamera {
 
   /** A ray from the eye through a point on the canvas, in eye space. */
   rayThrough(screenX, screenY, width, height) {
-    const t = Math.tan(FOV / 2);
+    const field = fieldOf(width / height);
     const nx = (2 * screenX) / width - 1;
     const ny = 1 - (2 * screenY) / height;
-    const x = nx * t * (width / height);
-    const y = ny * t;
+    const x = nx * field.x;
+    const y = ny * field.y;
     const len = Math.hypot(x, y, 1);
     return [x / len, y / len, -1 / len];
   }
@@ -197,9 +210,9 @@ export class GlobeCamera {
 
     out.visible = ez > 1 / this.distance;
     const depth = this.distance - ez;
-    const t = Math.tan(FOV / 2);
-    out.x = ((ex / (depth * t * (width / height))) * 0.5 + 0.5) * width;
-    out.y = (0.5 - (ey / (depth * t)) * 0.5) * height;
+    const field = fieldOf(width / height);
+    out.x = ((ex / (depth * field.x)) * 0.5 + 0.5) * width;
+    out.y = (0.5 - (ey / (depth * field.y)) * 0.5) * height;
     return out;
   }
 }

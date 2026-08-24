@@ -163,6 +163,7 @@ export class Globe {
     this.world = world;
     this.sphere = world.sphere ?? grid();
     this.layer = null;
+    this.viewer = null;
     this.showGrid = true;
 
     this.surfaceProgram = program(gl, VERT, FRAG);
@@ -229,6 +230,12 @@ export class Globe {
     return buffer;
   }
 
+  /** Whose eyes the board is drawn for. Changes what the Forces layer shows. */
+  setViewer(viewer) {
+    this.viewer = viewer;
+    this.refresh();
+  }
+
   /** Swap which layer is on show. One texture upload, no geometry touched. */
   setLayer(layer) {
     this.layer = layer;
@@ -237,7 +244,7 @@ export class Globe {
 
   /** Re-read the world's colours — after territory changes hands, say. */
   refresh() {
-    colorsFor(this.world, this.layer, this.colorBytes);
+    colorsFor(this.world, this.layer, this.colorBytes, this.viewer);
     const { gl } = this;
     gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, COLOR_TEX_W, COLOR_TEX_H, gl.RGBA,

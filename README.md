@@ -24,9 +24,32 @@ eight powers or to nobody, and the armies of 1939 standing on it.
 
 One game, eight seats, and a calendar that starts on 1 September 1939.
 
-You pick a nation when you arrive. There are no passwords yet — you say who you
-are and the table believes you — but a seat already held cannot be taken, so
-nobody becomes Germany by accident. Logging out gives the seat back.
+**A nation is a page.** `/germany` is Germany's board, `/uk` is Britain's, and
+so on through `/france`, `/usa`, `/ussr`, `/china`, `/japan` and `/italy`; the
+root is an index of all eight. Which nation you are is the address you are at
+rather than a modal you dismissed, so a player can be sent a link, keep the tab
+open, and reload without saying who they are again. There are no passwords yet —
+you say who you are and the table believes you — but a seat already held cannot
+be taken, so nobody becomes Germany by accident.
+
+**Each page shows that nation's war, and only what that nation may know.** The
+garrison on a hex is visible if the ground is yours, your side's, or a neutral's;
+the other side's is *Not known*, and on the Forces layer it is drawn as bare
+ground — darker than empty land, because not knowing is a different fact from
+knowing there is nobody there. The totals under the legend count only what you
+can see, since printing the world's total would hand back in one line exactly
+what the fog is for.
+
+Terrain, population, cities and output stay visible to everyone. Those were in
+every almanac in 1939, and a game where you cannot see that Germany has no oil is
+not modelling the war, it is modelling ignorance of it.
+
+One caveat, stated plainly: this is a rule the interface keeps, not a secret the
+server keeps. The world is deterministic and every browser builds all of it, so
+the numbers are in the client whether it draws them or not — and with no
+passwords, anyone can open another nation's page. Real secrecy means generating
+forces on the server and sending each seat only its own, which is a change to
+make when orders arrive and there is something worth hiding.
 
 **The calendar is the clock.** Nothing happens in real time. The day turns when
 every player *in the war* presses *End Current Day*, and not before; a day can
@@ -93,7 +116,7 @@ into.
 ### What is not the game
 
 `src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
-it under plain Node — 165 checks: 6,800 days round-tripped through the civil
+it under plain Node — 181 checks: 6,800 days round-tripped through the civil
 calendar, every belligerence rule checked on the day either side of the event
 that grants it, the turn engine driven through a game where one player is in the
 war and the other is watching, and a hundred places on the map asked who holds
@@ -117,6 +140,19 @@ One browser is one seat: seats are remembered in `localStorage`, which is shared
 between tabs of the same profile, so two players on one machine need two
 profiles.
 
+## The page
+
+The board takes 80% of the width and sits in the top right. Down the left is the
+rail — the nation, its seat, the day's one button, the ledger, and whatever cell
+was last clicked — and along the bottom of the board a single line: the cursor's
+reading on the left, and **the date in the bottom right corner**, which is the
+one number the whole table shares.
+
+The rail is 20% of the width but never narrower than 240px: below a 1200px
+window the board gives way rather than the writing. The globe watches its own
+box and fits itself to the shorter side of it, so the split is a grid rule and
+nothing else needs telling.
+
 ## Controls
 
 | Input | Action |
@@ -125,7 +161,6 @@ profiles.
 | Scroll / pinch | Zoom in and out |
 | Arrow keys | Turn · `+` / `-` zoom · `0` reset |
 | Click a cell | Select and inspect it · click empty space to clear |
-| Click the minimap | Jump to that part of the world |
 | Names checkbox | Show or hide country names |
 | Cities checkbox | Show or hide the settlement layer |
 | Layer buttons | Shade the map by nation, by army, or by what the land produced |
@@ -775,7 +810,9 @@ src/
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
            labels.js  cities.js                   — names and dots, in 2D
-  ui/      App.jsx  Minimap.jsx                   — React HUD
+  ui/      App.jsx  routes.jsx  NationIndex.jsx   — the pages
+           WarRoom.jsx  WarLedger.jsx  EventCard.jsx
+           intel.js (in world/)                  — what a seat may know
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
 

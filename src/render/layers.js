@@ -2,6 +2,7 @@ import { TILE_COUNT } from '../world/sphere.js';
 import { PALETTE_RGB, SHADES, TERRAIN, rgbOf } from '../world/terrain.js';
 import { NATIONS, NEUTRAL, SEA } from '../world/nations.js';
 import { RESOURCES } from '../world/resources.js';
+import { canSeeForces } from '../world/intel.js';
 
 // One colour per cell, as bytes.
 //
@@ -14,6 +15,8 @@ import { RESOURCES } from '../world/resources.js';
 /** Sea drawn under the resource overlays: dark, so the output reads first. */
 const BACKDROP = [10, 17, 26];
 const UNCLAIMED = [42, 48, 58];
+/** Ground whose garrison this seat is not allowed to know about. */
+const UNKNOWN = [30, 35, 44];
 
 function write(out, i, rgb, scale = 1) {
   out[i * 4] = rgb[0] * scale;
@@ -76,8 +79,12 @@ export function politicalColors(world, out) {
  * other overlays use. Armies sit only on land, so the water is not competing
  * with them for attention, and leaving it as it is keeps the coastlines — which
  * is where the fronts of 1939 mostly ran.
+ *
+ * What the seat may not see is drawn as ground and nothing else: darker than
+ * empty land, so that not knowing looks different from knowing there is nobody
+ * there. The enemy's coastline is still a coastline.
  */
-export function forceColors(world, out) {
+export function forceColors(world, out, viewer = null) {
   const owner = world.ownership.owner;
   const strength = world.forceStrength;
   const logMax = Math.log1p(world.maxForceStrength || 1);
@@ -87,6 +94,10 @@ export function forceColors(world, out) {
     const value = strength ? strength[i] : 0;
     if (nation === SEA) {
       write(out, i, PALETTE_RGB[world.biome[i]][world.shade[i]]);
+      continue;
+    }
+    if (!canSeeForces(viewer, nation)) {
+      write(out, i, UNKNOWN);
       continue;
     }
     if (value <= 0) {
@@ -134,42 +145,17 @@ export function resourceColors(world, resourceId, out) {
   return out;
 }
 
-/** Fill `out` for whichever layer is on show. */
-export function colorsFor(world, layer, out) {
+/**
+ * Fill `out` for whichever layer is on show.
+ *
+ * `viewer` is the seat looking at it. Only the Forces layer cares: who holds
+ * what is public, how much of it is under arms is not.
+ */
+export function colorsFor(world, layer, out, viewer = null) {
   if (layer === 'nations') return politicalColors(world, out);
-  if (layer === 'forces') return forceColors(world, out);
+  if (layer === 'forces') return forceColors(world, out, viewer);
   if (layer) return resourceColors(world, layer, out);
   return terrainColors(world, out);
 }
 
 export { SHADES };
-
-/**
- * An equirectangular thumbnail of the whole world, for the minimap.
- *
- * Built by splatting each cell onto the image rather than asking which cell
- * covers each pixel: there are more cells than pixels, so every pixel is
- * covered, and it avoids a hundred thousand nearest-cell searches.
- */
-export function buildThumbnail(world, width, height) {
-  const sphere = world.sphere;
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  const image = ctx.createImageData(width, height);
-  const colors = new Uint8Array(TILE_COUNT * 4);
-  terrainColors(world, colors);
-
-  for (let i = 0; i < TILE_COUNT; i += 1) {
-    const x = Math.min(width - 1, Math.floor(((sphere.lon[i] + 180) / 360) * width));
-    const y = Math.min(height - 1, Math.floor(((90 - sphere.lat[i]) / 180) * height));
-    const p = (y * width + x) * 4;
-    image.data[p] = colors[i * 4];
-    image.data[p + 1] = colors[i * 4 + 1];
-    image.data[p + 2] = colors[i * 4 + 2];
-    image.data[p + 3] = 255;
-  }
-  ctx.putImageData(image, 0, 0);
-  return canvas;
-}

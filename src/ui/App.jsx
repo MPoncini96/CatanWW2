@@ -5,18 +5,22 @@ import { EARTH_RADIUS_KM, TILE_COUNT } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { formatPopulation } from '../world/population.js';
 import { RESOURCES, formatAmount } from '../world/resources.js';
-import { NATIONS, NEUTRAL } from '../world/nations.js';
+import { NATIONS, NATION_INDEX, NEUTRAL } from '../world/nations.js';
 import { UNITS, formatUnits } from '../world/forces.js';
-import { Minimap } from './Minimap.jsx';
-import { SeatPicker } from './SeatPicker.jsx';
+import { canSeeForces } from '../world/intel.js';
+import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
 import { WarLedger } from './WarLedger.jsx';
 import { EventCard } from './EventCard.jsx';
+import { NationIndex } from './NationIndex.jsx';
+import { Link, powerFromPath, useRoute } from './routes.jsx';
 import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
 
 // Every cell is the same size now, so there is a single honest number for it.
 const KM2_PER_CELL = Math.round((4 * Math.PI * EARTH_RADIUS_KM ** 2) / TILE_COUNT);
 const KM_PER_CELL = Math.round(Math.sqrt(KM2_PER_CELL));
+
+const BY_ID = Object.fromEntries(PLAYERS.map((p) => [p.id, p]));
 
 /** The hovered tile's output of the resource currently on show. */
 function overlayValue(tile, overlay) {
@@ -101,17 +105,26 @@ function TileInspector({ tile }) {
         {city && city.merged.length > 1 && (
           <p className="panel__note">with {city.merged.slice(1).join(', ')}</p>
         )}
-        {tile.forces.length > 0 && (
-          <div className="output">
+        {/* Not knowing is a different fact from there being nobody there, and
+            the panel says which of the two this is. */}
+        {tile.forcesUnknown ? (
+          <div className="output output--unknown">
             <h3>Garrison, 1939</h3>
-            {tile.forces.map((u) => (
-              <div className="output__row" key={u.id}>
-                <span className="output__dot" style={{ background: u.color }} />
-                <span className="output__name">{u.name}</span>
-                <strong>{formatUnits(u.count)}</strong>
-              </div>
-            ))}
+            <p>Not known — this ground is held by the other side.</p>
           </div>
+        ) : (
+          tile.forces.length > 0 && (
+            <div className="output">
+              <h3>Garrison, 1939</h3>
+              {tile.forces.map((u) => (
+                <div className="output__row" key={u.id}>
+                  <span className="output__dot" style={{ background: u.color }} />
+                  <span className="output__name">{u.name}</span>
+                  <strong>{formatUnits(u.count)}</strong>
+                </div>
+              ))}
+            </div>
+          )
         )}
         {tile.resources.length > 0 && (
           <div className="output">
@@ -134,6 +147,9 @@ function TileInspector({ tile }) {
 }
 
 export default function App() {
+  const path = useRoute();
+  const power = powerFromPath(path);
+
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
   const viewRef = useRef(null);
@@ -146,7 +162,7 @@ export default function App() {
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
-  const [overlay, setOverlay] = useState(null);
+  const [overlay, setOverlay] = useState('nations');
   const [ownershipVersion, setOwnershipVersion] = useState(0);
 
   // The one game, and this browser's seat at it.
@@ -183,12 +199,15 @@ export default function App() {
     if (game.forToken === session.token && game.you === null) setSession(null);
   }, [game, session]);
 
-  const takeSeat = useCallback(async (power, name) => {
+  const takeSeat = useCallback(async (which, name) => {
     setSeatError(null);
+    setBusy(true);
     try {
-      setSession(await claimSeat(power, name));
+      setSession(await claimSeat(which, name));
     } catch (err) {
       setSeatError(err.message);
+    } finally {
+      setBusy(false);
     }
   }, []);
 
@@ -202,6 +221,7 @@ export default function App() {
   const declareReady = useCallback(
     async (ready) => {
       setBusy(true);
+      setSeatError(null);
       try {
         setGame({ ...(await setReady(session.token, ready)), forToken: session.token });
       } catch (err) {
@@ -229,11 +249,14 @@ export default function App() {
   // Only legend the terrains this map actually contains.
   const present = useMemo(() => {
     if (!world) return [];
-    const seen = new Set(world.biome);
-    return TERRAIN.filter((_, i) => seen.has(i));
+    const found = new Set(world.biome);
+    return TERRAIN.filter((_, i) => found.has(i));
   }, [world]);
 
+  // The world is only built on a nation's page. The index does not need it, and
+  // building it there would spend a second of work to show eight links.
   useEffect(() => {
+    if (!power || world) return undefined;
     let cancelled = false;
     loadEarth().then(
       (loaded) => !cancelled && setWorld(loaded),
@@ -242,14 +265,15 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [power, world]);
 
   useEffect(() => {
-    if (!world) return undefined;
+    if (!world || !power) return undefined;
     const view = new GlobeView(canvasRef.current, overlayRef.current, world, {
       onHover: setHover,
       onSelect: setSelected,
       onCamera: setCam,
+      viewer: power,
     });
     viewRef.current = view;
     if (import.meta.env.DEV) window.__globe = view; // handy for perf probing
@@ -257,7 +281,15 @@ export default function App() {
       view.destroy();
       viewRef.current = null;
     };
-  }, [world]);
+  }, [world, power]);
+
+  // Whose board this is. Changing it repaints the Forces layer, because what a
+  // seat may see moves with the seat.
+  useEffect(() => {
+    viewRef.current?.setViewer(power);
+    setSelected(null);
+    setHover(null);
+  }, [power, world]);
 
   useEffect(() => {
     viewRef.current?.setShowCities(showCities);
@@ -291,13 +323,26 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, ownershipVersion]);
 
-  // The minimap is an equirectangular sheet; clicking it names a latitude and
-  // longitude to turn the globe to.
-  const jump = useCallback((fx, fy) => {
-    viewRef.current?.centerOn(90 - fy * 180, fx * 360 - 180);
-  }, []);
+  // Force totals for the legend, counting only what this seat may see. The
+  // world's own totals are everybody's, and printing them under a fogged map
+  // would hand back in one line exactly what the fog is for.
+  const forceTotals = useMemo(() => {
+    if (!world?.forcesByNation) return null;
+    const totals = UNITS.map(() => 0);
+    for (const [id, row] of Object.entries(world.forcesByNation)) {
+      if (!canSeeForces(power, NATION_INDEX[id])) continue;
+      row.deployed.forEach((count, u) => {
+        totals[u] += count;
+      });
+    }
+    return totals;
+  }, [world, power]);
 
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
+  const player = power ? BY_ID[power] : null;
+
+  // The index: eight nations and nothing else to decide.
+  if (!power) return <NationIndex state={game} />;
 
   if (error) {
     return (
@@ -305,6 +350,9 @@ export default function App() {
         <div className="panel panel--empty">
           <h2>Could not load the world</h2>
           <p>{error}</p>
+          <p>
+            <Link href="/">Back to all nations</Link>
+          </p>
         </div>
       </div>
     );
@@ -313,13 +361,13 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <div className="brand">
-          <span className="brand__mark" aria-hidden="true" />
+        <Link className="brand" href="/">
+          <span className="brand__mark" style={{ background: player.color }} aria-hidden="true" />
           <div>
-            <h1>Terra</h1>
-            <p>Earth on a hex globe</p>
+            <h1>{player.name}</h1>
+            <p>Terra · Earth on a hex globe</p>
           </div>
-        </div>
+        </Link>
         <div className="layers" role="group" aria-label="Map layer">
           <button
             type="button"
@@ -357,19 +405,6 @@ export default function App() {
           ))}
         </div>
 
-        <div className="topbar__stats">
-          <span>
-            <strong>{TILE_COUNT.toLocaleString()}</strong> cells
-          </span>
-          <span>
-              <strong>{KM2_PER_CELL.toLocaleString()}</strong> km² each
-          </span>
-          <span>
-            <strong>{world ? formatPopulation(world.totalPopulation) : '—'}</strong> people ·{' '}
-            <strong>{world ? world.cities.length : '—'}</strong> cities
-          </span>
-        </div>
-
         <div className="topbar__actions">
           <label className="toggle">
             <input
@@ -390,24 +425,34 @@ export default function App() {
         </div>
       </header>
 
-      <main className="stage">
-        <canvas ref={canvasRef} className="map" tabIndex={0} />
-        <canvas ref={overlayRef} className="map map--overlay" />
-        {!world && <div className="loading">Loading Earth…</div>}
-
-        <div className="overlay overlay--left">
+      <div className="layout">
+        <aside className="rail">
+          <WarRoom
+            power={power}
+            state={game}
+            onReady={declareReady}
+            onClaim={takeSeat}
+            onLeave={logOut}
+            onLedger={() => setLedgerOpen(true)}
+            busy={busy}
+            error={seatError}
+          />
           <TileInspector tile={selected} />
-          {overlay === 'forces' && world && (
+          {overlay === 'forces' && forceTotals && (
             <div className="legend legend--static">
               <div className="legend__items">
                 {UNITS.map((u, i) => (
                   <span key={u.id} className="legend__item">
                     <i style={{ background: u.color }} />
                     {u.name}
-                    <em>{formatUnits(world.forceTotals[i])}</em>
+                    <em>{formatUnits(forceTotals[i])}</em>
                   </span>
                 ))}
               </div>
+              <p className="legend__note">
+                {player.name}, its side, and the neutrals. What the other side has is not on this
+                map: the dark ground is the ground you cannot count.
+              </p>
             </div>
           )}
           {overlay === 'nations' && tally.length > 0 && (
@@ -429,7 +474,11 @@ export default function App() {
               </p>
             </div>
           )}
-          <details className="legend" open={legendOpen} onToggle={(e) => setLegendOpen(e.currentTarget.open)}>
+          <details
+            className="legend"
+            open={legendOpen}
+            onToggle={(e) => setLegendOpen(e.currentTarget.open)}
+          >
             <summary>Terrain · {present.length}</summary>
             <div className="legend__items">
               {present.map((t) => (
@@ -440,63 +489,78 @@ export default function App() {
               ))}
             </div>
           </details>
-        </div>
+          <p className="rail__stats">
+            {TILE_COUNT.toLocaleString()} cells · {KM2_PER_CELL.toLocaleString()} km² each ·{' '}
+            {world ? formatPopulation(world.totalPopulation) : '—'} people
+          </p>
+        </aside>
 
-        <div className="overlay overlay--right">
-          <WarRoom
-            state={game}
-            onReady={declareReady}
-            onLeave={logOut}
-            onLedger={() => setLedgerOpen(true)}
-            busy={busy}
-          />
-          <div className="zoom">
-            <button type="button" onClick={() => viewRef.current?.zoomBy(1.35)} disabled={cam?.atMax}>
-              +
-            </button>
-            <div className="zoom__bar">
-              <div className="zoom__fill" style={{ height: pct(1 - (cam?.altitude ?? 1)) }} />
+        <div className="field">
+          <main className="stage">
+            <canvas ref={canvasRef} className="map" tabIndex={0} />
+            <canvas ref={overlayRef} className="map map--overlay" />
+            {!world && <div className="loading">Loading Earth…</div>}
+
+            <div className="zoom">
+              <button
+                type="button"
+                onClick={() => viewRef.current?.zoomBy(1.35)}
+                disabled={cam?.atMax}
+              >
+                +
+              </button>
+              <div className="zoom__bar">
+                <div className="zoom__fill" style={{ height: pct(1 - (cam?.altitude ?? 1)) }} />
+              </div>
+              <button
+                type="button"
+                onClick={() => viewRef.current?.zoomBy(1 / 1.35)}
+                disabled={cam?.atMin}
+              >
+                −
+              </button>
+              <button
+                type="button"
+                className="zoom__reset"
+                onClick={() => viewRef.current?.reset()}
+              >
+                ⤢
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => viewRef.current?.zoomBy(1 / 1.35)}
-              disabled={cam?.atMin}
-            >
-              −
-            </button>
-            <button type="button" className="zoom__reset" onClick={() => viewRef.current?.reset()}>
-              ⤢
-            </button>
-          </div>
-          {world && <Minimap world={world} viewport={cam} onJump={jump} />}
-        </div>
+          </main>
 
-        <footer className="statusbar">
-          <span className="statusbar__hint">Drag to turn · scroll to zoom · click a cell</span>
-          <span className="statusbar__cursor">
-            {hover
-              ? `${hover.city ? `${hover.city.name} · ` : ''}${hover.terrain.name} — ${hover.label}` +
-                // Region first, then who holds it, and the nation alone only
-                // where the two are the same name — Germany in Germany. A cell
-                // that reads as a bare nation anywhere else is a cell standing
-                // in no region, which is a bug and should look like one.
-                (hover.country ? ` · ${hover.country.name}` : '') +
-                (hover.nation && hover.nation.name !== hover.country?.name
-                  ? ` · ${hover.nation.name}`
-                  : '') +
-                (hover.population ? ` · ${formatPopulation(hover.population)}` : '') +
-                (overlay === 'forces' && hover.forces.length
-                  ? ` · ${hover.forces.map((u) => `${u.short} ${formatUnits(u.count)}`).join(' ')}`
-                  : '') +
-                (overlayValue(hover, overlay) ?? '')
-              : `Earth, 1939 · ${KM_PER_CELL} km across every cell, pole to equator`}
-          </span>
-          <span className="statusbar__zoom">{zoomLabel}</span>
-        </footer>
-      </main>
+          <footer className="statusbar">
+            <span className="statusbar__cursor">
+              {hover
+                ? `${hover.city ? `${hover.city.name} · ` : ''}${hover.terrain.name} — ${hover.label}` +
+                  // Region first, then who holds it, and the nation alone only
+                  // where the two are the same name — Germany in Germany. A cell
+                  // that reads as a bare nation anywhere else is a cell standing
+                  // in no region, which is a bug and should look like one.
+                  (hover.country ? ` · ${hover.country.name}` : '') +
+                  (hover.nation && hover.nation.name !== hover.country?.name
+                    ? ` · ${hover.nation.name}`
+                    : '') +
+                  (hover.population ? ` · ${formatPopulation(hover.population)}` : '') +
+                  (overlay === 'forces' && hover.forces.length
+                    ? ` · ${hover.forces.map((u) => `${u.short} ${formatUnits(u.count)}`).join(' ')}`
+                    : '') +
+                  (overlay === 'forces' && hover.forcesUnknown ? ' · garrison not known' : '') +
+                  (overlayValue(hover, overlay) ?? '')
+                : `Drag to turn · scroll to zoom · click a cell · ${KM_PER_CELL} km across every cell`}
+            </span>
+            <span className="statusbar__zoom">{zoomLabel}</span>
+            {/* The date sits in the bottom right corner of every nation's page:
+                it is the one number the whole table shares. */}
+            <span className="clock">
+              <strong>{game ? game.date : '1 September 1939'}</strong>
+              <em>day {game ? game.day : 0}</em>
+            </span>
+          </footer>
+        </div>
+      </div>
 
       {ledgerOpen && <WarLedger state={game} onClose={() => setLedgerOpen(false)} />}
-      {game && !session && <SeatPicker seats={game.seats} onClaim={takeSeat} error={seatError} />}
       {session && pending.length > 0 && (
         <EventCard event={pending[0]} onDismiss={dismiss} remaining={pending.length} />
       )}
