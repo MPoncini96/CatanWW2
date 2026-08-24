@@ -476,7 +476,14 @@ export default function App() {
           <span className="statusbar__cursor">
             {hover
               ? `${hover.city ? `${hover.city.name} · ` : ''}${hover.terrain.name} — ${hover.label}` +
-                (hover.nation ? ` · ${hover.nation.name}` : '') +
+                // Region first, then who holds it, and the nation alone only
+                // where the two are the same name — Germany in Germany. A cell
+                // that reads as a bare nation anywhere else is a cell standing
+                // in no region, which is a bug and should look like one.
+                (hover.country ? ` · ${hover.country.name}` : '') +
+                (hover.nation && hover.nation.name !== hover.country?.name
+                  ? ` · ${hover.nation.name}`
+                  : '') +
                 (hover.population ? ` · ${formatPopulation(hover.population)}` : '') +
                 (overlay === 'forces' && hover.forces.length
                   ? ` · ${hover.forces.map((u) => `${u.short} ${formatUnits(u.count)}`).join(' ')}`

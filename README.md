@@ -93,12 +93,19 @@ into.
 ### What is not the game
 
 `src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
-it under plain Node — 128 checks: 6,800 days round-tripped through the civil
+it under plain Node — 165 checks: 6,800 days round-tripped through the civil
 calendar, every belligerence rule checked on the day either side of the event
 that grants it, the turn engine driven through a game where one player is in the
-war and the other is watching, and eighty-odd places on the map asked who holds
-them. The territory table is pure too — a box list and a point test — so it is
-checked in the same run, without the baked Earth data.
+war and the other is watching, and a hundred places on the map asked who holds
+them.
+
+The last section is different in kind: it sweeps **all 114,492 cells** of the
+real board and fails if any land cell resolves to no region, or if any cell is
+cut off from its own nation without being one of the nine enclaves that are
+named in the test — Northern Ireland, the Canal Zone, Kuwait, the Gambia, Hong
+Kong, Goa and Sikkim. That is not a check you can write by thinking of places to
+try, which is the point: a gap between two rectangles is invisible until
+something walks every cell and asks each one where it is standing.
 
 The server around it holds exactly one game and writes it to a single JSON file.
 **It never sends the map.** The world is deterministic, so client and server
@@ -157,7 +164,7 @@ Half the land hexes sat poleward of 60° holding a fifth of the actual land, so
 Siberia and the Canadian Arctic were worth several times what they should have
 been — and population, resources and garrisons all inherited the error. The
 correction is visible in the tallies: the Soviet Union went from 5,854 land
-hexes to 4,589, Britain from 6,946 to 7,494, and the world's land fraction from
+hexes to 4,580, Britain from 6,946 to 7,611, and the world's land fraction from
 33.6% to 28.7% against the real 29.2%.
 
 On the sphere the spread is **1.18×** rather than 23×: hexagons run 4,133 to
@@ -381,7 +388,41 @@ variant, which keeps an unusually long one — Poland, the Baltic States (all
 three of them, independent until June 1940), Norway, Sweden, Switzerland,
 Spain-Portugal, Eire, Turkey, Persia, Afghanistan, Saudi Arabia, the East
 Indies, Angola and Mozambique, and the whole of Latin America outside the
-American possessions.
+American possessions. Not the Sahara, though the variant lists it: it was
+French, and drawing it grey was a gap between two boxes rather than a decision.
+
+**Every acre of land stands in a named region**, which was not true until
+recently, and could not be made true by fixing the places anyone happened to
+notice.
+
+The territory table is an ordered list of rectangles, and rectangles fail in two
+ways. One stops short and leaves a hole: South West Africa fell between Angola
+and South Africa, Bechuanaland between Rhodesia and the Transvaal, the Ivory
+Coast below French West Africa's southern edge, Niger between Nigeria and
+Algeria, the Hejaz west of Saudi Arabia's, the horn of Somalia east of Italian
+East Africa's, a strip of the Congo between Kasai and Tanganyika, and the
+Galapagos and Kerguelen outside every box on the board. The other reaches too
+far: Syria's box took Adana, Iraq's took the Syrian Jazira, Palestine's took the
+Hauran, Thailand's took a slice of Laos, and Johore's crossed the Strait of
+Malacca into Sumatra.
+
+The first kind is the dangerous one, because a cell that matched no box kept a
+default owner and no region at all — and a nation without a region reads on the
+map exactly like any other nation. That is how a one-cell line of **Soviet
+Union** came to run along Mongolia's southern border, three thousand kilometres
+from the nearest Russian: Mongolia's boxes stopped at 43°N, China's began at
+42.5°N, and every cell in the half-degree between them fell through the whole
+table into the Soviet box at the bottom of it.
+
+So the state is gone rather than the symptom. `territoryFor` is what assigns
+ground now, and where no box matches it takes the nearest one by centroid
+distance instead of a default nation. It should never fire, and the sweep in
+`npm test` fails if it does — a seam wants closing in the table, not papering
+over in the fallback.
+
+Antarctica is a region too, now: Independent, because seven governments claimed
+it and none of them had a soul living there, but *named*, which its 3,183 cells
+were not.
 
 **Neutral is not the same as ownerless.** A neutral power's colonies belong to
 it and are drawn in its colours: the Belgian Congo and Ruanda-Urundi are
@@ -417,14 +458,14 @@ the war actually turned on:
 | | Land tiles | People | Steel | Oil |
 | --- | --- | --- | --- | --- |
 | United States | 2,183 | 120M | 48.0 Mt | 154.0 Mt |
-| United Kingdom | 7,494 | 723M | 16.2 Mt | 3.1 Mt |
-| Soviet Union | 4,589 | 216M | 18.6 Mt | 29.0 Mt |
+| United Kingdom | 7,611 | 725M | 16.2 Mt | 3.1 Mt |
+| Soviet Union | 4,580 | 216M | 18.6 Mt | 29.0 Mt |
 | Germany | 130 | 87M | 18.8 Mt | 0.7 Mt |
 | Japan | 705 | 276M | 6.7 Mt | 0.3 Mt |
-| France | 2,285 | 151M | 13.7 Mt | — |
-| Italy | 855 | 60M | 1.9 Mt | 0.1 Mt |
-| China | 1,098 | 83M | — | — |
-| Independent | 13,559 | 585M | 8.3 Mt | 77.1 Mt |
+| France | 2,457 | 157M | 13.7 Mt | — |
+| Italy | 879 | 60M | 1.9 Mt | 0.1 Mt |
+| China | 1,086 | 83M | — | — |
+| Independent | 13,267 | 576M | 8.3 Mt | 77.1 Mt |
 
 Germany with the second-largest steel industry on earth and almost no oil, and
 Japan with a tenth of America's steel and none of its own oil, are not artefacts
@@ -438,7 +479,7 @@ Australia fly British gold, Indochina French violet. Everyone else gets a colour
 of their own rather than sharing one anonymous grey, because a map where Hungary
 and Romania are the same shade is not much of a map.
 
-**122 countries** hold land. A country is a group of territory boxes, since a
+**127 countries** hold land. A country is a group of territory boxes, since a
 country's shape rarely fits one rectangle: Yugoslavia takes three, Mexico three,
 mainland Italy four, the Belgian Congo twelve — the basin is a fan, and the
 river is its border on the west. Neutral colours are hand-assigned rather than
@@ -454,7 +495,8 @@ in open ground rather than across a coastline. Country names are laid down
 first and city names give way to them, so a capital is never printed across the
 middle of its own country's name.
 
-Twelve places are smaller than a single hex and so hold no ground at all —
+Kerguelen and the Galapagos hold one cell each. Twelve more places are smaller
+than a single hex and so hold no ground at all —
 Malta, Gibraltar, Bermuda, Guam, Wake, the Dodecanese, the South Seas Mandate,
 the Solomons, the Bahamas, Macau, Cape Verde and Curaçao. They are in the
 territory table and will appear if the grid is ever refined. Hatay, Goa and the

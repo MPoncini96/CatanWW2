@@ -4,13 +4,25 @@
  *   npm test
  *
  * `src/game/` is pure — no browser, no network, no clock, no file — which is
- * the whole reason it can be checked like this. The territory table is pure
- * too: a box list and a point test, with no need for the baked Earth data.
+ * the whole reason it can be checked like this. So is the territory table: a
+ * box list and a point test.
+ *
+ * The last section is different in kind. It sweeps all 114,492 cells of the
+ * real board — the only thing here that reads `earth.bin` — because the class
+ * of bug it looks for cannot be found by asking about places you already
+ * suspect. A gap between two rectangles is invisible until something walks
+ * every cell and asks each one which region it is standing in.
  *
  * Nothing here draws anything. What is checked is the part that decides what a
  * player may do: what day it is, who may fight whom, who takes a turn, and who
  * holds the ground.
  */
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { TILE_COUNT, grid, neighbours } from '../src/world/sphere.js';
+import { nearestTerritory, territoryFor } from '../src/world/territories.js';
+import { SEA } from '../src/world/nations.js';
 import { dateOf, dayOf, formatDate, formatDateShort } from '../src/game/calendar.js';
 import { EVENTS_1939, eventsOn, nextEventAfter } from '../src/game/events.js';
 import {
@@ -22,8 +34,9 @@ import {
 } from '../src/game/belligerence.js';
 import { PLAYER_IDS } from '../src/game/players.js';
 import * as G from '../src/game/state.js';
-import { territoryAt } from '../src/world/territories.js';
+import { TERRITORIES_1939, territoryAt } from '../src/world/territories.js';
 import { countryFor } from '../src/world/countries.js';
+import { NATION_INDEX } from '../src/world/nations.js';
 
 let checks = 0;
 let failures = 0;
@@ -251,6 +264,7 @@ section('who holds what');
   // Sovereignty, as of 1 September 1939.
   eq(country(-4.32, 15.31), 'Belgian Congo', 'Leopoldville is Belgian, not French');
   eq(country(-11.66, 27.48), 'Belgian Congo', 'and so is the Katanga copper');
+  eq(country(-5.39, 27.0), 'Belgian Congo', 'and Kongolo between them — the basin has no holes in it');
   eq(country(-1.95, 30.06), 'Ruanda-Urundi', 'Kigali is a Belgian mandate');
   eq(owner(-4.32, 15.31), 'neutral', 'Belgium is neutral, and its Congo with it');
   eq(country(4.37, 18.58), 'French Equatorial Africa', 'Bangui stays French');
@@ -297,12 +311,139 @@ section('who holds what');
   // the hex that contains it is Polish — Gdynia and the Corridor — not German.
   eq(country(54.35, 18.65), 'Poland', 'the hex holding Danzig is Polish');
 
+  // Every acre of land outside Antarctica belongs to somebody. These are the
+  // places that used to fall between two boxes and come out grey.
+  eq(country(-22.56, 17.08), 'South West Africa', 'Windhoek is a South African mandate');
+  eq(owner(-22.56, 17.08), 'uk', 'and therefore British');
+  eq(country(-24.65, 25.91), 'Bechuanaland', 'Gaborone is a British protectorate');
+  eq(country(-20.15, 28.58), 'Rhodesia', 'and Bulawayo is not in it');
+  eq(country(-17.85, 25.85), 'Rhodesia', 'nor Livingstone');
+  eq(country(-25.86, 25.64), 'South Africa', 'nor Mafeking, which governed it from outside');
+  eq(country(21.42, 39.83), 'Saudi Arabia', 'Mecca is Saudi');
+  eq(country(24.47, 39.61), 'Saudi Arabia', 'so is Medina');
+  eq(country(28.38, 36.57), 'Saudi Arabia', 'and Tabuk');
+  eq(country(27.18, 33.83), 'Egypt', 'while Hurghada across the Red Sea is not');
+  eq(country(5.32, -4.03), 'French West Africa', 'Abidjan is French');
+  eq(country(5.55, -0.2), 'Gold Coast', 'Accra is British');
+  eq(country(6.14, 1.22), 'French West Africa', 'and Lome, nine km over the border, is French');
+  eq(country(16.97, 7.99), 'French West Africa', 'Agadez is French Niger');
+  eq(country(27.67, -8.13), 'Algeria', 'Tindouf is Algerian');
+  eq(country(11.28, 49.18), 'Italian East Africa', 'the horn of Somalia is Italian');
+  eq(country(10.44, 45.01), 'British Somaliland', 'Berbera is British');
+  eq(country(-0.9, -89.6), 'Ecuador', 'the Galapagos are Ecuadorean');
+  eq(country(-49.35, 70.22), 'Kerguelen', 'and Kerguelen is French');
+
+  // The seams: cells that used to fall between two boxes and take a default
+  // owner with no region at all.
+  eq(country(43.0, 101.2), 'Mongolia', 'the Gobi line is Mongolian');
+  eq(country(42.9, 106.1), 'Mongolia', 'along its whole length');
+  eq(owner(42.9, 106.1), 'neutral', 'and nothing there is Soviet');
+  eq(country(41.8, 105.0), 'Mongolia', 'Mongolia dips to 41.6N at its southern point');
+  eq(country(41.95, 101.07), 'China', 'and Ejina, below the border, is Chinese');
+  eq(country(-6.1, 25.7), 'Belgian Congo', 'the hole in the Congo is Congolese');
+  eq(country(-20.0, 16.9), 'South West Africa', 'and South West Africa has a name');
+  eq(owner(-20.0, 16.9), 'uk', 'and a mandatory');
+  eq(country(33.0, 36.9), 'Syria', 'the Hauran is Syrian');
+  eq(owner(33.0, 36.9), 'france', 'and French');
+  eq(country(32.34, 36.21), 'Transjordan', 'while Mafraq below it is Transjordan');
+  eq(country(-89.0, 0.0), 'Antarctica', 'even the pole stands in a named region');
+
   // Colonies answer to their metropoles rather than to nobody.
   eq(country(-8.84, 13.23), 'Angola', 'Luanda is Angolan');
   eq(country(-5.55, 12.19), 'Angola', 'and Cabinda with it');
   eq(country(11.86, -15.6), 'Portuguese Guinea', 'Bissau is Portuguese');
   eq(country(9.51, -13.71), 'French West Africa', 'and Conakry French');
   eq(country(8.48, -13.23), 'Sierra Leone', 'while Freetown is British');
+}
+
+// ------------------------------------------------- every cell has a region
+section('every cell has a region');
+{
+  // The board itself, not a sample of it. `earth.bin` carries the land mask in
+  // its first plane, which is all this needs: the terrain model only ever turns
+  // land into land, so a cell is ground exactly when that byte is 128 or more.
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const bin = fs.readFileSync(path.join(HERE, '..', 'src', 'world', 'earth.bin'));
+  const land = bin.subarray(0, TILE_COUNT);
+  const sphere = grid();
+
+  // 1. No cell falls through the table. This is the bug itself: a cell that
+  //    matches no box used to keep a default owner and no region at all, which
+  //    is how a line of Soviet cells appeared along Mongolia's southern border.
+  const orphans = [];
+  const owner = new Int16Array(TILE_COUNT).fill(-1);
+  let ground = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (land[i] < 128) continue;
+    ground += 1;
+    const lat = sphere.lat[i];
+    const lon = sphere.lon[i];
+    const matched = territoryAt(lat, lon);
+    if (!matched) orphans.push({ lat, lon, nearest: nearestTerritory(lat, lon).name });
+    const territory = territoryFor(lat, lon);
+    owner[i] = NATION_INDEX[territory.owner] ?? 0;
+  }
+  eq(ground, 32898, 'the board has the land it is supposed to have');
+  if (orphans.length) {
+    for (const o of orphans.slice(0, 12)) {
+      console.error(
+        `        ${o.lat.toFixed(2)}N ${o.lon.toFixed(2)}E — no region; nearest is ${o.nearest}`,
+      );
+    }
+    if (orphans.length > 12) console.error(`        …and ${orphans.length - 12} more`);
+  }
+  eq(orphans.length, 0, 'every land cell on the globe matches a region box');
+
+  // 2. Every region resolves to a country with a name, so no cell can render as
+  //    a bare nation.
+  let nameless = 0;
+  for (const territory of TERRITORIES_1939) {
+    if (!countryFor(territory)) nameless += 1;
+  }
+  eq(nameless, 0, 'and every region resolves to a named country');
+
+  // 3. Seams that are not gaps.
+  //
+  //    A cell whose owner matches none of its neighbours' is either a genuine
+  //    enclave or the far side of a badly drawn box, and there is no way to
+  //    tell them apart except by knowing the ground. So the real enclaves are
+  //    named here and anything else is a failure: the Gobi line was thirteen
+  //    unnamed ones in a row, and Adana, Riau, Klang and Vinh were four more —
+  //    every one of them a rectangle reaching somewhere its border does not.
+  //
+  //    Cells with no land neighbour at all are islands by definition and are
+  //    not counted, or every rock in the Pacific would be in this list.
+  const ENCLAVES = new Map([
+    ['54.7N -6.3E', 'Northern Ireland, in Ireland'],
+    ['9.5N -79.3E', 'the Panama Canal Zone, in Panama'],
+    ['8.9N -79.6E', 'the Panama Canal Zone, in Panama'],
+    ['30.1N 48.4E', 'Kuwait, between Iraq and the Gulf'],
+    ['12.8N -14.6E', 'the Gambia, in Senegal'],
+    ['12.9N -15.7E', 'the Gambia, in Senegal'],
+    ['23.0N 114.6E', 'Hong Kong, in occupied Kwangtung'],
+    ['15.3N 74.1E', 'Goa, in British India'],
+    ['27.9N 88.3E', 'Sikkim, between Nepal and Bhutan'],
+  ]);
+  const stranded = [];
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (owner[i] < 0) continue;
+    let neighbouringLand = 0;
+    let sameOwner = 0;
+    for (const j of neighbours(i)) {
+      if (owner[j] < 0) continue;
+      neighbouringLand += 1;
+      if (owner[j] === owner[i]) sameOwner += 1;
+    }
+    if (neighbouringLand > 0 && sameOwner === 0) {
+      stranded.push(`${sphere.lat[i].toFixed(1)}N ${sphere.lon[i].toFixed(1)}E`);
+    }
+  }
+  const unexplained = stranded.filter((at) => !ENCLAVES.has(at));
+  const vanished = [...ENCLAVES.keys()].filter((at) => !stranded.includes(at));
+  for (const at of unexplained) console.error(`        ${at} — cut off from its own nation`);
+  for (const at of vanished) console.error(`        ${at} — ${ENCLAVES.get(at)} — is no longer an enclave`);
+  eq(unexplained.length, 0, 'no cell is cut off from its nation but a known enclave');
+  eq(vanished.length, 0, 'and every known enclave is still one');
 }
 
 console.log(

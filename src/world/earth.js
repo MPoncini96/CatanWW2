@@ -5,7 +5,7 @@ import { SHADES, T, TERRAIN } from './terrain.js';
 import { buildPopulation } from './population.js';
 import { buildResources } from './resources.js';
 import { NATION_INDEX, NEUTRAL, SEA, Ownership } from './nations.js';
-import { territoryAt } from './territories.js';
+import { territoryFor } from './territories.js';
 import { buildForces } from './forces.js';
 import { buildCountries } from './countries.js';
 
@@ -250,9 +250,11 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
   const territoryName = new Array(TILE_COUNT).fill(null);
   for (let i = 0; i < TILE_COUNT; i += 1) {
     if (TERRAIN[biome[i]].water) continue;
-    owner[i] = NEUTRAL;
-    const territory = territoryAt(sphere.lat[i], sphere.lon[i]);
-    if (!territory) continue;
+    // Every land cell gets a region, and its owner comes from that region.
+    // There is no path here that leaves a cell owned by somebody but standing
+    // in nowhere: territoryFor falls back to the nearest box rather than to a
+    // default nation, and the sweep in `npm test` proves it never has to.
+    const territory = territoryFor(sphere.lat[i], sphere.lon[i]);
     owner[i] = NATION_INDEX[territory.owner] ?? NEUTRAL;
     territoryName[i] = territory.name;
   }

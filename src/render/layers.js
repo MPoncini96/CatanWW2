@@ -11,7 +11,7 @@ import { RESOURCES } from '../world/resources.js';
 // colours, so switching between Terrain, Nations and Forces costs one upload of
 // half a megabyte instead of a rebuild.
 
-/** Sea drawn under an overlay: dark enough that the land reads first. */
+/** Sea drawn under the resource overlays: dark, so the output reads first. */
 const BACKDROP = [10, 17, 26];
 const UNCLAIMED = [42, 48, 58];
 
@@ -34,7 +34,15 @@ export function terrainColors(world, out) {
  * Who holds what.
  *
  * Countries carry their own colour — a belligerent's empire flies its flag, the
- * neutrals each have their own — and the sea recedes so the borders read.
+ * neutrals each have their own — and the sea keeps the blue it has on the
+ * terrain layer, as it does under Forces.
+ *
+ * It used to recede to the backdrop, on the theory that the borders should read
+ * first. They do anyway: the land here is at full saturation and the water is
+ * not competing for the same hues. What the dark sea cost was the shape of the
+ * world — the Mediterranean, the Baltic and the North Sea are where this war
+ * was decided, and a black ocean turned them into gaps between countries
+ * instead of the seas between them.
  */
 export function politicalColors(world, out) {
   const owner = world.ownership.owner;
@@ -42,7 +50,7 @@ export function politicalColors(world, out) {
   for (let i = 0; i < TILE_COUNT; i += 1) {
     const nation = owner[i];
     if (nation === SEA) {
-      write(out, i, BACKDROP);
+      write(out, i, PALETTE_RGB[world.biome[i]][world.shade[i]]);
       continue;
     }
     const id = world.countryOf ? world.countryOf[i] : -1;

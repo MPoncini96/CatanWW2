@@ -11,8 +11,9 @@
 // neutral list is long and it is honoured here: Poland, the Baltic States,
 // Norway, Sweden, Switzerland, Spain-Portugal, Eire, Turkey, Persia,
 // Afghanistan, Saudi Arabia, the East Indies, Angola and Mozambique, the
-// Sahara, the Himalaya, and the whole of Latin America outside the American
-// possessions all stay grey.
+// Himalaya, and the whole of Latin America outside the American possessions
+// all stay grey. The Sahara does not: it was French, and drawing it grey was
+// a gap between boxes rather than a decision.
 //
 // Independent is not the same as ownerless. Egypt and Iraq are sovereign states
 // with British garrisons on them, which is a lean and not an owner; the Belgian
@@ -85,14 +86,30 @@ export const TERRITORIES_1939 = [
   // not in the owner field. Its eastern border is stepped, because a rectangle
   // out to 48.8E reaches over the Zagros and takes Kermanshah, Ahvaz and the
   // Abadan refinery - all Persian - along with it.
-  { owner: 'uk', name: 'Palestine and Transjordan', box: [34.2, 29.1, 39.4, 33.3] },
-  { owner: 'neutral', name: 'Iraq', box: [38.7, 29.0, 45.5, 37.4] },
+  // Two mandates, not one box. Palestine reaches 33.3N in the Galilee, but
+  // Transjordan stops at the Yarmouk around 32.6N — and a single rectangle to
+  // 33.3N crosses it and takes the Hauran and the Jebel Druze, which are Syrian
+  // and French.
+  { owner: 'uk', name: 'Palestine', box: [34.2, 29.1, 36.0, 33.3] },
+  { owner: 'uk', name: 'Transjordan', box: [36.0, 29.1, 39.4, 32.6] },
+  // Transjordan's eastern panhandle climbs to the tripoint with Syria and Iraq
+  // at 33.4N, well north of the Yarmouk that bounds it in the west.
+  { owner: 'uk', name: 'Transjordan (the panhandle)', box: [37.8, 32.6, 39.4, 33.37] },
+  // Iraq's north-western border is a diagonal from Abu Kamal on the Euphrates
+  // up to the Turkish tripoint, so a rectangle to 37.4N across the whole width
+  // takes the Syrian Jazira — Hasakah, Deir ez-Zor and Qamishli — with it.
+  { owner: 'neutral', name: 'Iraq (the western desert)', box: [38.7, 29.0, 41.0, 34.6] },
+  { owner: 'neutral', name: 'Iraq (Sinjar)', box: [41.0, 29.0, 42.4, 36.8] },
+  { owner: 'neutral', name: 'Iraq', box: [42.4, 29.0, 45.5, 37.4] },
   { owner: 'neutral', name: 'Iraq (Basra)', box: [45.5, 29.5, 48.0, 34.0] },
   { owner: 'uk', name: 'Kuwait', box: [46.5, 28.4, 48.6, 30.1] },
   { owner: 'uk', name: 'The Trucial Coast and Qatar', box: [50.4, 22.5, 56.5, 26.5] },
   { owner: 'uk', name: 'Malaya', box: [100.1, 4.0, 104.6, 6.8] },
-  { owner: 'uk', name: 'Malaya (centre)', box: [100.8, 3.0, 104.6, 4.0] },
-  { owner: 'uk', name: 'Malaya (Johore)', box: [102.0, 1.1, 104.6, 3.0] },
+  { owner: 'uk', name: 'Malaya (centre)', box: [100.8, 2.8, 104.6, 4.0] },
+  // The peninsula narrows as it runs south and the Dutch side of the strait
+  // comes to meet it: a Johore box reaching west to 102E at 1.2N is in Sumatra.
+  { owner: 'uk', name: 'Malaya (Johore)', box: [102.0, 2.0, 104.6, 2.8] },
+  { owner: 'uk', name: 'Malaya (Johore, south)', box: [103.0, 1.1, 104.6, 2.0] },
   { owner: 'france', name: 'Tunisia', box: [7.5, 30.2, 11.6, 37.5] },
   // Lower Silesia was German until 1945 and lies east of the main German box,
   // so it has to be claimed before Poland. Katowice and Krakow stay Polish
@@ -197,7 +214,8 @@ export const TERRITORIES_1939 = [
   // Syria has to be carved out ahead of Turkey rather than after it: Turkey's
   // box reaches down to 35.5N, which is Aleppo and the Jazira.
   { owner: 'neutral', name: 'Hatay', box: [35.7, 35.8, 36.7, 36.9] },
-  { owner: 'france', name: 'Syria and Lebanon', box: [35.0, 32.2, 42.4, 37.1] },
+  { owner: 'france', name: 'Syria and Lebanon', box: [35.0, 32.2, 39.0, 36.9] },
+  { owner: 'france', name: 'Syria (the Jazira)', box: [39.0, 32.2, 42.4, 37.15] },
   { owner: 'neutral', name: 'Turkey', box: [25.5, 35.5, 44.9, 42.6] },
 
   // The Near East and Central Asia.
@@ -215,11 +233,21 @@ export const TERRITORIES_1939 = [
   { owner: 'uk', name: 'British Baluchistan', box: [61.5, 24.5, 70.5, 31.5] },
   { owner: 'neutral', name: 'Afghanistan', box: [60.4, 29.4, 71.5, 38.5] },
   { owner: 'neutral', name: 'Wakhan Corridor', box: [71.5, 36.6, 74.9, 37.6] },
+  // Saudi Arabia's box starts at 40E, which leaves the whole Hejaz out of it —
+  // Mecca, Medina, Jeddah and Tabuk. It is stepped along the Red Sea coast,
+  // which runs north-west as it goes north: 39E at Jeddah, 37.2E at Yanbu,
+  // 36.5E at Al Wajh, 35E at Aqaba. One rectangle back to 35E instead would
+  // cross the sea and take the Egyptian shore with it.
+  { owner: 'neutral', name: 'Saudi Arabia (Hejaz)', box: [38.5, 17.5, 40.0, 22.0] },
+  { owner: 'neutral', name: 'Saudi Arabia (Medina)', box: [37.2, 22.0, 40.0, 25.0] },
+  { owner: 'neutral', name: 'Saudi Arabia (Al Wajh)', box: [36.5, 25.0, 40.0, 27.5] },
+  { owner: 'neutral', name: 'Saudi Arabia (Tabuk)', box: [35.0, 27.5, 40.0, 29.1] },
   { owner: 'neutral', name: 'Saudi Arabia and Yemen', box: [40.0, 12.0, 56.5, 32.0] },
   { owner: 'neutral', name: 'Oman', box: [52.0, 16.6, 59.9, 26.5] },
 
   // Asia.
-  { owner: 'neutral', name: 'Thailand', box: [97.3, 5.5, 105.7, 20.5] },
+  { owner: 'neutral', name: 'Thailand', box: [97.3, 5.5, 105.7, 18.5] },
+  { owner: 'neutral', name: 'Thailand (the north)', box: [97.3, 18.5, 101.5, 20.5] },
   // The old single box reached down to 26.5N and swallowed Lucknow and the
   // upper Ganges with it. Tibet, Nepal and Bhutan are separate, and the
   // southern edge now follows the Himalayan crest rather than the plain.
@@ -239,7 +267,18 @@ export const TERRITORIES_1939 = [
   { owner: 'neutral', name: 'Tannu Tuva', box: [88.8, 49.9, 98.9, 52.3] },
   { owner: 'neutral', name: 'Mongolia (west)', box: [89.8, 44.8, 98.0, 50.2] },
   { owner: 'neutral', name: 'Mongolia (Khovsgol)', box: [98.0, 48.0, 102.5, 52.1] },
-  { owner: 'neutral', name: 'Mongolia (central)', box: [98.0, 43.0, 108.0, 50.3] },
+  // Mongolia's southern border in the Gobi, which is where the one seam on the
+  // board was. A flat southern edge at 43N left a one-cell line between it and
+  // China's box, whose northern edge is 42.5N, and every cell in that line fell
+  // through to the Soviet box and drew a red thread across the desert. The
+  // border does not run flat: it is at 42.9N by the Altai, dips to Mongolia's
+  // southernmost point at 41.6N around 105E, and climbs again towards Erenhot.
+  // These four boxes follow it, and each one now overlaps China's edge rather
+  // than stopping short of it.
+  { owner: 'neutral', name: 'Mongolia (central)', box: [98.0, 42.5, 108.0, 50.3] },
+  { owner: 'neutral', name: 'Mongolia (Trans-Altai Gobi)', box: [100.5, 42.0, 104.0, 42.5] },
+  { owner: 'neutral', name: 'Mongolia (South Gobi)', box: [104.0, 41.6, 107.0, 42.5] },
+  { owner: 'neutral', name: 'Mongolia (Gobi, east)', box: [107.0, 42.2, 108.0, 42.5] },
   { owner: 'neutral', name: 'Mongolia (east)', box: [108.0, 47.0, 116.5, 50.0] },
   { owner: 'neutral', name: 'Mongolia (Dornod)', box: [108.0, 45.0, 119.9, 47.0] },
   { owner: 'neutral', name: 'Mongolia (south-east)', box: [108.0, 42.2, 116.0, 45.0] },
@@ -256,6 +295,18 @@ export const TERRITORIES_1939 = [
 
   // Africa.
   { owner: 'neutral', name: 'Liberia', box: [-11.6, 4.2, -7.3, 8.6] },
+
+  // South West Africa and Bechuanaland, both British and neither drawn until
+  // now: the first fell through the gap between Angola and South Africa, the
+  // second was swallowed by Rhodesia's box and South Africa's. South West
+  // Africa comes ahead of Angola, whose southern edge overlaps the Kunene, and
+  // Bechuanaland ahead of Rhodesia — its border with Southern Rhodesia climbs
+  // eastward, so the boxes step with it and leave Livingstone, Bulawayo and
+  // Mafeking where they belong. The Caprivi Strip is 30 km wide and is not
+  // drawn.
+  { owner: 'uk', name: 'South West Africa', box: [11.6, -28.9, 20.0, -17.4] },
+  { owner: 'uk', name: 'Bechuanaland (Ngamiland)', box: [20.0, -21.0, 25.3, -17.8] },
+  { owner: 'uk', name: 'Bechuanaland', box: [20.0, -25.7, 27.7, -21.0] },
 
   // The Belgian Congo, and the mandate of Ruanda-Urundi with it. Twelve boxes,
   // because the basin is a fan: widest along the Uele in the north, drawn in on
@@ -274,7 +325,7 @@ export const TERRITORIES_1939 = [
   { owner: 'neutral', name: 'Belgian Congo', box: [16.3, -5.2, 29.4, -1.0] },
   { owner: 'neutral', name: 'Belgian Congo (Bas-Congo)', box: [12.2, -6.1, 16.3, -4.2] },
   { owner: 'neutral', name: 'Belgian Congo (Kwango)', box: [16.3, -6.9, 20.0, -5.2] },
-  { owner: 'neutral', name: 'Belgian Congo (Kasai)', box: [20.0, -8.0, 24.5, -5.2] },
+  { owner: 'neutral', name: 'Belgian Congo (Kasai)', box: [20.0, -8.0, 27.5, -5.2] },
   { owner: 'neutral', name: 'Belgian Congo (Tanganyika)', box: [27.5, -8.0, 29.9, -5.2] },
   // Katanga in two steps: it meets Angola at 11.4S in the west and reaches
   // 12.4S in the east, around Elisabethville. The pedicle below that - the
@@ -306,6 +357,7 @@ export const TERRITORIES_1939 = [
   { owner: 'neutral', name: 'Colombia (Putumayo)', box: [-77.6, 0.4, -75.0, 0.8] },
   { owner: 'neutral', name: 'Colombia (Leticia)', box: [-71.5, -4.3, -69.5, -1.2] },
   { owner: 'neutral', name: 'West Indies', box: [-85.0, 9.5, -59.0, 24.0] },
+  { owner: 'neutral', name: 'Galapagos Islands', box: [-92.0, -1.6, -89.0, 0.9] },
   { owner: 'neutral', name: 'Ecuador', box: [-81.0, -5.0, -75.0, 1.5] },
   // Peru's eastern edge bulges: 69.9W in Loreto, 68.65W where Madre de Dios
   // pushes furthest in, back to 69.4W at Titicaca. Held at 68.7W throughout it
@@ -351,10 +403,17 @@ export const TERRITORIES_1939 = [
 
   // ===================== France and the French Empire =======================
   { owner: 'france', name: 'France', box: [-5.2, 42.3, 8.3, 51.1] },
-  { owner: 'france', name: 'Algeria', box: [-2.3, 19.0, 9.0, 37.1] },
+  { owner: 'france', name: 'Algeria', box: [-2.3, 19.0, 9.3, 37.1] },
+  // Tindouf and the Hamada below the Draa were administered from Algiers, and
+  // Morocco's box reaches over them: it is claimed first, and stops short of
+  // Zagora and the Moroccan south.
+  { owner: 'france', name: 'Algeria (Tindouf)', box: [-8.6, 25.5, -2.3, 28.0] },
   { owner: 'france', name: 'Morocco', box: [-13.3, 27.6, -1.0, 36.0] },
   { owner: 'france', name: 'French Somaliland', box: [41.7, 10.9, 43.5, 12.8] },
   { owner: 'france', name: 'Madagascar', box: [43.1, -25.7, 50.6, -11.8] },
+  // Kerguelen, in the Southern Ocean and administered from Antananarivo. One
+  // cell, and the only land on the board that belonged to nobody's box.
+  { owner: 'france', name: 'Kerguelen', box: [68.5, -50.0, 70.6, -48.5] },
   { owner: 'france', name: 'French Indochina', box: [100.0, 8.4, 108.4, 23.4] },
   { owner: 'france', name: 'French Indochina (Annam)', box: [108.4, 10.5, 109.6, 17.0] },
 
@@ -363,7 +422,9 @@ export const TERRITORIES_1939 = [
   // that surround them.
   { owner: 'uk', name: 'The Gambia', box: [-16.9, 13.05, -13.75, 13.85] },
   { owner: 'uk', name: 'Sierra Leone', box: [-13.4, 6.8, -10.25, 10.05] },
-  { owner: 'uk', name: 'Gold Coast', box: [-3.3, 4.5, 1.3, 11.2] },
+  // 1.19E, not 1.3: the Gold Coast's eastern border on the coast, with Lome
+  // nine kilometres the other side of it.
+  { owner: 'uk', name: 'Gold Coast', box: [-3.3, 4.5, 1.19, 11.2] },
   { owner: 'uk', name: 'Nigeria', box: [2.6, 3.9, 14.0, 13.9] },
   // Egypt is sovereign too, by the treaty of 1936: a British garrison on the
   // Canal, and a king in Cairo. Anglo-Egyptian Sudan below it is a condominium
@@ -413,7 +474,18 @@ export const TERRITORIES_1939 = [
 
   // ================== Italian East Africa, after the British ================
   { owner: 'italy', name: 'Italian East Africa', box: [34.5, -1.7, 48.5, 18.1] },
+  // The horn itself lies east of that box: Cape Guardafui is at 51.4E. British
+  // Somaliland is claimed ahead of it and keeps the north coast to 49E.
+  { owner: 'italy', name: 'Italian Somaliland (the horn)', box: [48.5, 1.5, 51.6, 12.1] },
   { owner: 'uk', name: 'Anglo-Egyptian Sudan', box: [21.8, 3.4, 38.6, 22.1] },
+  // French West Africa's box stops at 8.5N and 4.3E, which leaves three pieces
+  // of it out: the Ivory Coast below that latitude, Togo and Dahomey in the gap
+  // between the Gold Coast and Nigeria, and Niger between Nigeria and the
+  // Algerian box. Tindouf sits above the box's northern edge and below
+  // Morocco's. All four are French, and all four were grey.
+  { owner: 'france', name: 'Ivory Coast', box: [-8.6, 4.2, -2.5, 8.5] },
+  { owner: 'france', name: 'Togo and Dahomey', box: [1.19, 6.0, 2.6, 12.4] },
+  { owner: 'france', name: 'French Niger', box: [4.3, 13.9, 8.5, 19.0] },
   { owner: 'france', name: 'French West Africa', box: [-17.6, 8.5, 4.3, 25.5] },
   { owner: 'france', name: 'French Equatorial Africa', box: [8.5, -5.1, 27.5, 23.5] },
 
@@ -476,6 +548,14 @@ export const TERRITORIES_1939 = [
 
   // ===================== The Soviet Union, last in Eurasia ==================
   { owner: 'ussr', name: 'Soviet Union', box: [19.0, 35.0, 190.0, 82.0] },
+
+  // Antarctica, last of all, and the one place on the board that is genuinely
+  // nobody's. Seven governments had claims on it in 1939 and not one of them
+  // had a soul living there. It is Independent — but it is a *named* region,
+  // which the 3,183 cells of it were not: they matched no box at all and came
+  // out as a nation with no region, which is the state this table is not
+  // allowed to produce.
+  { owner: 'neutral', name: 'Antarctica', box: [-180.0, -90.0, 180.0, -60.0] },
 ];
 
 /** The territory covering a point, or null where nobody claimed it. */
@@ -485,4 +565,55 @@ export function territoryAt(lat, lon) {
     if (lon >= w && lon <= e && lat >= s && lat <= n) return TERRITORIES_1939[i];
   }
   return null;
+}
+
+/** Great-circle distance between two points, in degrees of arc. */
+function arc(lat1, lon1, lat2, lon2) {
+  const rad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * rad;
+  const dLon = (lon2 - lon1) * rad;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLon / 2) ** 2;
+  return (2 * Math.asin(Math.min(1, Math.sqrt(a)))) / rad;
+}
+
+/**
+ * The nearest territory to a point, by the distance to its box's centre.
+ *
+ * This is the backstop, and it exists so that "no region at all" is not a state
+ * the board can be in. A cell that matches no box used to keep the default
+ * owner and no region name, which is how a line of Soviet cells appeared along
+ * Mongolia's southern border and a hole of bare Independent opened inside the
+ * Belgian Congo: both were gaps between two rectangles, and both were invisible
+ * in the data because a nation without a region reads like any other nation.
+ *
+ * It should never fire. `npm test` sweeps all 114,492 cells and fails if it
+ * does, because a seam wants closing in the table, not papering over here — a
+ * centroid is a crude thing to measure to, and next to a box the size of the
+ * Soviet Union it can prefer a small neighbour that is much further away.
+ */
+export function nearestTerritory(lat, lon) {
+  let best = null;
+  let bestDistance = Infinity;
+  for (const territory of TERRITORIES_1939) {
+    const [w, s, e, n] = territory.box;
+    const distance = arc(lat, lon, (s + n) / 2, (w + e) / 2);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = territory;
+    }
+  }
+  return best;
+}
+
+/**
+ * Who holds a point: the box that covers it, or failing that the nearest one.
+ *
+ * Everything that assigns ground goes through here rather than through
+ * `territoryAt`, so that there is exactly one answer to the question and it is
+ * never "none".
+ */
+export function territoryFor(lat, lon) {
+  return territoryAt(lat, lon) ?? nearestTerritory(lat, lon);
 }
