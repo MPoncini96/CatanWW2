@@ -22,7 +22,7 @@ export const LEANINGS_1939 = {
   Poland: 92,
   // The Low Countries and Scandinavia all held to a strict neutrality that had
   // served them in 1914, while their sympathies and their trade ran west.
-  Belgium: 63,
+  Belgium: 55,
   Netherlands: 60,
   Norway: 62,
   // Denmark had signed a non-aggression pact with Germany that May, and had no
@@ -75,6 +75,12 @@ export const LEANINGS_1939 = {
   // British and the Russians, who between them occupied Iran in 1941.
   Persia: 40,
   Afghanistan: 45,
+  // Sovereign, and garrisoned: the treaties of 1936 and 1930 left Britain the
+  // Canal Zone and the airfields at Habbaniya and Shaiba without leaving it the
+  // countries. That is what a lean this high is for. Rashid Ali's coup in
+  // Baghdad in 1941 is the reminder that it was a lean and not a certainty.
+  Egypt: 85,
+  Iraq: 85,
   // Ibn Saud kept his British subsidies while hearing out the Axis.
   'Saudi Arabia': 60,
   Oman: 78,
@@ -90,14 +96,12 @@ export const LEANINGS_1939 = {
   // A Soviet satellite whose army had fought beside the Red Army at Khalkhin
   // Gol that same summer.
   Mongolia: 88,
-  'Netherlands East Indies': 65,
-  Borneo: 65,
-  'Portuguese Timor': 70,
+  // Nominally its own republic, in practice an arm of the Soviet Union, which
+  // annexed it outright in 1944.
+  'Tannu Tuva': 85,
 
   // ================================ Africa =================================
   Liberia: 75,
-  Angola: 72,
-  Mozambique: 72,
 
   // =============================== The Americas ============================
   // The Panama Declaration that October drew a neutrality zone around the whole
@@ -128,12 +132,15 @@ export const LEANINGS_1939 = {
 /**
  * Attach the starting lean to every independent country.
  *
- * Belligerents are left alone — their side is already their answer.
+ * Belligerents are left alone — their side is already their answer, and so is
+ * a colony's: it leans the way the metropole leans, because it had no foreign
+ * policy of its own to lean with. The Congo followed Belgium, and when Belgium
+ * fell it followed the government-in-exile in London.
  */
 export function attachLeanings(countries) {
   for (const country of countries) {
     if (country.power !== 0) continue; // 0 is NEUTRAL
-    const allied = LEANINGS_1939[country.name];
+    const allied = LEANINGS_1939[country.sovereign ?? country.name];
     if (allied === undefined) continue;
     country.leanAllied = allied;
   }

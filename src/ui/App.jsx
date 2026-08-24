@@ -10,6 +10,7 @@ import { UNITS, formatUnits } from '../world/forces.js';
 import { Minimap } from './Minimap.jsx';
 import { SeatPicker } from './SeatPicker.jsx';
 import { WarRoom } from './WarRoom.jsx';
+import { WarLedger } from './WarLedger.jsx';
 import { EventCard } from './EventCard.jsx';
 import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
 
@@ -54,9 +55,19 @@ function TileInspector({ tile }) {
           <p className="panel__owner">
             <span className="panel__flag" style={{ background: tile.nation.color }} />
             {tile.country ? tile.country.name : tile.nation.name}
-            {tile.country && tile.country.name !== tile.nation.name
-              ? ` · ${tile.nation.name}`
-              : ''}
+            {/* A colony names its metropole rather than reporting itself
+                Independent, which is what a colony most certainly was not. */}
+            {tile.country?.sovereign
+              ? ` · ${tile.country.sovereign}`
+              : tile.country && tile.country.name !== tile.nation.name
+                ? ` · ${tile.nation.name}`
+                : ''}
+          </p>
+        )}
+        {tile.country?.dominion && (
+          <p className="panel__note">
+            A self-governing Dominion. It is drawn as the United Kingdom because there are eight
+            seats, but it had its own parliament and declared war on its own account.
           </p>
         )}
         {tile.country && tile.country.leanAllied !== undefined && (
@@ -132,6 +143,7 @@ export default function App() {
   const [selected, setSelected] = useState(null);
   const [cam, setCam] = useState(null);
   const [legendOpen, setLegendOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState(null);
@@ -409,6 +421,12 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              <p className="legend__note">
+                Eight powers, so Canada, Australia, New Zealand, South Africa and Newfoundland are
+                drawn as the United Kingdom — they were self-governing and declared war separately.
+                Independent covers both the genuinely neutral and the colonies of neutral powers:
+                the Congo is Belgian, the East Indies Dutch, Angola Portuguese.
+              </p>
             </div>
           )}
           <details className="legend" open={legendOpen} onToggle={(e) => setLegendOpen(e.currentTarget.open)}>
@@ -425,7 +443,13 @@ export default function App() {
         </div>
 
         <div className="overlay overlay--right">
-          <WarRoom state={game} onReady={declareReady} onLeave={logOut} busy={busy} />
+          <WarRoom
+            state={game}
+            onReady={declareReady}
+            onLeave={logOut}
+            onLedger={() => setLedgerOpen(true)}
+            busy={busy}
+          />
           <div className="zoom">
             <button type="button" onClick={() => viewRef.current?.zoomBy(1.35)} disabled={cam?.atMax}>
               +
@@ -464,6 +488,7 @@ export default function App() {
         </footer>
       </main>
 
+      {ledgerOpen && <WarLedger state={game} onClose={() => setLedgerOpen(false)} />}
       {game && !session && <SeatPicker seats={game.seats} onClaim={takeSeat} error={seatError} />}
       {session && pending.length > 0 && (
         <EventCard event={pending[0]} onDismiss={dismiss} remaining={pending.length} />

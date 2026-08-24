@@ -10,19 +10,26 @@
 // are the eight belligerents and everyone else is Independent. That variant's
 // neutral list is long and it is honoured here: Poland, the Baltic States,
 // Norway, Sweden, Switzerland, Spain-Portugal, Eire, Turkey, Persia,
-// Afghanistan, Saudi Arabia, the East Indies and Borneo, Angola and Mozambique,
-// the Sahara, the Himalaya, and the whole of Latin America outside the American
+// Afghanistan, Saudi Arabia, the East Indies, Angola and Mozambique, the
+// Sahara, the Himalaya, and the whole of Latin America outside the American
 // possessions all stay grey.
 //
+// Independent is not the same as ownerless. Egypt and Iraq are sovereign states
+// with British garrisons on them, which is a lean and not an owner; the Belgian
+// Congo, the East Indies and Angola are colonies of neutral powers, and belong
+// to Belgium, the Netherlands and Portugal rather than to nobody. Sovereignty
+// is this field; influence is the Allies/Axis slider in `leanings.js`.
+//
 // Two departures from the board, both because eight powers were asked for:
-// ANZAC is folded into Great Britain, as the Dominions largely were in 1939,
-// and there is no separate Dutch power — the Netherlands and their East Indies
-// are neutral, which in September 1939 they still were.
+// the Dominions are folded into the United Kingdom, though each declared war on
+// its own account, and there is no separate Dutch power — the Netherlands and
+// their East Indies are neutral, which in September 1939 they still were.
 
 /** @type {Array<{owner: string, name: string, box: [number, number, number, number]}>} */
 export const TERRITORIES_1939 = [
   // ============ Islands and enclaves, before the seas around them ===========
   { owner: 'uk', name: 'Hong Kong', box: [113.7, 22.1, 114.6, 23.0] },
+  { owner: 'neutral', name: 'Macau', box: [113.5, 22.1, 113.62, 22.22] },
   { owner: 'uk', name: 'Malta', box: [14.1, 35.7, 14.7, 36.1] },
   { owner: 'uk', name: 'Gibraltar', box: [-5.4, 36.0, -5.3, 36.2] },
   { owner: 'uk', name: 'Cyprus', box: [32.2, 34.5, 34.6, 35.7] },
@@ -50,6 +57,11 @@ export const TERRITORIES_1939 = [
   // swallowed by it: Ceylon by India, Aden and British Somaliland by the
   // Arabian and Italian blocks, the Guianas by Brazil and Venezuela, and
   // Portuguese Timor by the Netherlands East Indies.
+  //
+  // The scattered Portuguese and Dutch possessions belong here too. None of
+  // them was independent, and each is claimed ahead of the empire whose block
+  // would otherwise take it: Goa before India, Portuguese Guinea before the
+  // British Gambia box, Cabinda before Angola, Curacao before Venezuela.
   { owner: 'uk', name: 'Ceylon', box: [79.4, 5.8, 82.0, 9.9] },
   { owner: 'uk', name: 'Aden', box: [43.0, 12.4, 53.2, 16.0] },
   { owner: 'uk', name: 'British Somaliland', box: [42.8, 7.9, 49.0, 11.6] },
@@ -57,12 +69,25 @@ export const TERRITORIES_1939 = [
   { owner: 'france', name: 'French Guiana', box: [-54.6, 2.1, -51.6, 5.8] },
   { owner: 'neutral', name: 'Dutch Guiana', box: [-57.2, 1.8, -53.9, 6.1] },
   { owner: 'neutral', name: 'Portuguese Timor', box: [124.0, -9.6, 127.4, -8.1] },
+  { owner: 'neutral', name: 'Goa', box: [73.6, 14.85, 74.35, 15.85] },
+  { owner: 'neutral', name: 'Portuguese Guinea', box: [-16.8, 10.85, -13.6, 12.75] },
+  { owner: 'neutral', name: 'Cape Verde', box: [-25.4, 14.7, -22.6, 17.3] },
+  { owner: 'neutral', name: 'Cabinda', box: [11.9, -5.8, 13.1, -4.3] },
+  { owner: 'neutral', name: 'Curacao', box: [-70.2, 11.95, -68.2, 12.6] },
 
   // These sit ahead of the neutral blocks that would otherwise cover them:
   // Arabia over Palestine and Iraq, the East Indies over Malaya, and Italy over
   // Tunisia across the Sicilian narrows.
+  //
+  // Iraq is sovereign, and had been since 1932. Britain kept basing rights at
+  // Habbaniya and Shaiba and a treaty that let it move troops through, which is
+  // a sphere of influence and not ownership - it belongs in the Allied lean and
+  // not in the owner field. Its eastern border is stepped, because a rectangle
+  // out to 48.8E reaches over the Zagros and takes Kermanshah, Ahvaz and the
+  // Abadan refinery - all Persian - along with it.
   { owner: 'uk', name: 'Palestine and Transjordan', box: [34.2, 29.1, 39.4, 33.3] },
-  { owner: 'uk', name: 'Iraq', box: [38.7, 29.0, 48.8, 37.4] },
+  { owner: 'neutral', name: 'Iraq', box: [38.7, 29.0, 45.5, 37.4] },
+  { owner: 'neutral', name: 'Iraq (Basra)', box: [45.5, 29.5, 48.0, 34.0] },
   { owner: 'uk', name: 'Kuwait', box: [46.5, 28.4, 48.6, 30.1] },
   { owner: 'uk', name: 'The Trucial Coast and Qatar', box: [50.4, 22.5, 56.5, 26.5] },
   { owner: 'uk', name: 'Malaya', box: [100.1, 4.0, 104.6, 6.8] },
@@ -76,7 +101,7 @@ export const TERRITORIES_1939 = [
   // The Protectorate of Bohemia and Moravia, annexed in March 1939, and East
   // Prussia with Memel. Both sit inside Poland's box and both were German on 1
   // September, so both are claimed ahead of it.
-  { owner: 'germany', name: 'Bohemia and Moravia', box: [12.0, 48.5, 18.9, 51.1] },
+  { owner: 'germany', name: 'Bohemia and Moravia', box: [12.0, 48.5, 18.4, 51.1] },
   { owner: 'germany', name: 'East Prussia', box: [19.3, 54.0, 23.0, 55.9] },
   // The Ussuri and the Amur: Soviet Primorye, ahead of the Japanese blocks.
   { owner: 'ussr', name: 'Maritime Province', box: [130.5, 42.0, 139.0, 47.0] },
@@ -144,8 +169,17 @@ export const TERRITORIES_1939 = [
   // Slovakia stops short of 48.2N on purpose. Vienna and Bratislava are 55 km
   // apart and share a hex; reaching far enough south to claim Bratislava takes
   // Vienna with it, and Vienna is fourteen times the size.
+  //
+  // Hungary was given the southern edge of Slovakia by the First Vienna Award
+  // of November 1938 and Carpatho-Ruthenia in March 1939, so all three come
+  // ahead of Slovakia: claimed after it, the Slovak box takes Kosice, Uzhhorod
+  // and Mukachevo with it. The award line climbs as it runs east, which is why
+  // the strip is stepped - Zvolen and Banska Bystrica stayed Slovak, Kosice at
+  // 48.7N did not.
+  { owner: 'neutral', name: 'Carpathian Ruthenia', box: [22.0, 47.9, 24.3, 49.1] },
+  { owner: 'neutral', name: 'Southern Slovakia', box: [17.2, 48.2, 19.4, 48.4] },
+  { owner: 'neutral', name: 'Kosice', box: [19.4, 48.2, 22.0, 48.75] },
   { owner: 'neutral', name: 'Slovakia', box: [16.9, 48.2, 22.6, 49.6] },
-  { owner: 'neutral', name: 'Carpathian Ruthenia', box: [22.0, 47.9, 24.6, 49.2] },
   { owner: 'neutral', name: 'Hungary', box: [17.2, 45.7, 22.9, 48.2] },
   { owner: 'neutral', name: 'Romania', box: [20.2, 43.6, 29.8, 48.3] },
   { owner: 'neutral', name: 'Poland', box: [16.3, 49.2, 26.3, 55.2] },
@@ -159,10 +193,21 @@ export const TERRITORIES_1939 = [
   { owner: 'neutral', name: 'Yugoslavia (Montenegro)', box: [18.4, 40.8, 23.0, 42.2] },
   { owner: 'neutral', name: 'Bulgaria', box: [22.3, 41.0, 28.7, 44.3] },
   { owner: 'neutral', name: 'Greece', box: [19.3, 34.8, 28.3, 41.8] },
+  // Hatay voted itself out of French Syria and into Turkey in June 1939, and
+  // Syria has to be carved out ahead of Turkey rather than after it: Turkey's
+  // box reaches down to 35.5N, which is Aleppo and the Jazira.
+  { owner: 'neutral', name: 'Hatay', box: [35.7, 35.8, 36.7, 36.9] },
+  { owner: 'france', name: 'Syria and Lebanon', box: [35.0, 32.2, 42.4, 37.1] },
   { owner: 'neutral', name: 'Turkey', box: [25.5, 35.5, 44.9, 42.6] },
 
   // The Near East and Central Asia.
   { owner: 'neutral', name: 'Persia', box: [45.5, 25.0, 63.5, 39.9] },
+  // Iranian Azerbaijan. Turkey stops at 44.9E and Iraq's box does not reach
+  // north of 37.4N, so without this the strip around Khoy falls through every
+  // box to the Soviet Union's and paints a red wedge south of Ararat. Kept to
+  // the north: extending Persia's own box west instead takes the Iraqi desert
+  // and a slice of northern Arabia with it.
+  { owner: 'neutral', name: 'Persia (Azerbaijan)', box: [44.0, 37.4, 45.5, 39.9] },
   // Afghanistan only reaches east to 75E along the Wakhan corridor, a strip
   // barely a degree tall. Squaring that off puts Kashmir and Srinagar in
   // Afghanistan; British Baluchistan is claimed ahead of it for the same
@@ -188,17 +233,56 @@ export const TERRITORIES_1939 = [
   // at that latitude across its whole width it takes Irkutsk, Ulan-Ude and
   // Chita. Its southern edge climbs eastward, away from Chinese Inner Mongolia,
   // and it stops short of Hulunbuir in Manchukuo.
+  // Tannu Tuva: a republic of its own on paper from 1921, a Soviet client in
+  // fact, and annexed outright in 1944. It is not Mongolian, and it has to be
+  // claimed ahead of Mongolia's western box to stay out of it.
+  { owner: 'neutral', name: 'Tannu Tuva', box: [88.8, 49.9, 98.9, 52.3] },
   { owner: 'neutral', name: 'Mongolia (west)', box: [89.8, 44.8, 98.0, 50.2] },
   { owner: 'neutral', name: 'Mongolia (Khovsgol)', box: [98.0, 48.0, 102.5, 52.1] },
   { owner: 'neutral', name: 'Mongolia (central)', box: [98.0, 43.0, 108.0, 50.3] },
   { owner: 'neutral', name: 'Mongolia (east)', box: [108.0, 47.0, 116.5, 50.0] },
   { owner: 'neutral', name: 'Mongolia (Dornod)', box: [108.0, 45.0, 119.9, 47.0] },
   { owner: 'neutral', name: 'Mongolia (south-east)', box: [108.0, 42.2, 116.0, 45.0] },
+  // Northern Borneo is British: Sarawak under the Brookes, the Brunei
+  // protectorate, and British North Borneo under its chartered company. All of
+  // it comes ahead of the East Indies box, which reaches to 6N and would
+  // otherwise take Kuching, Sibu and Bintulu. The border with Dutch Borneo is a
+  // watershed climbing to the north-east, so the boxes climb with it.
+  { owner: 'uk', name: 'British Borneo (Kuching)', box: [109.5, 0.9, 111.2, 2.6] },
+  { owner: 'uk', name: 'British Borneo (Sarawak)', box: [111.2, 1.6, 113.5, 4.2] },
+  { owner: 'uk', name: 'British Borneo (Brunei)', box: [113.5, 2.4, 115.6, 5.2] },
+  { owner: 'uk', name: 'British North Borneo', box: [115.0, 3.9, 119.4, 7.4] },
   { owner: 'neutral', name: 'Netherlands East Indies', box: [95.0, -11.0, 141.0, 6.0] },
-  { owner: 'neutral', name: 'Borneo', box: [108.8, 4.0, 119.3, 7.4] },
 
   // Africa.
   { owner: 'neutral', name: 'Liberia', box: [-11.6, 4.2, -7.3, 8.6] },
+
+  // The Belgian Congo, and the mandate of Ruanda-Urundi with it. Twelve boxes,
+  // because the basin is a fan: widest along the Uele in the north, drawn in on
+  // the west by the river that is its border with the French Congo, and running
+  // south in a single arm to the Katanga copper. Every one of them comes ahead
+  // of Angola, Rhodesia, British East Africa and French Equatorial Africa,
+  // which are where these cells were before.
+  //
+  // Leopoldville and Brazzaville face each other across the Pool, 5 km apart,
+  // and share a hex. It goes to the Congo, which held the larger city.
+  { owner: 'neutral', name: 'Ruanda-Urundi', box: [28.9, -4.55, 31.0, -1.0] },
+  { owner: 'neutral', name: 'Belgian Congo (Uele)', box: [19.0, 2.0, 27.8, 4.9] },
+  { owner: 'neutral', name: 'Belgian Congo (Ituri)', box: [27.8, 1.0, 30.9, 3.7] },
+  { owner: 'neutral', name: 'Belgian Congo (Kivu)', box: [27.8, -1.0, 29.9, 1.0] },
+  { owner: 'neutral', name: 'Belgian Congo (Equateur)', box: [17.8, -1.0, 27.8, 2.0] },
+  { owner: 'neutral', name: 'Belgian Congo', box: [16.3, -5.2, 29.4, -1.0] },
+  { owner: 'neutral', name: 'Belgian Congo (Bas-Congo)', box: [12.2, -6.1, 16.3, -4.2] },
+  { owner: 'neutral', name: 'Belgian Congo (Kwango)', box: [16.3, -6.9, 20.0, -5.2] },
+  { owner: 'neutral', name: 'Belgian Congo (Kasai)', box: [20.0, -8.0, 24.5, -5.2] },
+  { owner: 'neutral', name: 'Belgian Congo (Tanganyika)', box: [27.5, -8.0, 29.9, -5.2] },
+  // Katanga in two steps: it meets Angola at 11.4S in the west and reaches
+  // 12.4S in the east, around Elisabethville. The pedicle below that - the
+  // finger of Congo that separates the Copperbelt from Luapula - is 60 km
+  // wide and its tip lies within one hex of Ndola, so it is not drawn.
+  { owner: 'neutral', name: 'Belgian Congo (Katanga)', box: [22.0, -11.4, 25.0, -8.0] },
+  { owner: 'neutral', name: 'Belgian Congo (Katanga, east)', box: [25.0, -12.4, 30.0, -8.0] },
+
   { owner: 'neutral', name: 'Angola', box: [11.6, -18.1, 24.1, -4.3] },
   { owner: 'neutral', name: 'Mozambique', box: [30.2, -27.0, 41.0, -10.4] },
   { owner: 'neutral', name: 'Spanish Morocco and Rio de Oro', box: [-17.2, 20.7, -8.6, 27.7] },
@@ -269,19 +353,22 @@ export const TERRITORIES_1939 = [
   { owner: 'france', name: 'France', box: [-5.2, 42.3, 8.3, 51.1] },
   { owner: 'france', name: 'Algeria', box: [-2.3, 19.0, 9.0, 37.1] },
   { owner: 'france', name: 'Morocco', box: [-13.3, 27.6, -1.0, 36.0] },
-  { owner: 'france', name: 'Syria and Lebanon', box: [35.0, 32.2, 42.4, 37.4] },
   { owner: 'france', name: 'French Somaliland', box: [41.7, 10.9, 43.5, 12.8] },
   { owner: 'france', name: 'Madagascar', box: [43.1, -25.7, 50.6, -11.8] },
   { owner: 'france', name: 'French Indochina', box: [100.0, 8.4, 108.4, 23.4] },
   { owner: 'france', name: 'French Indochina (Annam)', box: [108.4, 10.5, 109.6, 17.0] },
 
-  // ================== Great Britain and the Commonwealth ====================
+  // ================ The United Kingdom and the Commonwealth =================
   // Africa first, so the British colonies are not absorbed by the French blocks
   // that surround them.
-  { owner: 'uk', name: 'Sierra Leone and the Gambia', box: [-16.9, 6.8, -10.4, 13.9] },
+  { owner: 'uk', name: 'The Gambia', box: [-16.9, 13.05, -13.75, 13.85] },
+  { owner: 'uk', name: 'Sierra Leone', box: [-13.4, 6.8, -10.25, 10.05] },
   { owner: 'uk', name: 'Gold Coast', box: [-3.3, 4.5, 1.3, 11.2] },
   { owner: 'uk', name: 'Nigeria', box: [2.6, 3.9, 14.0, 13.9] },
-  { owner: 'uk', name: 'Egypt', box: [24.6, 21.9, 36.9, 31.7] },
+  // Egypt is sovereign too, by the treaty of 1936: a British garrison on the
+  // Canal, and a king in Cairo. Anglo-Egyptian Sudan below it is a condominium
+  // run from London and stays British, as do Palestine, Transjordan and Aden.
+  { owner: 'neutral', name: 'Egypt', box: [24.6, 21.9, 36.9, 31.7] },
   { owner: 'uk', name: 'British East Africa', box: [28.9, -11.8, 42.0, 5.2] },
   { owner: 'uk', name: 'Rhodesia and Nyasaland', box: [21.9, -22.5, 33.7, -8.0] },
   { owner: 'uk', name: 'South Africa', box: [15.5, -35.0, 33.2, -21.9] },
@@ -361,9 +448,20 @@ export const TERRITORIES_1939 = [
   // draws a red wedge into Heilongjiang.
   { owner: 'japan', name: 'Manchukuo (Amur bend)', box: [128.0, 48.0, 130.0, 49.9] },
   { owner: 'japan', name: 'Manchukuo (Lesser Khingan)', box: [130.0, 48.0, 132.5, 48.9] },
-  // Occupied China as the fighting stood in late 1939: the north China plain,
-  // the lower Yangtze, and the southern treaty ports.
+  // Mengjiang: Chahar and Suiyuan under Prince Demchugdongrub, proclaimed in
+  // 1939 and Japanese in everything but name. It is not the Mongolian People's
+  // Republic, which is independent, Soviet-aligned, and sits north of it - and
+  // because the MPR's boxes are claimed with the neutrals, the border between
+  // the two falls out of the order rather than having to be drawn. Ahead of
+  // North China, which would otherwise take Kalgan and Guisui.
+  { owner: 'japan', name: 'Mengjiang', box: [109.5, 40.0, 116.0, 42.4] },
+
+  // Occupied China as the fighting stood on 1 September 1939: the north China
+  // plain, the Yangtze up to Wuhan - which fell in October 1938 - Canton and
+  // the Pearl River delta, and Hainan, taken that February. Chongqing and the
+  // west are Nationalist and stay so.
   { owner: 'japan', name: 'North China', box: [110.0, 32.0, 122.5, 41.5] },
+  { owner: 'japan', name: 'Wuhan', box: [113.2, 29.6, 115.0, 32.0] },
   { owner: 'japan', name: 'Lower Yangtze', box: [114.5, 27.5, 122.5, 33.0] },
   { owner: 'japan', name: 'Kwangtung', box: [111.5, 20.8, 117.5, 24.5] },
   { owner: 'japan', name: 'Hainan', box: [108.5, 18.1, 111.1, 20.2] },

@@ -1,14 +1,20 @@
 import { PLAYER_IDS, isPlayer } from './players.js';
 import { eventsOn, nextEventAfter } from './events.js';
 import { formatDate } from './calendar.js';
-import { warSummary } from './belligerence.js';
+import { entersOn, isActive, warSummary } from './belligerence.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
-// One game, and no clock. The calendar moves when every player who has taken a
-// seat says it may — which means a day can last a minute or a fortnight, and
-// the pace is entirely the players'. A seat nobody has claimed cannot hold the
-// day up, or a game of three would never start.
+// One game, and no clock. The calendar moves when every player in the war says
+// it may — which means a day can last a minute or a fortnight, and the pace is
+// entirely the players'. A seat nobody has claimed cannot hold the day up, or a
+// game of three would never start.
+//
+// Nor can a seat that is not in the war yet. Italy on 1 September 1939 has
+// nobody it may fight and nothing to decide, so it watches: it sees the board,
+// the timeline and every dispatch, and the day turns without asking it. That
+// comes straight off the event table — the day a power may first fight anybody
+// is the day it starts voting — so nothing here has to be kept in step by hand.
 //
 // This module is pure. It never reads a clock, touches the network or writes a
 // file; the server does all of that around it. That is what makes the whole
@@ -56,6 +62,14 @@ export function seatOf(game, token) {
 export function setReady(game, power, ready) {
   const seat = game.seats[power];
   if (!seat) return { error: 'that seat is empty' };
+  if (!voters(game).includes(power)) {
+    const when = entersOn(power);
+    return {
+      error: when === null
+        ? 'you are not in the war, and the day turns without you'
+        : 'you are not in the war yet, and the day turns without you',
+    };
+  }
   seat.ready = Boolean(ready);
   game.revision += 1;
   return { ready: seat.ready };
@@ -67,16 +81,36 @@ export function occupied(game) {
 }
 
 /**
+ * The seats whose vote the calendar waits for: the ones in the war.
+ *
+ * With one exception. A table where nobody is in the war yet — three players
+ * who have taken Italy, the United States and China's neighbours on day 0 —
+ * would never be able to move the calendar at all, and would sit at 1 September
+ * for good. So when no seated power is in the war, every seated player votes:
+ * they are all watching, and they can agree to watch faster.
+ */
+export function voters(game) {
+  const held = occupied(game);
+  const fighting = held.filter((id) => isActive(game.day, id));
+  return fighting.length ? fighting : held;
+}
+
+/** Is this seat in the war today, rather than watching it? */
+export function inTheWar(game, power) {
+  return isActive(game.day, power);
+}
+
+/**
  * Should the calendar move on?
  *
- * Every player who has taken a seat has to say so. An empty table never
- * advances — otherwise a game with nobody in it would run away to 1945 on its
- * own the moment it was created.
+ * Every player whose vote counts has to say so. An empty table never advances —
+ * otherwise a game with nobody in it would run away to 1945 on its own the
+ * moment it was created.
  */
 export function readyToAdvance(game) {
-  const held = occupied(game);
-  if (held.length === 0) return false;
-  return held.every((id) => game.seats[id].ready);
+  const voting = voters(game);
+  if (voting.length === 0) return false;
+  return voting.every((id) => game.seats[id].ready);
 }
 
 /**
@@ -123,6 +157,7 @@ export function openingEvents(game) {
  * built from the start as a deliberate projection rather than the state itself.
  */
 export function publicState(game, viewer) {
+  const voting = voters(game);
   return {
     revision: game.revision,
     day: game.day,
@@ -134,10 +169,17 @@ export function publicState(game, viewer) {
       name: game.seats[id]?.name ?? null,
       ready: game.seats[id]?.ready ?? false,
       isYou: id === viewer,
+      // Whether this seat is fighting today or watching, and the day it gets
+      // in. Both are derived from the timeline, but they are sent rather than
+      // left to the client to work out, so that what the button does and what
+      // the server will accept are one answer and not two.
+      inTheWar: isActive(game.day, id),
+      entersOn: entersOn(id),
+      votes: voting.includes(id),
     })),
     war: warSummary(game.day, PLAYER_IDS),
     log: game.log,
     next: nextEventAfter(game.day),
-    waitingOn: occupied(game).filter((id) => !game.seats[id].ready),
+    waitingOn: voting.filter((id) => !game.seats[id].ready),
   };
 }

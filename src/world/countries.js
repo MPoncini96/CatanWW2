@@ -34,15 +34,18 @@ const TERRITORY_COUNTRY = {
   'Canada (Ontario)': 'Canada',
   'Canada (Quebec)': 'Canada',
   'Vancouver Island': 'Canada',
-  Newfoundland: 'Canada',
   'British Baluchistan': 'India',
-  'Sierra Leone and the Gambia': 'Sierra Leone',
   'Rhodesia and Nyasaland': 'Rhodesia',
   'Anglo-Egyptian Sudan': 'Sudan',
+  'British Borneo (Kuching)': 'British Borneo',
+  'British Borneo (Sarawak)': 'British Borneo',
+  'British Borneo (Brunei)': 'British Borneo',
+  'British North Borneo': 'British Borneo',
   'Palestine and Transjordan': 'Palestine',
   'The Trucial Coast and Qatar': 'The Gulf States',
   Kuwait: 'The Gulf States',
   'Papua and New Guinea': 'Papua',
+  'Iraq (Basra)': 'Iraq',
   'Malaya (centre)': 'Malaya',
   'Malaya (Johore)': 'Malaya',
   'The Bahamas': 'Bahamas',
@@ -83,6 +86,7 @@ const TERRITORY_COUNTRY = {
   'Manchukuo (Liaodong)': 'Manchukuo',
   'Manchukuo (Hulunbuir)': 'Manchukuo',
   'North China': 'Occupied China',
+  Wuhan: 'Occupied China',
   'Lower Yangtze': 'Occupied China',
   Kwangtung: 'Occupied China',
   Hainan: 'Occupied China',
@@ -119,6 +123,20 @@ const TERRITORY_COUNTRY = {
   'Yugoslavia (Bosnia and Serbia)': 'Yugoslavia',
   'Yugoslavia (Montenegro)': 'Yugoslavia',
   'Carpathian Ruthenia': 'Hungary',
+  'Southern Slovakia': 'Hungary',
+  Kosice: 'Hungary',
+  Hatay: 'Turkey',
+  Cabinda: 'Angola',
+  'Belgian Congo (Uele)': 'Belgian Congo',
+  'Belgian Congo (Ituri)': 'Belgian Congo',
+  'Belgian Congo (Kivu)': 'Belgian Congo',
+  'Belgian Congo (Equateur)': 'Belgian Congo',
+  'Belgian Congo (Bas-Congo)': 'Belgian Congo',
+  'Belgian Congo (Kwango)': 'Belgian Congo',
+  'Belgian Congo (Kasai)': 'Belgian Congo',
+  'Belgian Congo (Tanganyika)': 'Belgian Congo',
+  'Belgian Congo (Katanga)': 'Belgian Congo',
+  'Belgian Congo (Katanga, east)': 'Belgian Congo',
   'Mongolia (west)': 'Mongolia',
   'Mongolia (Khovsgol)': 'Mongolia',
   'Mongolia (central)': 'Mongolia',
@@ -135,9 +153,50 @@ const TERRITORY_COUNTRY = {
   'Mexico (centre)': 'Mexico',
   'Mexico (southeast)': 'Mexico',
   'Saudi Arabia and Yemen': 'Saudi Arabia',
+  'Persia (Azerbaijan)': 'Persia',
   'Wakhan Corridor': 'Afghanistan',
   'Spanish Morocco and Rio de Oro': 'Spanish Morocco',
 };
+
+/**
+ * Colonies of a neutral metropole, and who they answer to.
+ *
+ * The eight powers colour their empires by owning them: India is British
+ * because the owner field says so. Nobody else has that, and without this map
+ * the Congo, Angola and the East Indies come out as three unrelated
+ * independent countries, which is what they were emphatically not.
+ *
+ * A colony keeps its own name and its own label — Angola is not Portugal, and
+ * writing "Portugal" across Africa would put the label on the wrong continent
+ * — but it takes the metropole's colour and the metropole's lean, because a
+ * colony had no foreign policy of its own to have a lean about.
+ */
+const SOVEREIGNS = {
+  Angola: 'Portugal',
+  Mozambique: 'Portugal',
+  'Portuguese Guinea': 'Portugal',
+  'Cape Verde': 'Portugal',
+  Goa: 'Portugal',
+  Macau: 'Portugal',
+  'Portuguese Timor': 'Portugal',
+  'Netherlands East Indies': 'Netherlands',
+  'Dutch Guiana': 'Netherlands',
+  Curacao: 'Netherlands',
+  'Belgian Congo': 'Belgium',
+  'Ruanda-Urundi': 'Belgium',
+};
+
+/**
+ * The self-governing Dominions.
+ *
+ * They are drawn as the United Kingdom and they are not it: each had its
+ * own parliament and each declared war separately — Australia and New Zealand
+ * on 3 September, Canada on the 10th after a vote in the Commons, South Africa
+ * on the 6th after one that brought the government down. Folding them into one
+ * seat is an abstraction the board makes because eight powers were asked for,
+ * and the map says so rather than leaving it implied.
+ */
+export const DOMINIONS = new Set(['Canada', 'Australia', 'New Zealand', 'South Africa']);
 
 /**
  * Colours for the neutrals. Hand-assigned rather than generated, so that
@@ -157,7 +216,7 @@ const NEUTRAL_COLORS = {
   Albania: '#9c7a5a',
   Switzerland: '#b05f5f',
   Belgium: '#6f7fa8',
-  Netherlands: '#c08a5a',
+  Netherlands: '#b5713f',
   Denmark: '#a85f7a',
   Norway: '#5f7f9c',
   Sweden: '#6f96b8',
@@ -170,7 +229,10 @@ const NEUTRAL_COLORS = {
   Latvia: '#96788f',
   Lithuania: '#a88a6a',
   Turkey: '#a87a52',
-  // The Near East and Asia.
+  // The Near East and Asia. Egypt and Iraq are sovereign states with British
+  // garrisons on them, which is a lean and not a colour.
+  Egypt: '#9c8f4f',
+  Iraq: '#b06f5f',
   Persia: '#7f9c62',
   Afghanistan: '#9c8560',
   'Saudi Arabia': '#c2a068',
@@ -180,13 +242,9 @@ const NEUTRAL_COLORS = {
   Nepal: '#7f8fa0',
   Bhutan: '#6f8f8a',
   Mongolia: '#a89870',
-  'Netherlands East Indies': '#8fa85f',
-  Borneo: '#7a9c6f',
-  'Portuguese Timor': '#9c7f6f',
+  'Tannu Tuva': '#9c8fa8',
   // Africa.
   Liberia: '#7f9c8a',
-  Angola: '#a87f5f',
-  Mozambique: '#8a7f9c',
   'Spanish Morocco': '#b08a6f',
   // The Americas.
   Mexico: '#7fa06a',
@@ -203,7 +261,6 @@ const NEUTRAL_COLORS = {
   Paraguay: '#9c9060',
   Uruguay: '#6f8fa0',
   Greenland: '#8aa0b0',
-  'Dutch Guiana': '#7f8f9c',
 };
 
 const FALLBACK_NEUTRAL = '#6a7280';
@@ -228,15 +285,20 @@ export function buildCountries(world) {
     if (index.has(name)) continue;
     index.set(name, countries.length);
     const power = NATION_INDEX[territory.owner] ?? NEUTRAL;
+    // A colony draws in its metropole's colour, whether that metropole is one
+    // of the eight or not: the Congo is Belgian blue, the East Indies Dutch.
+    const sovereign = SOVEREIGNS[name] ?? null;
     countries.push({
       id: countries.length,
       name,
       power,
+      sovereign,
+      dominion: DOMINIONS.has(name),
       // A belligerent's colonies fly its colours, so the shape of the war stays
       // readable; the neutrals each get their own.
       color:
         power === NEUTRAL
-          ? NEUTRAL_COLORS[name] ?? FALLBACK_NEUTRAL
+          ? NEUTRAL_COLORS[sovereign ?? name] ?? FALLBACK_NEUTRAL
           : NATIONS[power].color,
       hexes: 0,
     });

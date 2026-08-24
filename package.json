@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "node tools/test-game.mjs",
     "server": "node server/index.mjs",
     "build": "vite build",
     "start": "node server/index.mjs",

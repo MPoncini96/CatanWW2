@@ -123,7 +123,11 @@ async function api(req, res, url) {
   if (url.pathname === '/api/ready' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
     const { ready } = await readBody(req);
-    G.setReady(game, seat, ready !== false);
+    // A seat the timeline has not let into the war yet cannot end the day. The
+    // client hides the button, but the rule lives here: the browser is not
+    // where a rule is enforced.
+    const result = G.setReady(game, seat, ready !== false);
+    if (result.error) return json(res, 409, result);
     maybeAdvance();
     broadcast();
     return json(res, 200, G.publicState(game, seat));

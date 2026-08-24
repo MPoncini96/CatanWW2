@@ -8,6 +8,7 @@ world, what the land produced, and who held it.
 npm install
 npm run build
 npm start                 # the game on http://localhost:5170
+npm test                  # the rules, under plain Node
 
 # or, while working on it, two processes:
 npm run server            # the game server
@@ -28,22 +29,48 @@ are and the table believes you — but a seat already held cannot be taken, so
 nobody becomes Germany by accident. Logging out gives the seat back.
 
 **The calendar is the clock.** Nothing happens in real time. The day turns when
-every player who has taken a seat presses *End Current Day*, and not before; a
-day can last a minute or a fortnight. Pressing it is reversible right up until
-the last player agrees, so you can change your mind. Seats nobody is sitting in
-cannot hold the day up, which is what lets a game of three run at all.
+every player *in the war* presses *End Current Day*, and not before; a day can
+last a minute or a fortnight. Pressing it is reversible right up until the last
+player agrees, so you can change your mind. Seats nobody is sitting in cannot
+hold the day up, which is what lets a game of three run at all.
+
+**A power that is not in the war yet takes no turns.** Italy on 1 September 1939
+has nobody it may fight and therefore nothing to decide, so it watches: it holds
+its seat, sees the whole board, gets every dispatch, and the calendar turns
+without asking it. The panel says *View only* and gives it no button rather than
+one that would be refused, and the rule is enforced on the server, because the
+browser is not where a rule lives. The one exception is a table where nobody is
+in the war yet — three players who have taken Italy, the United States and a
+seat still at peace — which would otherwise sit at 1 September for good: when no
+seated power is fighting, every seated player votes.
+
+Nothing about that is written down. The day a power may first fight anybody is
+the day it starts taking turns, and both come off the same table.
 
 **The war opens as it did.** What a nation may do is gated by the date, and the
-timeline is a table of four rows:
+timeline is a table of nine rows:
 
 | Date | Day | Event |
 | --- | --- | --- |
-| 1 Sep 1939 | 0 | Germany invades Poland. Nobody else may fight anybody. |
-| 3 Sep 1939 | 2 | Britain and France declare war — and their empires with them, which puts Germany against 47 parties at a stroke. |
+| 1 Sep 1939 | 0 | The war in China, two years old already: Japan against China, and nobody else in it. |
+| 1 Sep 1939 | 0 | Germany invades Poland. No other power in Europe may move. |
+| 3 Sep 1939 | 2 | Britain and France declare war — and their empires with them, which puts Germany against 46 parties at a stroke. |
 | 17 Sep 1939 | 16 | The Red Army crosses into Poland. |
+| 30 Nov 1939 | 90 | The Winter War: the Soviet Union invades Finland. |
 | 10 Jun 1940 | 283 | Italy declares war, inheriting exactly Germany's enemies as they stand that day. |
+| 22 Jun 1941 | 660 | Operation Barbarossa. |
+| 7 Dec 1941 | 828 | Pearl Harbor. Japan against the United States and the British Empire at once. |
+| 11 Dec 1941 | 832 | Germany and Italy declare war on the United States, and the two halves of the war become one. |
 
-Each lands as a dispatch in front of every player when the calendar reaches it.
+Each lands as a dispatch in front of every player when the calendar reaches it,
+and each is also the day a seat starts playing: Germany, Japan and China from
+the first day, Britain and France on the 3rd, the Soviet Union on the 17th,
+Italy in June 1940, the United States at Pearl Harbor.
+
+**The ledger** — *Who may attack whom* in the war room — is the whole mechanic
+on one page: every power, whether it is fighting or watching, the day it gets
+in, and the list of everything it may move against. Germany's list on the 3rd is
+two powers and forty-four countries; Italy's, until June 1940, is nobody.
 
 Rights are **replayed from that table** rather than stored with the game, which
 has two consequences worth the trouble: the state of the war can never drift out
@@ -53,6 +80,11 @@ Germany's war without naming a single country — it is resolved against the war
 already declared when the calendar reaches June 1940, so it picks up whatever
 Germany actually accumulated.
 
+A power and its own metropolitan country are one party, not two: `ledBy` brings
+in everything Britain holds *except* the United Kingdom, or Germany's enemy list
+would name France twice. That is also why the powers and the countries were
+given one name each.
+
 Nothing acts on any of this yet. You can see that on 2 September Germany may
 fight Poland and nobody else, but there are no orders, no movement and no
 territory changing hands — that is the next pass, and this is the seam it plugs
@@ -60,11 +92,13 @@ into.
 
 ### What is not the game
 
-`src/game/` is pure: no browser, no network, no clock, no file. It is verified
-under plain Node like `src/world/` is — 4,800 days round-tripped through the
-civil calendar, every belligerence rule checked on the day either side of the
-event that grants it, and the turn engine driven through four days of two
-players agreeing and disagreeing.
+`src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
+it under plain Node — 128 checks: 6,800 days round-tripped through the civil
+calendar, every belligerence rule checked on the day either side of the event
+that grants it, the turn engine driven through a game where one player is in the
+war and the other is watching, and eighty-odd places on the map asked who holds
+them. The territory table is pure too — a box list and a point test — so it is
+checked in the same run, without the baked Earth data.
 
 The server around it holds exactly one game and writes it to a single JSON file.
 **It never sends the map.** The world is deterministic, so client and server
@@ -122,9 +156,9 @@ covered about 7,000 km²; one at 87°N covered 307. Twenty-three times smaller.
 Half the land hexes sat poleward of 60° holding a fifth of the actual land, so
 Siberia and the Canadian Arctic were worth several times what they should have
 been — and population, resources and garrisons all inherited the error. The
-correction is visible in the tallies: Russia went from 5,854 land hexes to
-4,625, Britain from 6,946 to 8,032, and the world's land fraction from 33.6% to
-28.7% against the real 29.2%.
+correction is visible in the tallies: the Soviet Union went from 5,854 land
+hexes to 4,589, Britain from 6,946 to 7,494, and the world's land fraction from
+33.6% to 28.7% against the real 29.2%.
 
 On the sphere the spread is **1.18×** rather than 23×: hexagons run 4,133 to
 4,857 km².
@@ -317,40 +351,80 @@ are Tokyo and Yokohama.
 
 ## Who held what
 
-Every land hex belongs to one of the eight powers — the United States,
-Great Britain, France, Germany, Italy, Russia, China and Japan — or to nobody,
-which is drawn grey. The sea belongs to no one and is never coloured.
+Every land hex belongs to one of the eight powers — the United States, the
+United Kingdom, France, Germany, Italy, the Soviet Union, China and Japan — or
+to nobody, which is drawn grey. The sea belongs to no one and is never coloured.
+
+One name per power, and it is the name the country layer uses: the legend used
+to say *Great Britain* and *Russia* over ground the map itself labelled *United
+Kingdom* and *Soviet Union*.
 
 Borders are those of **1 September 1939**, so this is the world as the war
 opened, not as it ended: Greater Germany includes Austria and Bohemia-Moravia
-but Poland is still independent; Italy holds Libya, Albania and Ethiopia; Japan
-holds Korea, Formosa, Manchukuo and the slice of China it had taken by late
-1939, with free China holding the interior; France and Britain hold their
-empires entire.
+but Poland is still independent; Italy holds Libya, Albania — annexed that April
+— and Ethiopia; Japan holds Korea, Formosa, Manchukuo, the puppet Mengjiang in
+Inner Mongolia, and the China it had taken by late 1939, which is the coast, the
+northern plain, the Yangtze up to Wuhan, Canton and Hainan, with Chongqing and
+the west still Nationalist; France and Britain hold their empires entire.
+
+**Ownership is sovereignty, not influence.** The two are separate fields and
+they are kept separate. Egypt and Iraq were sovereign states in 1939 — a treaty
+gave Britain the Canal Zone, Habbaniya and Shaiba, and a right of passage, and
+none of that is ownership — so they are Independent on the map and lean 85%
+Allied on the slider. Anglo-Egyptian Sudan, a condominium run from London, is
+British; so are Palestine, Transjordan and Aden. Hungary holds Carpatho-Ruthenia
+and the southern edge of Slovakia, taken by award in 1938 and 1939 rather than
+by conquest. Hatay is Turkish, by a vote in June 1939.
 
 The neutral list follows the Axis & Allies Global 1939 *Midnight Express*
-variant, which keeps an unusually long one — Poland, the Baltic States, Norway,
-Sweden, Switzerland, Spain-Portugal, Eire, Turkey, Persia, Afghanistan, Saudi
-Arabia, the East Indies and Borneo, Angola and Mozambique, and the whole of
-Latin America outside the American possessions. Two departures, because eight
-powers were asked for: ANZAC folds into Great Britain, as the Dominions largely
-did in 1939, and there is no separate Dutch power — the Netherlands and their
-East Indies stay neutral, which in September 1939 they still were.
+variant, which keeps an unusually long one — Poland, the Baltic States (all
+three of them, independent until June 1940), Norway, Sweden, Switzerland,
+Spain-Portugal, Eire, Turkey, Persia, Afghanistan, Saudi Arabia, the East
+Indies, Angola and Mozambique, and the whole of Latin America outside the
+American possessions.
+
+**Neutral is not the same as ownerless.** A neutral power's colonies belong to
+it and are drawn in its colours: the Belgian Congo and Ruanda-Urundi are
+Belgian, the East Indies, Suriname and Curaçao Dutch, Angola, Mozambique,
+Portuguese Guinea, Cape Verde, Goa, Macau and Timor Portuguese. Each keeps its
+own name — writing "Portugal" across Africa would put the label on the wrong
+continent — and takes its metropole's lean, because a colony had no foreign
+policy of its own to lean with.
+
+Three abstractions are worth stating outright rather than leaving to be noticed:
+
+- **The Dominions.** Canada, Australia, New Zealand, South Africa and
+  Newfoundland are drawn as the United Kingdom. They were not: each had its own
+  parliament, and Australia and New Zealand declared war on 3 September, South
+  Africa on the 6th after a vote that brought the government down, Canada on the
+  10th after one in the Commons. Eight powers were asked for, so they fold in —
+  and the legend and the cell inspector both say so.
+- **There is no Dutch power.** The Netherlands and the East Indies are neutral,
+  which in September 1939 they still were.
+- **Tibet independent, Xinjiang Chinese.** Both are de-facto readings. Tibet had
+  run its own affairs since 1913 and no power's writ reached Lhasa; Xinjiang was
+  Sheng Shicai's, garrisoned by Soviet troops, and nominally Chinese. Tannu Tuva
+  is neither Mongolian nor yet Soviet: a republic of its own on paper, a Soviet
+  client in fact, annexed outright in 1944.
+
+Danzig is a case the grid cannot hold: 1,900 km² against a 4,455 km² cell. The
+Free City is not drawn, and the hex that contains it is **Polish** — Gdynia and
+the Corridor — rather than being quietly handed to Germany.
 
 Set against the historical record, the board gives back the strategic picture
 the war actually turned on:
 
 | | Land tiles | People | Steel | Oil |
 | --- | --- | --- | --- | --- |
-| United States | 2,219 | 121M | 47.1 Mt | 154 Mt |
-| Great Britain | 6,929 | 640M | 17.1 Mt | 7.8 Mt |
-| Russia | 5,930 | 227M | 18.6 Mt | 29.0 Mt |
-| Germany | 112 | 71M | 20.2 Mt | 0.7 Mt |
-| Japan | 662 | 281M | 6.7 Mt | 0.3 Mt |
-| France | 1,721 | 144M | 9.7 Mt | — |
-| Italy | 612 | 55M | 1.9 Mt | 0.1 Mt |
-| China | 711 | 83M | — | — |
-| Independent | 20,786 | 677M | 10.9 Mt | 72.3 Mt |
+| United States | 2,183 | 120M | 48.0 Mt | 154.0 Mt |
+| United Kingdom | 7,494 | 723M | 16.2 Mt | 3.1 Mt |
+| Soviet Union | 4,589 | 216M | 18.6 Mt | 29.0 Mt |
+| Germany | 130 | 87M | 18.8 Mt | 0.7 Mt |
+| Japan | 705 | 276M | 6.7 Mt | 0.3 Mt |
+| France | 2,285 | 151M | 13.7 Mt | — |
+| Italy | 855 | 60M | 1.9 Mt | 0.1 Mt |
+| China | 1,098 | 83M | — | — |
+| Independent | 13,559 | 585M | 8.3 Mt | 77.1 Mt |
 
 Germany with the second-largest steel industry on earth and almost no oil, and
 Japan with a tenth of America's steel and none of its own oil, are not artefacts
@@ -364,10 +438,12 @@ Australia fly British gold, Indochina French blue. Everyone else gets a colour
 of their own rather than sharing one anonymous grey, because a map where Hungary
 and Romania are the same shade is not much of a map.
 
-**112 countries** hold land. A country is a group of territory boxes, since a
+**122 countries** hold land. A country is a group of territory boxes, since a
 country's shape rarely fits one rectangle: Yugoslavia takes three, Mexico three,
-mainland Italy four. Neutral colours are hand-assigned rather than generated, so
-that countries sharing a border also differ in hue.
+mainland Italy four, the Belgian Congo twelve — the basin is a fan, and the
+river is its border on the west. Neutral colours are hand-assigned rather than
+generated, so that countries sharing a border also differ in hue, and a colony
+takes its metropole's colour rather than a hue of its own.
 
 Names are written across the ground each country covers, sized by how much land
 it holds — the Soviet Union reads at a glance, Luxembourg has to be zoomed into.
@@ -378,10 +454,11 @@ in open ground rather than across a coastline. Country names are laid down
 first and city names give way to them, so a capital is never printed across the
 middle of its own country's name.
 
-Ten places are smaller than a single hex and so hold no ground at all — Malta,
-Gibraltar, Bermuda, Guam, Wake, Puerto Rico, the Panama Canal Zone, the
-Dodecanese, the South Seas Mandate and the Bahamas. They are in the territory
-table and will appear if the grid is ever refined.
+Twelve places are smaller than a single hex and so hold no ground at all —
+Malta, Gibraltar, Bermuda, Guam, Wake, the Dodecanese, the South Seas Mandate,
+the Solomons, the Bahamas, Macau, Cape Verde and Curaçao. They are in the
+territory table and will appear if the grid is ever refined. Hatay, Goa and the
+southern Slovak strip only just clear the bar, at one to three cells each.
 
 ### Ownership is meant to move
 

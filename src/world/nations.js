@@ -1,5 +1,9 @@
 // The eight powers, plus everyone who stayed out of it.
 //
+// One name per power, and it is the name the country layer uses: the legend
+// used to say Great Britain and Russia while the map beneath it wrote United
+// Kingdom and Soviet Union across the same ground.
+//
 // Colours follow the Axis & Allies convention where it survives contact with a
 // dark map, and depart from it where it does not: Germany is properly black,
 // which would vanish here, so it takes the pale steel of a feldgrau greatcoat.
@@ -12,9 +16,9 @@ export const SEA = 255;
 export const NATIONS = [
   { id: 'neutral', name: 'Independent', color: '#59606d', side: null },
   { id: 'usa', name: 'United States', color: '#3fa34d', side: 'allies' },
-  { id: 'uk', name: 'Great Britain', color: '#d8b04a', side: 'allies' },
+  { id: 'uk', name: 'United Kingdom', color: '#d8b04a', side: 'allies' },
   { id: 'france', name: 'France', color: '#4d8fd6', side: 'allies' },
-  { id: 'ussr', name: 'Russia', color: '#cf3b3b', side: 'allies' },
+  { id: 'ussr', name: 'Soviet Union', color: '#cf3b3b', side: 'allies' },
   { id: 'china', name: 'China', color: '#c77ec2', side: 'allies' },
   { id: 'germany', name: 'Germany', color: '#c6cad3', side: 'axis' },
   { id: 'italy', name: 'Italy', color: '#6fbfa0', side: 'axis' },

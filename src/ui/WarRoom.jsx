@@ -7,13 +7,15 @@ const BY_ID = Object.fromEntries(PLAYERS.map((p) => [p.id, p]));
  * The table: what day it is, who has finished with it, and the one button that
  * moves the war forward.
  *
- * The day only turns when every player who has taken a seat says it may, so
- * this panel is really a list of who everyone is still waiting for.
+ * The day only turns when every player in the war says it may, so this panel is
+ * really a list of who everyone is still waiting for. A power the timeline has
+ * not let in yet gets no button: it is watching, it is not holding anybody up,
+ * and saying so plainly is better than showing a control that would be refused.
  */
-export function WarRoom({ state, onReady, onLeave, busy }) {
+export function WarRoom({ state, onReady, onLeave, onLedger, busy }) {
   if (!state) return null;
   const me = state.seats.find((s) => s.isYou);
-  const held = state.seats.filter((s) => s.taken);
+  const voting = state.seats.filter((s) => s.taken && s.votes);
   const waiting = state.waitingOn ?? [];
   const mine = state.war?.find((w) => w.power === state.you);
 
@@ -28,7 +30,9 @@ export function WarRoom({ state, onReady, onLeave, busy }) {
         <p className="war__standing">
           {mine.atWar
             ? `At war · ${mine.enemies.length} ${mine.enemies.length === 1 ? 'party' : 'parties'}`
-            : 'Not yet at war'}
+            : mine.entersOn === null
+              ? 'Not in the war'
+              : `Not yet at war · ${formatDateShort(mine.entersOn)}`}
         </p>
       )}
 
@@ -41,6 +45,7 @@ export function WarRoom({ state, onReady, onLeave, busy }) {
               className={
                 (seat.taken ? 'is-taken' : 'is-empty') +
                 (seat.ready ? ' is-ready' : '') +
+                (seat.inTheWar ? '' : ' is-watching') +
                 (seat.isYou ? ' is-you' : '')
               }
             >
@@ -49,18 +54,24 @@ export function WarRoom({ state, onReady, onLeave, busy }) {
               <em>
                 {!seat.taken
                   ? 'empty'
-                  : seat.ready
-                    ? 'ready'
-                    : seat.name
-                      ? seat.name
-                      : 'thinking'}
+                  : !seat.votes
+                    ? 'watching'
+                    : seat.ready
+                      ? 'ready'
+                      : seat.name
+                        ? seat.name
+                        : 'thinking'}
               </em>
             </li>
           );
         })}
       </ul>
 
-      {me && (
+      <button type="button" className="war__ledger" onClick={onLedger}>
+        Who may attack whom
+      </button>
+
+      {me && me.votes && (
         <>
           <button
             type="button"
@@ -75,9 +86,34 @@ export function WarRoom({ state, onReady, onLeave, busy }) {
               ? waiting.length
                 ? `Waiting on ${waiting.map((id) => BY_ID[id].name).join(', ')}`
                 : 'Turning the day…'
-              : `${held.length - waiting.length} of ${held.length} ready`}
+              : `${voting.length - waiting.length} of ${voting.length} ready`}
           </p>
+          {!me.inTheWar && (
+            <p className="war__note">
+              Nobody at this table is in the war yet, so the pace is yours until somebody is.
+            </p>
+          )}
         </>
+      )}
+
+      {me && !me.votes && (
+        <div className="war__watching">
+          <strong>View only</strong>
+          <p>
+            {BY_ID[me.power].name} has nobody it may fight, so it takes no turns:{' '}
+            {me.entersOn === null
+              ? 'no event on the timeline brings it into the war.'
+              : `it enters the war on ${formatDateShort(me.entersOn)}, in ${
+                  me.entersOn - state.day
+                } ${me.entersOn - state.day === 1 ? 'day' : 'days'}.`}{' '}
+            The calendar turns without it.
+          </p>
+          {waiting.length > 0 && (
+            <p className="war__waiting">
+              Waiting on {waiting.map((id) => BY_ID[id].name).join(', ')}
+            </p>
+          )}
+        </div>
       )}
 
       {state.next && (
