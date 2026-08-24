@@ -8,6 +8,10 @@ import { RESOURCES, formatAmount } from '../world/resources.js';
 import { NATIONS, NEUTRAL } from '../world/nations.js';
 import { UNITS, formatUnits } from '../world/forces.js';
 import { Minimap } from './Minimap.jsx';
+import { SeatPicker } from './SeatPicker.jsx';
+import { WarRoom } from './WarRoom.jsx';
+import { EventCard } from './EventCard.jsx';
+import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
 
 // Every cell is the same size now, so there is a single honest number for it.
 const KM2_PER_CELL = Math.round((4 * Math.PI * EARTH_RADIUS_KM ** 2) / TILE_COUNT);
@@ -132,6 +136,83 @@ export default function App() {
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState(null);
   const [ownershipVersion, setOwnershipVersion] = useState(0);
+
+  // The one game, and this browser's seat at it.
+  const [session, setSession] = useState(() => savedSession());
+  const [game, setGame] = useState(null);
+  const [seatError, setSeatError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  // Dispatches this browser has not yet been shown. The log is the record; this
+  // is only what is currently in the way.
+  const [seen, setSeen] = useState(() => new Set());
+
+  // Follow the game: one fetch to start, then the stream carries every change.
+  // Every frame is tagged with the token it was produced for, because the seat
+  // a frame reports is only meaningful for the identity that asked.
+  useEffect(() => {
+    let live = true;
+    const token = session?.token ?? null;
+    const receive = (state) => live && setGame({ ...state, forToken: token });
+    fetchState(token).then(receive, () => {});
+    const stop = watch(token, receive);
+    return () => {
+      live = false;
+      stop();
+    };
+  }, [session?.token]);
+
+  // A seat that vanished from under us — the server restarted, or someone
+  // released it — means this browser is no longer playing. Only a frame
+  // produced for this very token can say so: one still in flight from the
+  // previous connection knows nothing about the seat just taken, and acting on
+  // it would log the player straight back out again.
+  useEffect(() => {
+    if (!session || !game) return;
+    if (game.forToken === session.token && game.you === null) setSession(null);
+  }, [game, session]);
+
+  const takeSeat = useCallback(async (power, name) => {
+    setSeatError(null);
+    try {
+      setSession(await claimSeat(power, name));
+    } catch (err) {
+      setSeatError(err.message);
+    }
+  }, []);
+
+  const logOut = useCallback(async () => {
+    await leaveSeat(session?.token);
+    setSession(null);
+    const fresh = await fetchState(null).catch(() => null);
+    setGame(fresh ? { ...fresh, forToken: null } : null);
+  }, [session?.token]);
+
+  const declareReady = useCallback(
+    async (ready) => {
+      setBusy(true);
+      try {
+        setGame({ ...(await setReady(session.token, ready)), forToken: session.token });
+      } catch (err) {
+        setSeatError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session?.token],
+  );
+
+  // Anything the timeline has said that this browser has not acknowledged.
+  const pending = useMemo(
+    () => (game?.log ?? []).filter((e) => !seen.has(e.id)),
+    [game, seen],
+  );
+  const dismiss = useCallback(() => {
+    setSeen((prev) => {
+      const next = new Set(prev);
+      if (pending[0]) next.add(pending[0].id);
+      return next;
+    });
+  }, [pending]);
 
   // Only legend the terrains this map actually contains.
   const present = useMemo(() => {
@@ -344,6 +425,7 @@ export default function App() {
         </div>
 
         <div className="overlay overlay--right">
+          <WarRoom state={game} onReady={declareReady} onLeave={logOut} busy={busy} />
           <div className="zoom">
             <button type="button" onClick={() => viewRef.current?.zoomBy(1.35)} disabled={cam?.atMax}>
               +
@@ -381,6 +463,11 @@ export default function App() {
           <span className="statusbar__zoom">{zoomLabel}</span>
         </footer>
       </main>
+
+      {game && !session && <SeatPicker seats={game.seats} onClaim={takeSeat} error={seatError} />}
+      {session && pending.length > 0 && (
+        <EventCard event={pending[0]} onDismiss={dismiss} remaining={pending.length} />
+      )}
     </div>
   );
 }

@@ -6,14 +6,75 @@ world, what the land produced, and who held it.
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
 npm run build
+npm start                 # the game on http://localhost:5170
+
+# or, while working on it, two processes:
+npm run server            # the game server
+npm run dev               # the board, proxying /api across
 ```
 
 114,492 cells, every one of them 4,455 km² — 67 km across, at the equator and
 at the pole alike. 181 cities, 2.30 billion people, a year's output of food,
 oil, iron, steel, aluminium and rubber, every acre of land assigned to one of
 eight powers or to nobody, and the armies of 1939 standing on it.
+
+## The game
+
+One game, eight seats, and a calendar that starts on 1 September 1939.
+
+You pick a nation when you arrive. There are no passwords yet — you say who you
+are and the table believes you — but a seat already held cannot be taken, so
+nobody becomes Germany by accident. Logging out gives the seat back.
+
+**The calendar is the clock.** Nothing happens in real time. The day turns when
+every player who has taken a seat presses *End Current Day*, and not before; a
+day can last a minute or a fortnight. Pressing it is reversible right up until
+the last player agrees, so you can change your mind. Seats nobody is sitting in
+cannot hold the day up, which is what lets a game of three run at all.
+
+**The war opens as it did.** What a nation may do is gated by the date, and the
+timeline is a table of four rows:
+
+| Date | Day | Event |
+| --- | --- | --- |
+| 1 Sep 1939 | 0 | Germany invades Poland. Nobody else may fight anybody. |
+| 3 Sep 1939 | 2 | Britain and France declare war — and their empires with them, which puts Germany against 47 parties at a stroke. |
+| 17 Sep 1939 | 16 | The Red Army crosses into Poland. |
+| 10 Jun 1940 | 283 | Italy declares war, inheriting exactly Germany's enemies as they stand that day. |
+
+Each lands as a dispatch in front of every player when the calendar reaches it.
+
+Rights are **replayed from that table** rather than stored with the game, which
+has two consequences worth the trouble: the state of the war can never drift out
+of step with the timeline, and an event added months from now applies correctly
+to a game already halfway through 1940. `sameAs` is what lets Italy inherit
+Germany's war without naming a single country — it is resolved against the wars
+already declared when the calendar reaches June 1940, so it picks up whatever
+Germany actually accumulated.
+
+Nothing acts on any of this yet. You can see that on 2 September Germany may
+fight Poland and nobody else, but there are no orders, no movement and no
+territory changing hands — that is the next pass, and this is the seam it plugs
+into.
+
+### What is not the game
+
+`src/game/` is pure: no browser, no network, no clock, no file. It is verified
+under plain Node like `src/world/` is — 4,800 days round-tripped through the
+civil calendar, every belligerence rule checked on the day either side of the
+event that grants it, and the turn engine driven through four days of two
+players agreeing and disagreeing.
+
+The server around it holds exactly one game and writes it to a single JSON file.
+**It never sends the map.** The world is deterministic, so client and server
+each build the same 114,492 cells from `earth.bin` and only the date, the seats,
+the readiness and the event log cross the wire — a couple of kilobytes, pushed
+over server-sent events whenever anything changes.
+
+One browser is one seat: seats are remembered in `localStorage`, which is shared
+between tabs of the same profile, so two players on one machine need two
+profiles.
 
 ## Controls
 
