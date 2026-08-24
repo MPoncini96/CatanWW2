@@ -1,6 +1,7 @@
 import { NATIONS, NATION_INDEX } from '../world/nations.js';
 import { canSeeForces } from '../world/intel.js';
 import { facingAt, discRadius, overlapsAny } from './labels.js';
+import { drawFleetIcons } from './units.js';
 
 // Fleets, drawn on the water.
 //
@@ -70,24 +71,33 @@ export function drawFleetMarkers(ctx, world, camera, width, height, viewer, take
     const color = NATIONS[NATION_INDEX[station.power]].color;
     const r = known ? radiusFor(station.hulls, pixelsPerCell) : Math.max(3, 2.6 + pixelsPerCell * 0.12);
 
-    diamond(ctx, out.x, out.y, r);
-    if (known) {
-      ctx.fillStyle = color;
-      ctx.fill();
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = EDGE;
-      ctx.stroke();
-    } else {
-      // A base you know about and cannot count: the outline only.
-      ctx.lineWidth = 1.6;
-      ctx.strokeStyle = color;
-      ctx.stroke();
+    // Close in there is room for the ships themselves — but only for a fleet
+    // this seat may count. A strength you are not allowed to know does not get
+    // drawn in silhouette; it stays a diamond.
+    const drewShips = known && drawFleetIcons(ctx, station, out.x, out.y, pixelsPerCell);
+    if (!drewShips) {
+      diamond(ctx, out.x, out.y, r);
+      if (known) {
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = EDGE;
+        ctx.stroke();
+      } else {
+        // A base you know about and cannot count: the outline only.
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = color;
+        ctx.stroke();
+      }
     }
 
     if (!showLabels || facing < 0.4) continue;
     const text = known ? `${station.name} · ${station.hulls}` : station.name;
+    ctx.font = `600 ${fontSize}px 'Inter', 'Segoe UI', system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
     const w = ctx.measureText(text).width;
-    const ty = out.y + r + 2;
+    const ty = out.y + (drewShips ? pixelsPerCell * 0.42 : r) + 2;
     const box = { left: out.x - w / 2 - 2, right: out.x + w / 2 + 2, top: ty - 2, bottom: ty + fontSize };
     if (overlapsAny(box, placed)) continue;
     placed.push(box);

@@ -790,12 +790,28 @@ ships rather than a share of a fleet, and they are **secret**: a raider at sea
 is not an anchorage anyone knows about, and no other seat can see them. The
 Admiralty did not find Graf Spee until December.
 
+**Close in, the shading gives way to the units themselves.** Past about thirty
+pixels a cell there is room to draw what is actually standing there, so the
+board does: a box with an X is infantry, a box with an oval is armour, a box
+with a dot is artillery — the NATO symbols, which were designed to be told apart
+at a glance on a paper map in bad light, which is the same problem. Aircraft and
+ships get silhouettes instead, because nobody reads a box with a wing in it as
+an aeroplane. Up to three arms per hex, chosen by what they contribute to its
+strength, so three hundred riflemen and one bomber both get a symbol; counts
+appear beside them once the symbols are big enough to carry them.
+
+Only the cells near the middle of the view are considered — at that zoom the
+screen holds a few hundred, and walking all 114,492 to find out which are on it
+would cost more than drawing them.
+
 **What the fog hides at sea is the count, not the anchorage.** Everyone knew the
 Home Fleet lay at Scapa and the Regia Marina at Taranto; nobody outside the
 Admiralty knew what was moored there on a given morning. So a foreign station is
 drawn as an outline at a fixed size and the panel says its strength is not
 known, while one you may count is filled, sized by its hulls, and labelled with
-them.
+them — and close in, becomes the ships: a battleship, a carrier with its island
+and an aeroplane on the deck, a submarine with its conning tower. A strength you
+are not allowed to know never becomes a silhouette; it stays a diamond.
 
 ## Rendering
 
@@ -875,6 +891,7 @@ src/
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
            labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
+           units.js                              — what is standing on a hex
   ui/      App.jsx  routes.jsx  NationIndex.jsx   — the pages
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know

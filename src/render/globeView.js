@@ -9,6 +9,7 @@ import { GlobeCamera, MAX_DISTANCE, MIN_DISTANCE } from './globeCamera.js';
 import { drawCountryLabels } from './labels.js';
 import { drawCityMarkers } from './cities.js';
 import { drawFleetMarkers } from './fleets.js';
+import { drawUnitIcons } from './units.js';
 
 // Input, the frame loop, and the writing on top of it.
 //
@@ -44,6 +45,7 @@ export class GlobeView {
     // a time. Two places holding the same fact, and only one of them told.
     this.viewer = handlers.viewer ?? null;
     this.globe.setViewer(this.viewer);
+    this.layer = null;
     this.pointers = new Map();
     this.dragging = false;
     this.moved = 0;
@@ -299,6 +301,7 @@ export class GlobeView {
   }
 
   setOverlay(layer) {
+    this.layer = layer;
     this.globe.setLayer(layer);
     this.needsDraw = true;
   }
@@ -374,6 +377,10 @@ export class GlobeView {
       : [];
     if (this.showCities) {
       drawCityMarkers(ctx, this.world, this.camera, this.width, this.height, taken);
+    }
+    // Close in, the shading gives way to the units themselves.
+    if (this.layer === 'nations') {
+      drawUnitIcons(ctx, this.world, this.camera, this.width, this.height, this.viewer);
     }
     // Fleets last, so a battle fleet is never hidden under a city dot.
     drawFleetMarkers(ctx, this.world, this.camera, this.width, this.height, this.viewer, taken);
