@@ -434,7 +434,7 @@ of the model — they are the reason both went to war the way they did.
 
 The eight belligerents are drawn in their own colours wherever they and their
 empires reach, so the shape of the war stays readable at a glance — India and
-Australia fly British gold, Indochina French blue. Everyone else gets a colour
+Australia fly British gold, Indochina French violet. Everyone else gets a colour
 of their own rather than sharing one anonymous grey, because a map where Hungary
 and Romania are the same shade is not much of a map.
 

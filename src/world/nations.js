@@ -7,7 +7,10 @@
 // Colours follow the Axis & Allies convention where it survives contact with a
 // dark map, and depart from it where it does not: Germany is properly black,
 // which would vanish here, so it takes the pale steel of a feldgrau greatcoat.
-// Neutrals are a receding grey so the belligerents read first.
+// France leaves the board's azure for violet, because blue was doing too much
+// work at once — the ocean, the Allied half of every neutral's slider, and an
+// empire on three continents. Neutrals are a receding grey so the belligerents
+// read first.
 
 export const NEUTRAL = 0;
 /** Sentinel for water: the sea belongs to nobody and is not a neutral state. */
@@ -17,7 +20,7 @@ export const NATIONS = [
   { id: 'neutral', name: 'Independent', color: '#59606d', side: null },
   { id: 'usa', name: 'United States', color: '#3fa34d', side: 'allies' },
   { id: 'uk', name: 'United Kingdom', color: '#d8b04a', side: 'allies' },
-  { id: 'france', name: 'France', color: '#4d8fd6', side: 'allies' },
+  { id: 'france', name: 'France', color: '#7d5fd8', side: 'allies' },
   { id: 'ussr', name: 'Soviet Union', color: '#cf3b3b', side: 'allies' },
   { id: 'china', name: 'China', color: '#c77ec2', side: 'allies' },
   { id: 'germany', name: 'Germany', color: '#c6cad3', side: 'axis' },
