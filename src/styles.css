@@ -1,0 +1,615 @@
+:root {
+  --bg: #070b12;
+  --panel: rgba(14, 20, 30, 0.82);
+  --panel-border: rgba(140, 170, 210, 0.16);
+  --text: #e8eef6;
+  --muted: #93a3b8;
+  --accent: #ffd166;
+  --radius: 12px;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, transform 80ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 209, 102, 0.5);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* ---------- top bar ---------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 10px 18px;
+  background: linear-gradient(180deg, rgba(18, 26, 38, 0.95), rgba(12, 18, 28, 0.9));
+  border-bottom: 1px solid var(--panel-border);
+  z-index: 3;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand__mark {
+  width: 26px;
+  height: 24px;
+  background: linear-gradient(160deg, var(--accent), #f47b4a);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.brand p {
+  white-space: nowrap;
+}
+
+.brand p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.topbar__stats {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.topbar__stats strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.topbar__source {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ---------- map stage ---------- */
+
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.map {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  outline: none;
+  touch-action: none;
+}
+
+.map.is-dragging {
+  cursor: grabbing;
+}
+
+.overlay {
+  position: absolute;
+  top: 16px;
+  bottom: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.overlay > * {
+  pointer-events: auto;
+}
+
+.overlay--left {
+  left: 16px;
+  width: 260px;
+  justify-content: flex-start;
+}
+
+.overlay--right {
+  right: 16px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+/* ---------- tile inspector ---------- */
+
+.panel {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(10px);
+}
+
+.panel--empty {
+  flex-direction: column;
+  color: var(--muted);
+}
+
+.panel h2 {
+  margin: 0 0 2px;
+  font-size: 15px;
+}
+
+.panel p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.panel__swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+}
+
+.panel__body {
+  min-width: 0;
+}
+
+.panel__coords {
+  font-variant-numeric: tabular-nums;
+}
+
+.panel dl {
+  margin: 10px 0 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.panel dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel dt {
+  color: var(--muted);
+}
+
+.panel dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- legend ---------- */
+
+.legend {
+  padding: 10px 12px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.legend summary {
+  cursor: pointer;
+  list-style: none;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.legend summary::-webkit-details-marker {
+  display: none;
+}
+
+.legend summary::after {
+  content: '▸';
+  float: right;
+  transition: transform 120ms ease;
+}
+
+.legend[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.legend__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+}
+
+.legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend__item i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ---------- zoom control ---------- */
+
+.zoom {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(10px);
+}
+
+.zoom button {
+  width: 34px;
+  padding: 6px 0;
+  text-align: center;
+  line-height: 1;
+}
+
+.zoom__bar {
+  position: relative;
+  width: 5px;
+  height: 90px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.zoom__fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: var(--accent);
+  transition: height 90ms linear;
+}
+
+.zoom__reset {
+  font-size: 12px;
+}
+
+/* ---------- minimap ---------- */
+
+.minimap {
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(10px);
+}
+
+.minimap canvas {
+  display: block;
+  border-radius: 6px;
+  cursor: crosshair;
+}
+
+.minimap__label {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- status bar ---------- */
+
+.statusbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  gap: 24px;
+  padding: 8px 18px;
+  background: rgba(9, 13, 20, 0.9);
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+  color: var(--muted);
+  z-index: 2;
+}
+
+.statusbar__cursor {
+  margin-left: auto;
+  color: var(--text);
+}
+
+.statusbar__zoom {
+  font-variant-numeric: tabular-nums;
+  min-width: 96px;
+  text-align: right;
+}
+
+@media (max-width: 900px) {
+  .overlay--left {
+    width: 210px;
+  }
+
+  .topbar__stats {
+    display: none;
+  }
+}
+
+.app--message {
+  align-items: center;
+  justify-content: center;
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.panel__swatch--city {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.panel__note {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+/* ---------- resource output ---------- */
+
+.output {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.output h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.output__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 2px 0;
+}
+
+.output__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.output__name {
+  flex: 1;
+  color: var(--muted);
+}
+
+.output__row strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- layer picker ---------- */
+
+.layers {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  margin-left: 24px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+}
+
+.layers button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  background: transparent;
+  border-color: transparent;
+  white-space: nowrap;
+}
+
+.layers button i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.layers button.is-active {
+  background: rgba(255, 209, 102, 0.16);
+  border-color: rgba(255, 209, 102, 0.55);
+  color: var(--text);
+}
+
+@media (max-width: 1250px) {
+  .topbar__stats {
+    display: none;
+  }
+}
+
+@media (max-width: 1000px) {
+  .layers button span,
+  .layers button:first-child {
+    /* keep the colour chips, drop the words */
+  }
+
+  .layers button {
+    padding: 5px 7px;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .layers button:first-child {
+    font-size: 12px;
+  }
+}
+
+/* ---------- political control ---------- */
+
+.panel__owner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
+/* How an independent country leaned on 1 September 1939. */
+.lean {
+  margin-top: 8px;
+}
+
+.lean__bar {
+  display: flex;
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lean__allies {
+  background: #4d8fd6;
+}
+
+.lean__axis {
+  background: #c98a52;
+}
+
+.lean__legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.panel__flag {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.layers__flag {
+  background: linear-gradient(135deg, #cf3b3b 0 33%, #d8b04a 33% 66%, #e8913a 66%);
+}
+
+.legend--static .legend__items {
+  margin-top: 0;
+}
+
+.legend__item em {
+  font-style: normal;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.layers__forces {
+  background: linear-gradient(135deg, #8d9bb0 0 33%, #c08a4a 33% 66%, #6fb7d8 66%);
+}
+
+/* The globe is WebGL; the names and city dots on top of it are a plain 2D
+   canvas sitting in the same place, so text stays crisp and selectable-looking
+   without fighting the GPU for it. */
+.map--overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
