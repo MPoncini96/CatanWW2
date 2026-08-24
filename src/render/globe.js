@@ -282,7 +282,7 @@ export class Globe {
 
     // Cell edges only once they are wide enough on screen to be a grid rather
     // than a grey wash over the whole globe.
-    const pixels = camera.pixelsPerCell(this.canvas.height);
+    const pixels = camera.pixelsPerCell(this.canvas.width, this.canvas.height);
     if (this.showGrid && pixels > 7) {
       const fade = Math.min(0.34, (pixels - 7) * 0.03);
       gl.useProgram(this.lineProgram);

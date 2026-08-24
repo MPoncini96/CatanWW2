@@ -1212,8 +1212,7 @@ button:disabled {
 .index__head h1 {
   margin: 0;
   font-size: 22px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
 .index__head p {

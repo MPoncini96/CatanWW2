@@ -1,4 +1,4 @@
-# Terra — Earth on a hex globe
+# HexWW2.world — Earth on a hex globe
 
 The board layer for an online strategy game: planet Earth on 1 September 1939,
 on a hexagonal grid wrapped around the sphere itself — the population of the
@@ -40,7 +40,7 @@ knowing there is nobody there. The totals under the legend count only what you
 can see, since printing the world's total would hand back in one line exactly
 what the fog is for.
 
-Terrain, population, cities and output stay visible to everyone. Those were in
+HexWW2.worldin, population, cities and output stay visible to everyone. Those were in
 every almanac in 1939, and a game where you cannot see that Germany has no oil is
 not modelling the war, it is modelling ignorance of it.
 
@@ -747,7 +747,7 @@ rather than a gradient.
 
 **Colour is not in that buffer.** Each vertex carries only its cell number and
 looks the colour up in a 512 × 256 texture holding one pixel per cell. Switching
-between Terrain, Nations, Forces and the resource layers, or handing a province
+between HexWW2.worldin, Nations, Forces and the resource layers, or handing a province
 to someone else, therefore costs a single upload of half a megabyte — the
 geometry never moves.
 

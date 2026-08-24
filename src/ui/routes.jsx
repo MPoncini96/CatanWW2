@@ -40,7 +40,7 @@ export function pathOf(power) {
   return `/${power}`;
 }
 
-const CHANGED = 'terra:navigate';
+const CHANGED = 'hexww2:navigate';
 
 /** Go to a path without reloading the page. */
 export function navigate(href) {

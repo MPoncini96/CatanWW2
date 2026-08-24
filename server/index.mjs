@@ -8,9 +8,9 @@ import * as G from '../src/game/state.js';
 // The one game.
 //
 // There is deliberately no game list, no lobby and no matchmaking: this server
-// holds a single game of Terra and hands it to whoever turns up. That is the
-// whole scope for now, and it keeps the state small enough to keep in memory
-// and write out as one JSON file.
+// holds a single game of HexWW2.world and hands it to whoever turns up. That
+// is the whole scope for now, and it keeps the state small enough to hold in
+// memory and write out as one JSON file.
 //
 // What it does not hold is the map. The world is deterministic — the same
 // earth.bin and the same code give the same 114,492 cells every time — so the
@@ -212,5 +212,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   const view = G.publicState(game, null);
-  console.log(`Terra on http://localhost:${PORT}  —  ${view.date}, day ${view.day}`);
+  console.log(`HexWW2.world on http://localhost:${PORT}  —  ${view.date}, day ${view.day}`);
 });

@@ -18,7 +18,7 @@ export function NationIndex({ state }) {
         <header className="index__head">
           <span className="brand__mark" aria-hidden="true" />
           <div>
-            <h1>Terra</h1>
+            <h1>HexWW2.world</h1>
             <p>Earth on a hex globe · one game, eight seats</p>
           </div>
           {state && (

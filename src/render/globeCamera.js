@@ -78,8 +78,19 @@ export class GlobeCamera {
     return (this.distance - 1) / (MAX_DISTANCE - 1);
   }
 
-  /** How many pixels a cell covers vertically at the centre of the view. */
+  /**
+   * How many pixels a cell covers vertically at the centre of the view.
+   *
+   * Both dimensions, because the vertical field depends on the shape of the
+   * canvas now — see fieldOf. Called with one argument it used to answer with
+   * a number; now it would answer with NaN, and NaN flows quietly through a
+   * canvas: a disc of radius NaN is simply not drawn, and every city on the
+   * globe disappears without an error anywhere. So it says so instead.
+   */
   pixelsPerCell(width, height) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || height <= 0) {
+      throw new Error(`pixelsPerCell needs a width and a height, got ${width}x${height}`);
+    }
     // Half the viewport spans this much arc at the sub-viewer point.
     const halfWorld = fieldOf(width / height).y * (this.distance - 1);
     return (this.arc / halfWorld) * (height / 2);

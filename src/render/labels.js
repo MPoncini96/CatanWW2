@@ -37,7 +37,7 @@ export function drawCountryLabels(ctx, world, camera, width, height) {
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
 
-  const pixelsPerCell = camera.pixelsPerCell(height);
+  const pixelsPerCell = camera.pixelsPerCell(width, height);
   const radius = discRadius(camera, width, height);
   // Largest first, so when two names collide the bigger country keeps its own.
   const order = countries

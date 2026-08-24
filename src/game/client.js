@@ -5,11 +5,15 @@
 // put the seam in the right place: when passwords arrive, only /api/claim
 // changes, and every other call already carries the identity it needs.
 
-const KEY = 'terra.session';
+const KEY = 'hexww2.session';
+// What the key was called when the game was called Terra. Read once, so that
+// renaming the game does not strand a seat: the token is how a player proves
+// the seat is theirs, and a seat nobody can prove cannot be given back.
+const FORMER_KEY = 'terra.session';
 
 export function savedSession() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(KEY) ?? localStorage.getItem(FORMER_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -18,6 +22,7 @@ export function savedSession() {
 
 function remember(session) {
   try {
+    localStorage.removeItem(FORMER_KEY);
     if (session) localStorage.setItem(KEY, JSON.stringify(session));
     else localStorage.removeItem(KEY);
   } catch {

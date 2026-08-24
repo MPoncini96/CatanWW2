@@ -291,17 +291,22 @@ export default function App() {
     setHover(null);
   }, [power, world]);
 
+  // These three run after the view is built, and again whenever it is rebuilt —
+  // which is what changing nation does. Leave `power` out of the lists and the
+  // new board comes back on the Terrain layer while the button still reads
+  // Nations, because the setting never reached the view that replaced the one
+  // it was set on.
   useEffect(() => {
     viewRef.current?.setShowCities(showCities);
-  }, [showCities, world]);
+  }, [showCities, world, power]);
 
   useEffect(() => {
     viewRef.current?.setShowLabels(showLabels);
-  }, [showLabels, world]);
+  }, [showLabels, world, power]);
 
   useEffect(() => {
     viewRef.current?.setOverlay(overlay);
-  }, [overlay, world]);
+  }, [overlay, world, power]);
 
   // Territory can change hands, so the HUD follows the ownership layer.
   useEffect(() => {
@@ -365,7 +370,7 @@ export default function App() {
           <span className="brand__mark" style={{ background: player.color }} aria-hidden="true" />
           <div>
             <h1>{player.name}</h1>
-            <p>Terra · Earth on a hex globe</p>
+            <p>HexWW2.world · Earth on a hex globe</p>
           </div>
         </Link>
         <div className="layers" role="group" aria-label="Map layer">

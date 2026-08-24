@@ -36,7 +36,7 @@ export function drawCityMarkers(ctx, world, camera, width, height, taken = []) {
   const cities = world.cities;
   if (!cities || !cities.length) return;
 
-  const pixelsPerCell = camera.pixelsPerCell(height);
+  const pixelsPerCell = camera.pixelsPerCell(width, height);
   const minPop = minPopulationFor(pixelsPerCell);
   const showLabels = pixelsPerCell > 5;
   const fontSize = Math.max(10, Math.min(15, 8 + pixelsPerCell * 0.16));
