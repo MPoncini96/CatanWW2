@@ -34,11 +34,11 @@ be taken, so nobody becomes Germany by accident.
 
 **Each page shows that nation's war, and only what that nation may know.** The
 garrison on a hex is visible if the ground is yours, your side's, or a neutral's;
-the other side's is *Not known*, and on the Forces layer it is drawn as bare
-ground — darker than empty land, because not knowing is a different fact from
-knowing there is nobody there. The totals under the legend count only what you
-can see, since printing the world's total would hand back in one line exactly
-what the fog is for.
+the other side's is *Not known*, and on the map it keeps its colour but loses
+its shading — you can see whose ground it is, which was never a secret, and not
+how much is standing on it. The totals under the legend count only what you can
+see, since printing the world's total would hand back in one line exactly what
+the fog is for.
 
 HexWW2.worldin, population, cities and output stay visible to everyone. Those were in
 every almanac in 1939, and a game where you cannot see that Germany has no oil is
@@ -163,7 +163,7 @@ nothing else needs telling.
 | Click a cell | Select and inspect it · click empty space to clear |
 | Names checkbox | Show or hide country names |
 | Cities checkbox | Show or hide the settlement layer |
-| Layer buttons | Shade the map by nation, by army, or by what the land produced |
+| Layer buttons | Shade the map by nation and army together, or by what the land produced |
 
 ## The grid
 
@@ -505,6 +505,27 @@ the war actually turned on:
 Germany with the second-largest steel industry on earth and almost no oil, and
 Japan with a tenth of America's steel and none of its own oil, are not artefacts
 of the model — they are the reason both went to war the way they did.
+
+### One map of who holds what
+
+Ownership and armies were two layers and are now one, because they were always
+one question: a political map that cannot show where the divisions are is a map
+of who owns the ground rather than who holds it. Every country keeps its own
+colour, and the colour is lifted by the weight of the garrison on that cell, so
+the front line, the fortified frontier and the empty interior all read at once.
+
+Three things are said at the same time and have to stay apart: a bright colour
+is whose it is and a great deal standing on it; a dim colour is whose it is and
+little or nothing; grey is whose it is and you are not allowed to count it.
+Ground with no garrison is floored at 42% rather than fading out, because an
+empty province is still somebody's — only the fog is allowed to take colour
+away, and even then it leaves a third of it, so the shape of the other side's
+empire is still legible.
+
+The panel follows the layer. On Terrain it says this is forest and what it costs
+to cross, on Nations who holds it and what is on it, on Oil how much oil comes
+out — one question at a time, rather than a column of twelve facts with the one
+you want in the middle of it.
 
 ### Countries, not just powers
 

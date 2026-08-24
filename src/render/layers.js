@@ -18,6 +18,15 @@ const UNCLAIMED = [42, 48, 58];
 /** Ground whose garrison this seat is not allowed to know about. */
 const UNKNOWN = [30, 35, 44];
 
+/** Two colours, mixed: 0 is all of the first, 1 all of the second. */
+function mix(a, b, amount) {
+  return [
+    a[0] + (b[0] - a[0]) * amount,
+    a[1] + (b[1] - a[1]) * amount,
+    a[2] + (b[2] - a[2]) * amount,
+  ];
+}
+
 function write(out, i, rgb, scale = 1) {
   out[i * 4] = rgb[0] * scale;
   out[i * 4 + 1] = rgb[1] * scale;
@@ -34,28 +43,47 @@ export function terrainColors(world, out) {
 }
 
 /**
- * Who holds what.
+ * Who holds what, and what they have standing on it.
  *
- * Countries carry their own colour — a belligerent's empire flies its flag, the
- * neutrals each have their own — and the sea keeps the blue it has on the
- * terrain layer, as it does under Forces.
+ * These were two layers and are now one, because they were always one question:
+ * a political map that cannot show where the divisions are is a map of who owns
+ * the ground rather than who holds it. Every country keeps its own colour — a
+ * belligerent's empire in its flag, the neutrals each in their own — and the
+ * colour is lifted by the weight of the garrison on that cell, so the front
+ * line, the fortified frontier and the empty interior all read at a glance
+ * without a second layer to switch to.
  *
- * It used to recede to the backdrop, on the theory that the borders should read
- * first. They do anyway: the land here is at full saturation and the water is
- * not competing for the same hues. What the dark sea cost was the shape of the
- * world — the Mediterranean, the Baltic and the North Sea are where this war
- * was decided, and a black ocean turned them into gaps between countries
- * instead of the seas between them.
+ * Three things are being said at once, and they have to stay distinguishable:
+ *
+ *   bright colour   whose it is, and a great deal standing on it
+ *   dim colour      whose it is, and little or nothing standing on it
+ *   grey            whose it is, and you are not allowed to count it
+ *
+ * The floor matters. Ground with no garrison is drawn at 42% rather than fading
+ * out, because ownership is public and an empty province is still somebody's;
+ * only what the fog takes is allowed to lose its colour, and even then it keeps
+ * a third of it, so the shape of the other side's empire is still legible.
+ *
+ * The sea keeps the blue it has on the terrain layer. Armies sit only on land,
+ * so the water is not competing with them, and it keeps the coastlines — which
+ * is where the fronts of 1939 mostly ran.
  */
-export function politicalColors(world, out) {
+const FLOOR = 0.42;
+const FOG_MIX = 0.66;
+
+export function politicalColors(world, out, viewer = null) {
   const owner = world.ownership.owner;
+  const strength = world.forceStrength;
+  const logMax = Math.log1p(world.maxForceStrength || 1);
   const cache = new Map();
+
   for (let i = 0; i < TILE_COUNT; i += 1) {
     const nation = owner[i];
     if (nation === SEA) {
       write(out, i, PALETTE_RGB[world.biome[i]][world.shade[i]]);
       continue;
     }
+
     const id = world.countryOf ? world.countryOf[i] : -1;
     const country = id >= 0 ? world.countries[id] : null;
     const hex = country ? country.color : NATIONS[nation].color;
@@ -64,59 +92,18 @@ export function politicalColors(world, out) {
       rgb = rgbOf(hex);
       cache.set(hex, rgb);
     }
-    write(out, i, nation === NEUTRAL && !country ? UNCLAIMED : rgb);
-  }
-  return out;
-}
+    if (nation === NEUTRAL && !country) rgb = UNCLAIMED;
 
-/**
- * Where the armies stand.
- *
- * Coloured by whose they are and darkened by how little is there, so the map
- * shows both at once rather than making one stand for the other.
- *
- * The sea keeps its own colours here rather than receding to the backdrop the
- * other overlays use. Armies sit only on land, so the water is not competing
- * with them for attention, and leaving it as it is keeps the coastlines — which
- * is where the fronts of 1939 mostly ran.
- *
- * What the seat may not see is drawn as ground and nothing else: darker than
- * empty land, so that not knowing looks different from knowing there is nobody
- * there. The enemy's coastline is still a coastline.
- */
-export function forceColors(world, out, viewer = null) {
-  const owner = world.ownership.owner;
-  const strength = world.forceStrength;
-  const logMax = Math.log1p(world.maxForceStrength || 1);
-  const cache = new Map();
-  for (let i = 0; i < TILE_COUNT; i += 1) {
-    const nation = owner[i];
-    const value = strength ? strength[i] : 0;
-    if (nation === SEA) {
-      write(out, i, PALETTE_RGB[world.biome[i]][world.shade[i]]);
-      continue;
-    }
     if (!canSeeForces(viewer, nation)) {
-      write(out, i, UNKNOWN);
+      write(out, i, mix(rgb, UNKNOWN, FOG_MIX));
       continue;
     }
-    if (value <= 0) {
-      // Land nobody garrisons — Antarctica, the empty quarter of the Sahara.
-      // Grey rather than the backdrop, so it still reads as ground now that the
-      // sea beside it is in full colour.
-      write(out, i, UNCLAIMED);
-      continue;
-    }
-    const hex = NATIONS[nation].color;
-    let rgb = cache.get(hex);
-    if (!rgb) {
-      rgb = rgbOf(hex);
-      cache.set(hex, rgb);
-    }
+
     // Log scale: a garrison of ten thousand and one of a million are both worth
     // seeing, and a linear ramp would show only the second.
-    const t = Math.log1p(value) / logMax;
-    write(out, i, rgb, 0.28 + t * 0.72);
+    const value = strength ? strength[i] : 0;
+    const t = value > 0 ? Math.log1p(value) / logMax : 0;
+    write(out, i, rgb, FLOOR + t * (1 - FLOOR));
   }
   return out;
 }
@@ -148,12 +135,11 @@ export function resourceColors(world, resourceId, out) {
 /**
  * Fill `out` for whichever layer is on show.
  *
- * `viewer` is the seat looking at it. Only the Forces layer cares: who holds
+ * `viewer` is the seat looking at it. Only the Nations layer cares: who holds
  * what is public, how much of it is under arms is not.
  */
 export function colorsFor(world, layer, out, viewer = null) {
-  if (layer === 'nations') return politicalColors(world, out);
-  if (layer === 'forces') return forceColors(world, out, viewer);
+  if (layer === 'nations') return politicalColors(world, out, viewer);
   if (layer) return resourceColors(world, layer, out);
   return terrainColors(world, out);
 }

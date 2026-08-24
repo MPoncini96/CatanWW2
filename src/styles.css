@@ -1169,6 +1169,12 @@ button:disabled {
   color: #d0a45f;
 }
 
+.legend__items--rule {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .legend__note {
   margin: 8px 0 0;
   padding-top: 8px;

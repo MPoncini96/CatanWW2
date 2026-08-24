@@ -2,6 +2,7 @@ import { formatGeo, grid } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
+import { SEA } from '../world/nations.js';
 import { canSeeForces } from '../world/intel.js';
 import { Globe } from './globe.js';
 import { GlobeCamera, MAX_DISTANCE, MIN_DISTANCE } from './globeCamera.js';
@@ -34,7 +35,14 @@ export class GlobeView {
     this.showLabels = true;
     // The seat this board is being drawn for, set by the page. Null means
     // nobody is sitting here and nothing is hidden.
+    //
+    // It is handed straight to the globe rather than waiting for the page to
+    // call setViewer, which would find the value already stored here and
+    // return without telling anybody — and the map would draw the whole world
+    // unfogged while the panel, reading this same field, censored one cell at
+    // a time. Two places holding the same fact, and only one of them told.
     this.viewer = handlers.viewer ?? null;
+    this.globe.setViewer(this.viewer);
     this.pointers = new Map();
     this.dragging = false;
     this.moved = 0;
@@ -117,7 +125,9 @@ export class GlobeView {
     // dropped here rather than hidden in the panel, so that there is no path by
     // which a component can render a number this seat should not have.
     const owner = this.world.ownership ? this.world.ownership.get(index) : null;
-    const known = owner === null || canSeeForces(this.viewer, owner);
+    // The sea has no garrison to keep from anybody: not knowing and there being
+    // nothing to know are different, and water is the second one.
+    const known = owner === null || owner === SEA || canSeeForces(this.viewer, owner);
     return {
       index,
       terrain: TERRAIN[this.world.biome[index]],

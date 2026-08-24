@@ -33,7 +33,20 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-function TileInspector({ tile }) {
+/**
+ * The cell, read through whichever layer is on show.
+ *
+ * A hex is a dozen facts at once — terrain, people, owner, sympathy, garrison,
+ * six kinds of output — and printing all of them means the one you are looking
+ * for is somewhere in the middle of a column. So the panel answers the question
+ * the map is currently asking and nothing else: on Terrain it says this is
+ * forest and what it costs to cross, on Nations who holds it and which way it
+ * leans, on Forces what is standing on it, and on Oil how much oil comes out.
+ *
+ * The swatch follows the same rule and shows the colour this cell is drawn in,
+ * so the panel and the ground agree at a glance.
+ */
+function TileInspector({ tile, layer }) {
   if (!tile) {
     return (
       <div className="panel panel--empty">
@@ -42,12 +55,22 @@ function TileInspector({ tile }) {
       </div>
     );
   }
+
   const city = tile.city;
+  const resource = layer && layer !== 'nations' ? layer : null;
+  const output = resource ? tile.resources.find((r) => r.id === resource) : null;
+  const definition = resource ? RESOURCES.find((r) => r.id === resource) : null;
+
+  const swatch =
+    layer === 'nations'
+      ? (tile.country?.color ?? tile.nation?.color ?? tile.terrain.color)
+      : (definition?.color ?? tile.terrain.color);
+
   return (
     <div className="panel">
       <div
         className={`panel__swatch${city ? ' panel__swatch--city' : ''}`}
-        style={{ background: tile.terrain.color }}
+        style={{ background: swatch }}
       />
       <div className="panel__body">
         <h2>{city ? city.name : tile.terrain.name}</h2>
@@ -55,89 +78,111 @@ function TileInspector({ tile }) {
           {city ? `${tile.terrain.name} · ` : ''}
           {tile.label}
         </p>
-        {tile.nation && (
-          <p className="panel__owner">
-            <span className="panel__flag" style={{ background: tile.nation.color }} />
-            {tile.country ? tile.country.name : tile.nation.name}
-            {/* A colony names its metropole rather than reporting itself
-                Independent, which is what a colony most certainly was not. */}
-            {tile.country?.sovereign
-              ? ` · ${tile.country.sovereign}`
-              : tile.country && tile.country.name !== tile.nation.name
-                ? ` · ${tile.nation.name}`
-                : ''}
-          </p>
-        )}
-        {tile.country?.dominion && (
-          <p className="panel__note">
-            A self-governing Dominion. It is drawn as the United Kingdom because there are eight
-            seats, but it had its own parliament and declared war on its own account.
-          </p>
-        )}
-        {tile.country && tile.country.leanAllied !== undefined && (
-          <div className="lean">
-            <div className="lean__bar">
-              <span className="lean__allies" style={{ width: `${tile.country.leanAllied}%` }} />
-              <span className="lean__axis" style={{ width: `${100 - tile.country.leanAllied}%` }} />
-            </div>
-            <p className="lean__legend">
-              <span>Allies {tile.country.leanAllied}%</span>
-              <span>Axis {100 - tile.country.leanAllied}%</span>
-            </p>
-          </div>
-        )}
-        <dl>
-          {city && (
-            <div>
-              <dt>City (1939)</dt>
-              <dd>{formatPopulation(city.population)}</dd>
-            </div>
-          )}
-          <div>
-            <dt>{city ? 'Surrounding' : 'Population'}</dt>
-            <dd>{formatPopulation(city ? city.rural : tile.population)}</dd>
-          </div>
-          <div>
-            <dt>Move cost</dt>
-            <dd>{tile.terrain.move}</dd>
-          </div>
-        </dl>
-        {city && city.merged.length > 1 && (
-          <p className="panel__note">with {city.merged.slice(1).join(', ')}</p>
-        )}
-        {/* Not knowing is a different fact from there being nobody there, and
-            the panel says which of the two this is. */}
-        {tile.forcesUnknown ? (
-          <div className="output output--unknown">
-            <h3>Garrison, 1939</h3>
-            <p>Not known — this ground is held by the other side.</p>
-          </div>
-        ) : (
-          tile.forces.length > 0 && (
-            <div className="output">
-              <h3>Garrison, 1939</h3>
-              {tile.forces.map((u) => (
-                <div className="output__row" key={u.id}>
-                  <span className="output__dot" style={{ background: u.color }} />
-                  <span className="output__name">{u.name}</span>
-                  <strong>{formatUnits(u.count)}</strong>
+
+        {/* ---- Terrain: the ground itself, and who lives on it ---- */}
+        {layer === null && (
+          <>
+            <dl>
+              {city && (
+                <div>
+                  <dt>City (1939)</dt>
+                  <dd>{formatPopulation(city.population)}</dd>
                 </div>
-              ))}
-            </div>
-          )
-        )}
-        {tile.resources.length > 0 && (
-          <div className="output">
-            <h3>Output, 1939</h3>
-            {tile.resources.map((r) => (
-              <div className="output__row" key={r.id}>
-                <span className="output__dot" style={{ background: r.color }} />
-                <span className="output__name">{r.name}</span>
-                <strong>{formatAmount(r.amount, r.unit)}</strong>
+              )}
+              <div>
+                <dt>{city ? 'Surrounding' : 'Population'}</dt>
+                <dd>{formatPopulation(city ? city.rural : tile.population)}</dd>
               </div>
-            ))}
-            {tile.sites.length > 0 && (
-              <p className="panel__note">{tile.sites.map((x) => x.name).join(' · ')}</p>
+              <div>
+                <dt>Move cost</dt>
+                <dd>{tile.terrain.move}</dd>
+              </div>
+            </dl>
+            {city && city.merged.length > 1 && (
+              <p className="panel__note">with {city.merged.slice(1).join(', ')}</p>
+            )}
+          </>
+        )}
+
+        {/* ---- Nations: who holds it, and which way it leans ---- */}
+        {layer === 'nations' && tile.nation && (
+          <>
+            <p className="panel__owner">
+              <span className="panel__flag" style={{ background: tile.nation.color }} />
+              {tile.country ? tile.country.name : tile.nation.name}
+              {/* A colony names its metropole rather than reporting itself
+                  Independent, which is what a colony most certainly was not. */}
+              {tile.country?.sovereign
+                ? ` · ${tile.country.sovereign}`
+                : tile.country && tile.country.name !== tile.nation.name
+                  ? ` · ${tile.nation.name}`
+                  : ''}
+            </p>
+            {tile.country?.dominion && (
+              <p className="panel__note">
+                A self-governing Dominion. It is drawn as the United Kingdom because there are
+                eight seats, but it had its own parliament and declared war on its own account.
+              </p>
+            )}
+            {tile.country && tile.country.leanAllied !== undefined && (
+              <div className="lean">
+                <div className="lean__bar">
+                  <span className="lean__allies" style={{ width: `${tile.country.leanAllied}%` }} />
+                  <span
+                    className="lean__axis"
+                    style={{ width: `${100 - tile.country.leanAllied}%` }}
+                  />
+                </div>
+                <p className="lean__legend">
+                  <span>Allies {tile.country.leanAllied}%</span>
+                  <span>Axis {100 - tile.country.leanAllied}%</span>
+                </p>
+              </div>
+            )}
+            {/* Who holds it and what they hold it with are one question, so
+                they are one section. */}
+            {tile.forcesUnknown ? (
+              <div className="output output--unknown">
+                <h3>Garrison, 1939</h3>
+                <p>Not known — this ground is held by the other side.</p>
+              </div>
+            ) : tile.forces.length > 0 ? (
+              <div className="output">
+                <h3>Garrison, 1939</h3>
+                {tile.forces.map((u) => (
+                  <div className="output__row" key={u.id}>
+                    <span className="output__dot" style={{ background: u.color }} />
+                    <span className="output__name">{u.name}</span>
+                    <strong>{formatUnits(u.count)}</strong>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="output output--unknown">
+                <h3>Garrison, 1939</h3>
+                <p>Nobody is holding this ground.</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ---- One resource: what this cell produced in a year ---- */}
+        {resource && (
+          <div className={`output${output ? '' : ' output--unknown'}`}>
+            <h3>{definition?.name ?? resource}, 1939</h3>
+            {output ? (
+              <>
+                <div className="output__row">
+                  <span className="output__dot" style={{ background: output.color }} />
+                  <span className="output__name">{output.name}</span>
+                  <strong>{formatAmount(output.amount, output.unit)}</strong>
+                </div>
+                {tile.sites.length > 0 && (
+                  <p className="panel__note">{tile.sites.map((x) => x.name).join(' · ')}</p>
+                )}
+              </>
+            ) : (
+              <p>None here.</p>
             )}
           </div>
         )}
@@ -389,14 +434,6 @@ export default function App() {
             <i className="layers__flag" />
             Nations
           </button>
-          <button
-            type="button"
-            className={overlay === 'forces' ? 'is-active' : ''}
-            onClick={() => setOverlay(overlay === 'forces' ? null : 'forces')}
-          >
-            <i className="layers__forces" />
-            Forces
-          </button>
           {RESOURCES.map((r) => (
             <button
               key={r.id}
@@ -442,24 +479,7 @@ export default function App() {
             busy={busy}
             error={seatError}
           />
-          <TileInspector tile={selected} />
-          {overlay === 'forces' && forceTotals && (
-            <div className="legend legend--static">
-              <div className="legend__items">
-                {UNITS.map((u, i) => (
-                  <span key={u.id} className="legend__item">
-                    <i style={{ background: u.color }} />
-                    {u.name}
-                    <em>{formatUnits(forceTotals[i])}</em>
-                  </span>
-                ))}
-              </div>
-              <p className="legend__note">
-                {player.name}, its side, and the neutrals. What the other side has is not on this
-                map: the dark ground is the ground you cannot count.
-              </p>
-            </div>
-          )}
+          <TileInspector tile={selected} layer={overlay} />
           {overlay === 'nations' && tally.length > 0 && (
             <div className="legend legend--static">
               <div className="legend__items">
@@ -471,6 +491,24 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              {forceTotals && (
+                <>
+                  <div className="legend__items legend__items--rule">
+                    {UNITS.map((u, i) => (
+                      <span key={u.id} className="legend__item">
+                        <i style={{ background: u.color }} />
+                        {u.name}
+                        <em>{formatUnits(forceTotals[i])}</em>
+                      </span>
+                    ))}
+                  </div>
+                  <p className="legend__note">
+                    Colour is who holds the ground; brightness is how much is standing on it.
+                    The count is {player.name}, its side and the neutrals — the grey ground is the
+                    ground you are not allowed to count.
+                  </p>
+                </>
+              )}
               <p className="legend__note">
                 Eight powers, so Canada, Australia, New Zealand, South Africa and Newfoundland are
                 drawn as the United Kingdom — they were self-governing and declared war separately.
@@ -547,10 +585,10 @@ export default function App() {
                     ? ` · ${hover.nation.name}`
                     : '') +
                   (hover.population ? ` · ${formatPopulation(hover.population)}` : '') +
-                  (overlay === 'forces' && hover.forces.length
+                  (overlay === 'nations' && hover.forces.length
                     ? ` · ${hover.forces.map((u) => `${u.short} ${formatUnits(u.count)}`).join(' ')}`
                     : '') +
-                  (overlay === 'forces' && hover.forcesUnknown ? ' · garrison not known' : '') +
+                  (overlay === 'nations' && hover.forcesUnknown ? ' · garrison not known' : '') +
                   (overlayValue(hover, overlay) ?? '')
                 : `Drag to turn · scroll to zoom · click a cell · ${KM_PER_CELL} km across every cell`}
             </span>
