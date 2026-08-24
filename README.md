@@ -18,7 +18,8 @@ npm run dev               # the board, proxying /api across
 114,492 cells, every one of them 4,455 km² — 67 km across, at the equator and
 at the pole alike. 181 cities, 2.30 billion people, a year's output of oil,
 iron, steel, aluminium and rubber, every acre of land assigned to one of eight
-powers or to nobody, and the armies of 1939 standing on it.
+powers or to nobody, the armies of 1939 standing on it and the fleets of 1939
+at their moorings.
 
 ## The game
 
@@ -116,7 +117,7 @@ into.
 ### What is not the game
 
 `src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
-it under plain Node — 181 checks: 6,800 days round-tripped through the civil
+it under plain Node — 189 checks: 6,800 days round-tripped through the civil
 calendar, every belligerence rule checked on the day either side of the event
 that grants it, the turn engine driven through a game where one player is in the
 war and the other is watching, and a hundred places on the map asked who holds
@@ -743,16 +744,58 @@ first and then handing the remainder to the hexes with the largest fractions
 keeps every power's total exact and puts the leftovers where the pressure is
 greatest.
 
-Deployment is deterministic. The forces layer colours each cell by whose troops
-stand on it and darkens it by how few there are, on a logarithmic ramp — a
-garrison of ten thousand and one of a million are both worth seeing, and a
-linear ramp would show only the second. Land nobody garrisons goes grey:
-Antarctica, Greenland's ice, the empty quarter of the Sahara.
+Deployment is deterministic, and it is what lifts the colour on the Nations
+layer: a cell's brightness is the weight of the garrison on it, on a logarithmic
+ramp, because a garrison of ten thousand and one of a million are both worth
+seeing and a linear ramp would show only the second.
 
-Unlike the other overlays, the sea keeps its own colours here rather than
-receding to a flat backdrop. Armies sit only on land, so the water is not
-competing with them for attention, and leaving it alone keeps the coastlines —
-which is where the fronts of 1939 mostly ran.
+## The fleets of 1939
+
+An army is spread over the ground its nation owns. A navy is not — it is a few
+dozen ships in a handful of anchorages, and can be somewhere else in a week,
+which is the whole point of it. So fleets are stations rather than a layer:
+a diamond on the water, told apart from the round city dots at a glance.
+
+| | Capital ships | Carriers | Cruisers | Destroyers | Submarines | Carrier aircraft |
+| --- | --- | --- | --- | --- | --- | --- |
+| United Kingdom | 15 | 7 | 62 | 181 | 60 | 230 |
+| United States | 15 | 5 | 37 | 214 | 87 | 350 |
+| Japan | 10 | 6 | 38 | 113 | 63 | 380 |
+| France | 7 | 1 | 19 | 70 | 77 | 40 |
+| Italy | 4 | — | 22 | 59 | 115 | — |
+| Germany | 5 | — | 7 | 22 | 57 | — |
+| Soviet Union | 3 | — | 7 | 54 | 165 | — |
+| China | — | — | — | — | — | — |
+
+Capital ships count battleships and battlecruisers together, and for Germany
+the three panzerschiffe with them. The shape of the table is again the story:
+seven British carriers, more than everyone else together, and only two British
+capital ships built since 1918; the largest submarine forces in the world flying
+the Soviet and Italian flags with nothing to put behind them; Japan embarking
+more carrier aircraft than anyone; and China with nothing at all, its fleet
+scuttled across the Yangtze at Jiangyin two years before to block the river.
+
+**Where they were.** Two thirds of the Royal Navy in home waters and the rest
+strung from Halifax to Sydney; the US Fleet on the American west coast, because
+Pearl Harbor did not become its home until May 1940; the Regia Marina wholly
+inside the Mediterranean; the Soviet navy split four ways between seas that
+cannot reinforce one another. Shares are of each navy's whole strength and the
+hulls are apportioned by largest remainder, so what reaches the board is exactly
+what is in the table.
+
+Two German ships are not at a station at all. Deutschland and Admiral Graf Spee
+sailed for their war stations in August, before a shot was fired — one north of
+Iceland, one south of the equator on the morning of the 1st — so they are named
+ships rather than a share of a fleet, and they are **secret**: a raider at sea
+is not an anchorage anyone knows about, and no other seat can see them. The
+Admiralty did not find Graf Spee until December.
+
+**What the fog hides at sea is the count, not the anchorage.** Everyone knew the
+Home Fleet lay at Scapa and the Regia Marina at Taranto; nobody outside the
+Admiralty knew what was moored there on a given morning. So a foreign station is
+drawn as an outline at a fixed size and the panel says its strength is not
+known, while one you may count is filled, sized by its hulls, and labelled with
+them.
 
 ## Rendering
 
@@ -827,11 +870,11 @@ src/
            cities.js  regions.js  population.js   — people, 1939
            resourceSites.js  resources.js         — output, 1939
            nations.js  territories.js             — control, 1939
-           forces.js                              — armies, 1939
+           forces.js  navies.js                   — armies and fleets, 1939
            countries.js  leanings.js              — countries, colours, sympathies
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
-           labels.js  cities.js                   — names and dots, in 2D
+           labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
   ui/      App.jsx  routes.jsx  NationIndex.jsx   — the pages
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know

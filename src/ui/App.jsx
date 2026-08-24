@@ -7,6 +7,7 @@ import { formatPopulation } from '../world/population.js';
 import { RESOURCES, formatAmount } from '../world/resources.js';
 import { NATIONS, NATION_INDEX, NEUTRAL } from '../world/nations.js';
 import { UNITS, formatUnits } from '../world/forces.js';
+import { SHIPS } from '../world/navies.js';
 import { canSeeForces } from '../world/intel.js';
 import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
@@ -167,6 +168,36 @@ function TileInspector({ tile, layer }) {
               </div>
             )}
           </>
+        )}
+
+        {/* ---- A fleet, if one is moored on this cell ---- */}
+        {layer === 'nations' && tile.fleet && (
+          <div className={`output${tile.fleetKnown ? '' : ' output--unknown'}`}>
+            <h3>{tile.fleet.name}</h3>
+            {tile.fleetKnown ? (
+              <>
+                {SHIPS.map((s) =>
+                  tile.fleet.ships[s.id] > 0 ? (
+                    <div className="output__row" key={s.id}>
+                      <span className="output__dot" style={{ background: s.color }} />
+                      <span className="output__name">{s.name}</span>
+                      <strong>{tile.fleet.ships[s.id]}</strong>
+                    </div>
+                  ) : null,
+                )}
+                {tile.fleet.aircraft > 0 && (
+                  <p className="panel__note">
+                    {tile.fleet.aircraft} aircraft embarked in{' '}
+                    {tile.fleet.ships.carriers === 1
+                      ? 'the carrier'
+                      : `${tile.fleet.ships.carriers} carriers`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>A fleet is based here. Its strength is not known.</p>
+            )}
+          </div>
         )}
 
         {/* ---- Output: everything this cell produced in a year ---- */}
@@ -393,6 +424,19 @@ export default function App() {
     return totals;
   }, [world, power]);
 
+  // Hulls this seat may count, by type. Same rule as the armies: your own, your
+  // side's, and the neutrals' — of which there are none at sea, because every
+  // navy on the board belongs to one of the eight.
+  const navalTotals = useMemo(() => {
+    if (!world?.navies) return null;
+    const totals = Object.fromEntries(SHIPS.map((s) => [s.id, 0]));
+    for (const station of world.navies.stations) {
+      if (!canSeeForces(power, NATION_INDEX[station.power])) continue;
+      for (const s of SHIPS) totals[s.id] += station.ships[s.id];
+    }
+    return totals;
+  }, [world, power]);
+
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
   const player = power ? BY_ID[power] : null;
 
@@ -493,6 +537,17 @@ export default function App() {
                   </span>
                 ))}
               </div>
+              {navalTotals && (
+                <div className="legend__items legend__items--rule">
+                  {SHIPS.map((s) => (
+                    <span key={s.id} className="legend__item">
+                      <i style={{ background: s.color }} />
+                      {s.name}
+                      <em>{navalTotals[s.id]}</em>
+                    </span>
+                  ))}
+                </div>
+              )}
               {forceTotals && (
                 <>
                   <div className="legend__items legend__items--rule">
@@ -505,9 +560,10 @@ export default function App() {
                     ))}
                   </div>
                   <p className="legend__note">
-                    Colour is who holds the ground; brightness is how much is standing on it.
-                    The count is {player.name}, its side and the neutrals — the grey ground is the
-                    ground you are not allowed to count.
+                    Colour is who holds the ground; brightness is how much is standing on it. A
+                    diamond on the water is a fleet — filled and sized if you may count it, an
+                    outline if you may not. The counts are {player.name}, its side and the
+                    neutrals; the grey ground is the ground you are not allowed to count.
                   </p>
                 </>
               )}
@@ -608,7 +664,16 @@ export default function App() {
                   (overlay === 'nations' && hover.forces.length
                     ? ` · ${hover.forces.map((u) => `${u.short} ${formatUnits(u.count)}`).join(' ')}`
                     : '') +
-                  (overlay === 'nations' && hover.forcesUnknown ? ' · garrison not known' : '') +
+                  (overlay === 'nations' && hover.forcesUnknown && !hover.fleet
+                    ? ' · garrison not known'
+                    : '') +
+                  (hover.fleet
+                    ? ` · ${hover.fleet.name}${
+                        hover.fleetKnown
+                          ? ` · ${hover.fleet.hulls} ${hover.fleet.hulls === 1 ? 'ship' : 'ships'}`
+                          : ' · strength not known'
+                      }`
+                    : '') +
                   (overlayValue(hover, overlay) ?? '')
                 : `Drag to turn · scroll to zoom · click a cell · ${KM_PER_CELL} km across every cell`}
             </span>

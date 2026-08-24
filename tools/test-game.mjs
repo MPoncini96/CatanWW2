@@ -37,6 +37,8 @@ import { TERRITORIES_1939, territoryAt } from '../src/world/territories.js';
 import { countryFor } from '../src/world/countries.js';
 import { NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
 import { canSeeForces } from '../src/world/intel.js';
+import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
+import { T } from '../src/world/terrain.js';
 
 let checks = 0;
 let failures = 0;
@@ -354,6 +356,70 @@ section('who holds what');
   eq(country(11.86, -15.6), 'Portuguese Guinea', 'Bissau is Portuguese');
   eq(country(9.51, -13.71), 'French West Africa', 'and Conakry French');
   eq(country(8.48, -13.23), 'Sierra Leone', 'while Freetown is British');
+}
+
+// ------------------------------------------------------------- the fleets
+section('the fleets');
+{
+  // The fleets need to know where the water is and nothing else, so the board
+  // is stood up from the land mask alone rather than built in full: the terrain
+  // model only ever turns land into land, so a cell is water exactly when that
+  // byte is under 128.
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const bin = fs.readFileSync(path.join(HERE, '..', 'src', 'world', 'earth.bin'));
+  const mask = bin.subarray(0, TILE_COUNT);
+  const biome = new Uint8Array(TILE_COUNT);
+  const WATER = new Set();
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (mask[i] >= 128) {
+      biome[i] = T.plains;
+    } else {
+      biome[i] = T.ocean;
+      WATER.add(i);
+    }
+  }
+  const NAVIES = buildNavies({ biome });
+
+  // Every hull in the table reaches the board, and reaches the water.
+  let placedRight = true;
+  let stationsOnLand = 0;
+  for (const [power, fleet] of Object.entries(NAVIES_1939)) {
+    const mine = NAVIES.stations.filter((s) => s.power === power);
+    for (const ship of SHIPS) {
+      const placed = mine.reduce((sum, s) => sum + s.ships[ship.id], 0);
+      if (placed !== fleet[ship.id]) {
+        placedRight = false;
+        console.error(`        ${power} ${ship.id}: ${placed} placed, ${fleet[ship.id]} in the table`);
+      }
+    }
+    const air = mine.reduce((sum, s) => sum + s.aircraft, 0);
+    if (air !== fleet.aircraft) placedRight = false;
+  }
+  ok(placedRight, 'every hull and every aircraft in the table reaches a station');
+
+  for (const station of NAVIES.stations) {
+    if (!WATER.has(station.cell)) stationsOnLand += 1;
+  }
+  eq(stationsOnLand, 0, 'and every station is moored on water');
+
+  // The shares are a disposition, not a guess: each navy's have to add up.
+  let sharesSum = true;
+  for (const power of Object.keys(NAVIES_1939)) {
+    const ports = STATIONS.filter((s) => s.power === power);
+    if (!ports.length) continue;
+    const total = ports.reduce((sum, p) => sum + p.share, 0);
+    if (Math.abs(total - 1) > 1e-9) {
+      sharesSum = false;
+      console.error(`        ${power}: shares add to ${total.toFixed(3)}`);
+    }
+  }
+  ok(sharesSum, 'and the stations of each navy account for all of it');
+
+  eq(NAVIES_1939.china.battleships, 0, 'China has no navy left by September 1939');
+  eq(NAVIES.stations.filter((s) => s.power === 'china').length, 0, 'and therefore no stations');
+  ok(NAVIES_1939.uk.carriers > NAVIES_1939.usa.carriers, 'the Royal Navy has the most carriers');
+  ok(NAVIES_1939.ussr.submarines > NAVIES_1939.germany.submarines * 2, 'and the Soviets the most submarines');
+  ok(NAVIES_1939.japan.aircraft > NAVIES_1939.uk.aircraft, 'Japan embarks the most aircraft');
 }
 
 // ------------------------------------------------------- what a seat may know

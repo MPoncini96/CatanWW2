@@ -15,7 +15,11 @@ export const TERRAIN = [
   { id: 'forest', name: 'Forest', color: '#4a7c46', water: false, move: 2 },
   { id: 'jungle', name: 'Jungle', color: '#2f6b3c', water: false, move: 3 },
   { id: 'swamp', name: 'Wetlands', color: '#5c7346', water: false, move: 3 },
-  { id: 'taiga', name: 'Taiga', color: '#3d6a55', water: false, move: 2 },
+  // Taiga to a geographer; pine forest to everyone else, and every other
+  // name in this table is plain English. It is 12.7% of the world's land and
+  // all of it lies between 40N and 70N, which is why Siberia and Canada look
+  // the way they do.
+  { id: 'taiga', name: 'Pine forest', color: '#3d6a55', water: false, move: 2 },
   { id: 'tundra', name: 'Tundra', color: '#93a292', water: false, move: 2 },
   { id: 'hills', name: 'Hills', color: '#7b8148', water: false, move: 2 },
   { id: 'mountain', name: 'Mountains', color: '#7a7168', water: false, move: 4 },

@@ -2,12 +2,13 @@ import { formatGeo, grid } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
-import { SEA } from '../world/nations.js';
+import { NATION_INDEX, SEA } from '../world/nations.js';
 import { canSeeForces } from '../world/intel.js';
 import { Globe } from './globe.js';
 import { GlobeCamera, MAX_DISTANCE, MIN_DISTANCE } from './globeCamera.js';
 import { drawCountryLabels } from './labels.js';
 import { drawCityMarkers } from './cities.js';
+import { drawFleetMarkers } from './fleets.js';
 
 // Input, the frame loop, and the writing on top of it.
 //
@@ -150,6 +151,11 @@ export class GlobeView {
           : [],
       // Told apart from "nobody is there", which is a different fact.
       forcesUnknown: !known,
+      // A fleet is at a station rather than spread over the water, so it is
+      // looked up by cell rather than read off a per-cell array. What may be
+      // known about it turns on whose fleet it is — not on who owns the water,
+      // which is nobody.
+      ...this.fleetAt(index),
       nation: this.world.ownership ? this.world.ownership.nationAt(index) : null,
       territory: this.world.territoryName?.[index] ?? null,
       country:
@@ -158,6 +164,21 @@ export class GlobeView {
           : null,
       label: formatGeo(this.sphere, index),
     };
+  }
+
+  /**
+   * The fleet moored on a cell, and whether this seat may count it.
+   *
+   * A station is a place and places are public: everyone knew the Home Fleet
+   * lay at Scapa. A raider at sea is not a place, and is not shown at all to
+   * anyone who may not count it — which was the whole point of sending it.
+   */
+  fleetAt(index) {
+    const fleet = this.world.navies?.byCell.get(index) ?? null;
+    if (!fleet) return { fleet: null, fleetKnown: false };
+    const known = canSeeForces(this.viewer, NATION_INDEX[fleet.power]);
+    if (fleet.secret && !known) return { fleet: null, fleetKnown: false };
+    return { fleet, fleetKnown: known };
   }
 
   // ---------------------------------------------------------------- input
@@ -354,5 +375,7 @@ export class GlobeView {
     if (this.showCities) {
       drawCityMarkers(ctx, this.world, this.camera, this.width, this.height, taken);
     }
+    // Fleets last, so a battle fleet is never hidden under a city dot.
+    drawFleetMarkers(ctx, this.world, this.camera, this.width, this.height, this.viewer, taken);
   }
 }

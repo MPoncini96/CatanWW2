@@ -7,6 +7,7 @@ import { buildResources } from './resources.js';
 import { NATION_INDEX, NEUTRAL, SEA, Ownership } from './nations.js';
 import { territoryFor } from './territories.js';
 import { buildForces } from './forces.js';
+import { buildNavies } from './navies.js';
 import { buildCountries } from './countries.js';
 
 // Turns the baked per-hex Earth samples (land mask, relief, vegetation)
@@ -275,6 +276,9 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
   world.forcesByNation = armies.byNation;
   world.forceStrength = armies.strength;
   world.maxForceStrength = armies.maxStrength;
+
+  // And the fleets, which sit on the water rather than over the ground.
+  world.navies = buildNavies(world);
   return world;
 }
 
