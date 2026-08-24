@@ -238,7 +238,8 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
   world.rural = people.rural;
   world.totalPopulation = people.total;
 
-  // Resources go on last of all: food output depends on where the people are.
+  // Resources go on after the people. They no longer depend on them — food did,
+  // and food is gone — but the order is kept because forces read both.
   const output = buildResources(world);
   world.resources = output.amounts;
   world.resourceTotals = output.totals;

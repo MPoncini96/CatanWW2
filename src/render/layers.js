@@ -108,26 +108,47 @@ export function politicalColors(world, out, viewer = null) {
   return out;
 }
 
-/** One resource's output, as brightness over a dark ground. */
-export function resourceColors(world, resourceId, out) {
-  const r = RESOURCES.findIndex((x) => x.id === resourceId);
-  if (r < 0) return terrainColors(world, out);
-  const amounts = world.resources[r];
-  let max = 0;
-  for (let i = 0; i < TILE_COUNT; i += 1) if (amounts[i] > max) max = amounts[i];
-  const logMax = Math.log1p(max || 1);
-  const rgb = rgbOf(RESOURCES[r].color);
+/**
+ * What the land produced — all five at once.
+ *
+ * Five separate maps meant five buttons and no way to see that the oil is in
+ * one hemisphere and the rubber in another. One map instead: a cell takes the
+ * colour of whatever it is most notable for, and its brightness from how
+ * notable that is.
+ *
+ * "Most notable" has to be measured per resource or the answer would be the
+ * same everywhere. Iron is mined by the hundred million tonnes and aluminium by
+ * the hundred thousand, so a raw comparison makes every smelter on earth
+ * invisible; each cell's output is scored against the largest of its own kind,
+ * on a log scale, and the biggest of those five scores picks the colour.
+ */
+export function outputColors(world, out) {
+  const amounts = world.resources;
+  const logMax = amounts.map((a) => {
+    let max = 0;
+    for (let i = 0; i < a.length; i += 1) if (a[i] > max) max = a[i];
+    return Math.log1p(max || 1);
+  });
+  const rgb = RESOURCES.map((r) => rgbOf(r.color));
 
   for (let i = 0; i < TILE_COUNT; i += 1) {
-    const value = amounts[i];
-    if (value <= 0) {
+    let best = -1;
+    let bestShare = 0;
+    for (let r = 0; r < amounts.length; r += 1) {
+      if (amounts[r][i] <= 0) continue;
+      const share = Math.log1p(amounts[r][i]) / logMax[r];
+      if (share > bestShare) {
+        bestShare = share;
+        best = r;
+      }
+    }
+    if (best < 0) {
       // Keep a hint of the coastline under the overlay so the shape of the
       // world does not disappear along with the zeroes.
       write(out, i, TERRAIN[world.biome[i]].water ? BACKDROP : UNCLAIMED);
       continue;
     }
-    const t = Math.log1p(value) / logMax;
-    write(out, i, rgb, 0.3 + t * 0.7);
+    write(out, i, rgb[best], 0.3 + bestShare * 0.7);
   }
   return out;
 }
@@ -140,7 +161,7 @@ export function resourceColors(world, resourceId, out) {
  */
 export function colorsFor(world, layer, out, viewer = null) {
   if (layer === 'nations') return politicalColors(world, out, viewer);
-  if (layer) return resourceColors(world, layer, out);
+  if (layer === 'output') return outputColors(world, out);
   return terrainColors(world, out);
 }
 

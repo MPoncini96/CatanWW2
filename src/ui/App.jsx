@@ -22,11 +22,12 @@ const KM_PER_CELL = Math.round(Math.sqrt(KM2_PER_CELL));
 
 const BY_ID = Object.fromEntries(PLAYERS.map((p) => [p.id, p]));
 
-/** The hovered tile's output of the resource currently on show. */
+/** Everything the hovered cell produced, for the status line. */
 function overlayValue(tile, overlay) {
-  if (!overlay) return null;
-  const found = tile.resources.find((r) => r.id === overlay);
-  return found ? ` · ${found.name} ${formatAmount(found.amount, found.unit)}` : null;
+  if (overlay !== 'output' || !tile.resources.length) return null;
+  return ` · ${tile.resources
+    .map((r) => `${r.name} ${formatAmount(r.amount, r.unit)}`)
+    .join(' · ')}`;
 }
 
 function pct(value) {
@@ -57,14 +58,16 @@ function TileInspector({ tile, layer }) {
   }
 
   const city = tile.city;
-  const resource = layer && layer !== 'nations' ? layer : null;
-  const output = resource ? tile.resources.find((r) => r.id === resource) : null;
-  const definition = resource ? RESOURCES.find((r) => r.id === resource) : null;
+  // On the output layer the swatch takes the colour of whatever this cell is
+  // most notable for, which is the colour the map has drawn it in.
+  const chief = layer === 'output' ? tile.resources[0] : null;
 
   const swatch =
     layer === 'nations'
       ? (tile.country?.color ?? tile.nation?.color ?? tile.terrain.color)
-      : (definition?.color ?? tile.terrain.color);
+      : layer === 'output'
+        ? (chief?.color ?? '#2a303a')
+        : tile.terrain.color;
 
   return (
     <div className="panel">
@@ -166,23 +169,25 @@ function TileInspector({ tile, layer }) {
           </>
         )}
 
-        {/* ---- One resource: what this cell produced in a year ---- */}
-        {resource && (
-          <div className={`output${output ? '' : ' output--unknown'}`}>
-            <h3>{definition?.name ?? resource}, 1939</h3>
-            {output ? (
+        {/* ---- Output: everything this cell produced in a year ---- */}
+        {layer === 'output' && (
+          <div className={`output${tile.resources.length ? '' : ' output--unknown'}`}>
+            <h3>Output, 1939</h3>
+            {tile.resources.length ? (
               <>
-                <div className="output__row">
-                  <span className="output__dot" style={{ background: output.color }} />
-                  <span className="output__name">{output.name}</span>
-                  <strong>{formatAmount(output.amount, output.unit)}</strong>
-                </div>
+                {tile.resources.map((r) => (
+                  <div className="output__row" key={r.id}>
+                    <span className="output__dot" style={{ background: r.color }} />
+                    <span className="output__name">{r.name}</span>
+                    <strong>{formatAmount(r.amount, r.unit)}</strong>
+                  </div>
+                ))}
                 {tile.sites.length > 0 && (
                   <p className="panel__note">{tile.sites.map((x) => x.name).join(' · ')}</p>
                 )}
               </>
             ) : (
-              <p>None here.</p>
+              <p>Nothing is raised here.</p>
             )}
           </div>
         )}
@@ -434,17 +439,14 @@ export default function App() {
             <i className="layers__flag" />
             Nations
           </button>
-          {RESOURCES.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className={overlay === r.id ? 'is-active' : ''}
-              onClick={() => setOverlay(overlay === r.id ? null : r.id)}
-            >
-              <i style={{ background: r.color }} />
-              {r.name}
-            </button>
-          ))}
+          <button
+            type="button"
+            className={overlay === 'output' ? 'is-active' : ''}
+            onClick={() => setOverlay(overlay === 'output' ? null : 'output')}
+          >
+            <i className="layers__output" />
+            Output
+          </button>
         </div>
 
         <div className="topbar__actions">
@@ -514,6 +516,24 @@ export default function App() {
                 drawn as the United Kingdom — they were self-governing and declared war separately.
                 Independent covers both the genuinely neutral and the colonies of neutral powers:
                 the Congo is Belgian, the East Indies Dutch, Angola Portuguese.
+              </p>
+            </div>
+          )}
+          {overlay === 'output' && world && (
+            <div className="legend legend--static">
+              <div className="legend__items">
+                {RESOURCES.map((r, i) => (
+                  <span key={r.id} className="legend__item">
+                    <i style={{ background: r.color }} />
+                    {r.name}
+                    <em>{formatAmount(world.resourceTotals[i], r.unit)}</em>
+                  </span>
+                ))}
+              </div>
+              <p className="legend__note">
+                A cell takes the colour of whatever it is most notable for, measured against the
+                largest producer of that same thing — iron is raised by the hundred million tonnes
+                and aluminium by the hundred thousand, so the two cannot be compared directly.
               </p>
             </div>
           )}

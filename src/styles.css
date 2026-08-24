@@ -632,6 +632,10 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+.layers__output {
+  background: conic-gradient(#e0a83c, #e0765a, #8fd0e8, #e8eef5, #c98fd8, #e0a83c);
+}
+
 .layers__forces {
   background: linear-gradient(135deg, #8d9bb0 0 33%, #c08a4a 33% 66%, #6fb7d8 66%);
 }

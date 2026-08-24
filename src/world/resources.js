@@ -1,23 +1,21 @@
 import { TILE_COUNT, cellAt, grid, neighbours } from './sphere.js';
-import { FARM_ZONES, SITES, ZONES } from './resourceSites.js';
+import { SITES, ZONES } from './resourceSites.js';
 import { TERRAIN } from './terrain.js';
 
 // What each hex produced in a year, around 1939.
 //
 // This is output, not endowment: a tile scores for the ore actually being
-// raised and the fields actually being worked, not for what might be there. So
-// Saudi Arabia is nearly dry (Dammam had only just come in), Libya has no oil
-// at all, and the Athabasca sands and the Pilbara are blank.
+// raised, not for what might be there. So Saudi Arabia is nearly dry (Dammam
+// had only just come in), Libya has no oil at all, and the Athabasca sands and
+// the Pilbara are blank.
 //
-// Food works differently from the rest. Minerals sit where geology put them,
-// but food in 1939 was grown where people were — before cheap long-haul
-// transport, most of what a district ate, it grew. So farm output follows
-// settlement, and then the export breadbaskets are lifted on top.
+// Five things, and all five are war materials. Food was modelled here too — it
+// followed the people rather than the geology, which made it the odd one out —
+// and has been taken out: it is not on the board and no hex reports it.
 
 // Colours have to carry on a dark, dimmed map, so these lean brighter than the
 // material itself — oil reads as amber rather than the conventional black.
 export const RESOURCES = [
-  { id: 'food', name: 'Food', unit: 'kt/yr', color: '#9ad35a' },
   { id: 'oil', name: 'Oil', unit: 'kt/yr', color: '#e0a83c' },
   { id: 'iron', name: 'Iron ore', unit: 'kt/yr', color: '#e0765a' },
   { id: 'steel', name: 'Steel', unit: 'kt/yr', color: '#8fd0e8' },
@@ -27,55 +25,34 @@ export const RESOURCES = [
 
 export const RESOURCE_INDEX = Object.fromEntries(RESOURCES.map((r, i) => [r.id, i]));
 
-/** Cropland value of a terrain, relative to good plains. */
-const FARMLAND = {
+/**
+ * How well ground carries a rubber estate.
+ *
+ * These were the cropland weights, back when this file grew food as well, and
+ * they are kept because an estate wanted the same ground a crop would: flat,
+ * warm and wet. Jungle is the exception that scores highest — the estates of
+ * Malaya and Sumatra were cut straight out of it.
+ */
+const ESTATE = {
+  jungle: 1,
   plains: 1,
-  forest: 0.55, // cleared in patches; woodland between
+  swamp: 0.6,
+  forest: 0.55,
   hills: 0.5,
   beach: 0.4,
-  swamp: 0.6, // wet, but this is where rice grows
   savanna: 0.3,
-  jungle: 0.2,
   taiga: 0.08,
   mountain: 0.07,
-  desert: 0.04, // oasis and wadi only
+  desert: 0.04,
   tundra: 0.01,
   peak: 0,
   glacier: 0,
 };
 
-/** Grazing value — the dry and cold country that carries stock but not crops. */
-const PASTURE = {
-  savanna: 0.55,
-  plains: 0.4,
-  hills: 0.45,
-  tundra: 0.18, // reindeer
-  taiga: 0.12,
-  mountain: 0.2,
-  desert: 0.06,
-  forest: 0.15,
-  swamp: 0.1,
-  jungle: 0.05,
-  beach: 0.1,
-  peak: 0,
-  glacier: 0,
-};
-
-// World totals to calibrate against, in the units each resource is stored in.
-const WORLD_FARM_FOOD = 1_150_000; // kt/yr, grain equivalent incl. pasture
-const FISHERY_SHARE = 0.75; // of a zone's catch that lands near shore
-
-const FARMLAND_WEIGHT = TERRAIN.map((t) => (t.water ? 0 : FARMLAND[t.id] ?? 0));
-const PASTURE_WEIGHT = TERRAIN.map((t) => (t.water ? 0 : PASTURE[t.id] ?? 0));
+const ESTATE_WEIGHT = TERRAIN.map((t) => (t.water ? 0 : ESTATE[t.id] ?? 0));
 
 function inBox(box, lat, lon) {
   return lon >= box[0] && lon <= box[2] && lat >= box[1] && lat <= box[3];
-}
-
-function farmZoneFactor(lat, lon) {
-  let factor = 1;
-  for (const z of FARM_ZONES) if (inBox(z.box, lat, lon)) factor *= z.factor;
-  return factor;
 }
 
 /** Cell a lat/lon lands on, walked to the nearest land if the site needs it. */
@@ -146,20 +123,8 @@ export function buildResources(world) {
         const lon = sphere.lon[i];
         if (!inBox(zone.box, lat, lon)) continue;
 
-        let score;
-        if (zone.sea) {
-          if (isLand[i]) continue;
-          // Fish were landed by boats working out of ports, so a zone's catch
-          // belongs near the shore, not spread evenly over deep water.
-          const coastal = neighbours(i).some((j) => isLand[j]);
-          score = coastal ? 1 : TERRAIN[world.biome[i]].id === 'shelf' ? FISHERY_SHARE : 0.15;
-        } else {
-          if (!isLand[i]) continue;
-          // Estates were carved out of wet tropical forest, so jungle is prime
-          // ground for rubber even though it is poor cropland.
-          score =
-            TERRAIN[world.biome[i]].id === 'jungle' ? 1 : FARMLAND_WEIGHT[world.biome[i]];
-        }
+        if (!isLand[i]) continue;
+        const score = ESTATE_WEIGHT[world.biome[i]];
         if (score <= 0) continue;
         claimed[r][i] = 1;
         tiles.push(i);
@@ -171,60 +136,6 @@ export function buildResources(world) {
     if (totalScore <= 0) continue;
     for (let k = 0; k < tiles.length; k += 1) {
       amounts[r][tiles[k]] += (scores[k] / totalScore) * zone.output;
-    }
-  }
-
-  // ---- Food from farm and pasture -----------------------------------------
-  // Two passes: score every tile, then scale the world to the target total.
-  const foodScore = new Float32Array(TILE_COUNT);
-  let scoreTotal = 0;
-
-  // Population per tile, normalised, is the proxy for how hard land was worked.
-  let popMax = 1;
-  for (let i = 0; i < TILE_COUNT; i += 1) {
-    if (world.population[i] > popMax) popMax = world.population[i];
-  }
-
-  for (let i = 0; i < TILE_COUNT; i += 1) {
-    {
-      if (!isLand[i]) continue;
-      const farm = FARMLAND_WEIGHT[world.biome[i]];
-      const graze = PASTURE_WEIGHT[world.biome[i]];
-      if (farm <= 0 && graze <= 0) continue;
-
-      const lat = sphere.lat[i];
-      const lon = sphere.lon[i];
-
-      // How intensively the land was worked. A square-root of local population
-      // keeps the curve from running away under a city while still putting the
-      // market gardens where the mouths were; the floor leaves room for the
-      // thinly peopled export country to still farm.
-      //
-      // Population is averaged over the tile and its neighbours first. Regional
-      // populations come from rectangles, so density steps at a box edge; left
-      // raw, that step draws a visible straight line across the farm map.
-      let popSum = world.population[i];
-      let popCount = 1;
-      for (const j of neighbours(i)) {
-        popSum += world.population[j];
-        popCount += 1;
-      }
-      const density = Math.min(1, Math.sqrt(popSum / popCount / popMax) * 3);
-      const worked = 0.18 + 0.82 * density;
-
-      // Pasture needs far less labour than cropland, so it stays productive out
-      // in the empty country — the pampas, the veld, the Australian runs.
-      const score = farm * worked * farmZoneFactor(lat, lon) + graze * (0.35 + 0.65 * worked);
-      foodScore[i] = score;
-      scoreTotal += score;
-    }
-  }
-
-  const foodIdx = RESOURCE_INDEX.food;
-  if (scoreTotal > 0) {
-    const perScore = WORLD_FARM_FOOD / scoreTotal;
-    for (let i = 0; i < TILE_COUNT; i += 1) {
-      if (foodScore[i] > 0) amounts[foodIdx][i] += foodScore[i] * perScore;
     }
   }
 

@@ -16,9 +16,9 @@ npm run dev               # the board, proxying /api across
 ```
 
 114,492 cells, every one of them 4,455 km² — 67 km across, at the equator and
-at the pole alike. 181 cities, 2.30 billion people, a year's output of food,
-oil, iron, steel, aluminium and rubber, every acre of land assigned to one of
-eight powers or to nobody, and the armies of 1939 standing on it.
+at the pole alike. 181 cities, 2.30 billion people, a year's output of oil,
+iron, steel, aluminium and rubber, every acre of land assigned to one of eight
+powers or to nobody, and the armies of 1939 standing on it.
 
 ## The game
 
@@ -163,7 +163,7 @@ nothing else needs telling.
 | Click a cell | Select and inspect it · click empty space to clear |
 | Names checkbox | Show or hide country names |
 | Cities checkbox | Show or hide the settlement layer |
-| Layer buttons | Shade the map by nation and army together, or by what the land produced |
+| Layer buttons | Terrain, who holds the ground and what is standing on it, or what it produced |
 
 ## The grid
 
@@ -331,12 +331,25 @@ identical board, and a server can send a seedless world by construction.
 
 ## What the land produced
 
-Every hex carries a year's output of six things, as of 1939. A tile can
-carry several at once — Anshan raises iron ore *and* pours steel; the Ruhr makes
-steel on ground that also grows food.
+Every hex carries a year's output of five things, as of 1939: oil, iron ore,
+steel, aluminium and rubber. All five are war materials, and a tile can carry
+several at once — Anshan raises iron ore *and* pours steel.
 
-This is **output, not endowment**: what was actually being pumped, mined and
-grown, not what happens to lie underground. So Saudi Arabia is nearly dry —
+They share one layer rather than five. Five buttons meant no way to see that the
+oil is in one hemisphere and the rubber in another, so a cell now takes the
+colour of whatever it is most notable for, and its brightness from how notable
+that is. "Most notable" is measured against the largest producer of that same
+thing: iron is raised by the hundred million tonnes and aluminium by the hundred
+thousand, and compared raw, every smelter on earth would be invisible.
+
+**Food used to be here and is not any more.** It followed the people rather
+than the geology — cropland scaled with local settlement, the breadbaskets were
+lifted on top, and the fisheries were the only sea zones on the board — which
+made it the odd one out among five war materials. It is gone from the layer, the
+panel and the data; `git log` has the model if it is ever wanted back.
+
+This is **output, not endowment**: what was actually being pumped and mined, not
+what happens to lie underground. So Saudi Arabia is nearly dry —
 Dammam had only just come in and produced about 60 kt against Texas's 25,000 —
 Libya has no oil at all, and the Athabasca sands and the Pilbara are blank.
 
@@ -346,29 +359,20 @@ Range, Lorraine, Kiruna, Krivoy Rog; the Ruhr, Pittsburgh, the Donbas, Yawata;
 Bitterfeld, Arvida, Chippis. Every site lands on a land hex within one tile
 of its true position.
 
-Two of the six are not dug up at all, and sit where industry put them rather
+Two of the five are not dug up at all, and sit where industry put them rather
 than where geology did. **Steel** needed coal, ore and capital in one place —
 the Ruhr, Pittsburgh, the Donbas, Sheffield. **Aluminium** needed cheap
 electricity above all, which is why Norway, Switzerland and Saguenay in Quebec
 smelted so far out of proportion to their size, and why Germany — building an
 air force — out-produced everyone.
 
-**Rubber and fisheries** are areas rather than points, spread over the tiles
-inside them: the Malayan and Sumatran estates that grew over 90% of the world's
-natural rubber, and the fishing grounds from the Dogger Bank to the Grand Banks.
-Japan was the largest fishing nation on earth. Zone boxes overlap — Malaya and
-Sumatra share the Strait of Malacca — so a tile is claimed by the first zone
-that covers it and no ground is worked twice.
-
-**Food** works differently from everything else, because it is the one thing
-that followed people rather than geology. Before cheap long-haul transport most
-of what a district ate, it grew, so cropland output scales with local settlement
-— which puts the market gardens around the cities, as asked. Pasture is much
-less labour-hungry, so grazing stays productive out in the empty country: the
-pampas, the veld, the Australian runs. On top of that sit the export
-breadbaskets and irrigated deltas — the corn belt, the prairies, the Ukrainian
-black earth, the Irrawaddy and Mekong deltas, Java's sawah — which produced far
-above what their own population would suggest.
+**Rubber** is an area rather than a point, spread over the tiles inside it: the
+Malayan and Sumatran estates that grew over 90% of the world's natural rubber,
+and the smaller ones from Ceylon to the Gold Coast. Estates were cut out of wet
+tropical forest, so jungle scores highest and the rest of the ground scores as
+cropland would. Zone boxes overlap — Malaya and Sumatra share the Strait of
+Malacca — so a tile is claimed by the first zone that covers it and no ground is
+worked twice.
 
 World totals land close to the real ones:
 
@@ -379,15 +383,12 @@ World totals land close to the real ones:
 | Steel | 132 Mt | ~137 Mt |
 | Aluminium | 696 kt | ~700 kt |
 | Rubber | 1.06 Mt | ~1.1 Mt |
-| Food | 1.16 Gt | grain-equivalent, incl. catch |
 
 National shares come out close too: the USA at 58% of world oil against a real
 61%, and 36% of steel against 34%; Germany's aluminium the largest in the world.
 
 The limits are the same ones the population layer has. Producing areas are
-rectangles, not borders, so a zone edge can cut across the map — the farm layer
-is smoothed over neighbouring tiles to keep region boundaries from drawing a
-straight line across Asia, but a faint step survives. And a 125 km hex is
+rectangles, not borders, so a zone edge can cut across the map. And a hex is
 coarser than most orefields: Lorraine and Luxembourg's Minette are one tile, as
 are Tokyo and Yokohama.
 

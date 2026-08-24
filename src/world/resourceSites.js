@@ -225,24 +225,6 @@ export const ZONES = [
 
   // ================== FISHERIES (kt/yr) — world ~20,000 ==================
   // Japan was the largest fishing nation on earth in 1939.
-  { resource: 'food', name: 'Japanese fisheries', box: [128, 30, 150, 46], output: 3500, sea: true },
-  { resource: 'food', name: 'Yellow & East China Sea', box: [118, 25, 128, 41], output: 1600, sea: true },
-  { resource: 'food', name: 'North Sea & Dogger Bank', box: [-4, 51, 9, 61], output: 1900, sea: true },
-  { resource: 'food', name: 'Norwegian Sea', box: [0, 62, 20, 71], output: 1100, sea: true },
-  { resource: 'food', name: 'Icelandic grounds', box: [-25, 62, -13, 67], output: 500, sea: true },
-  { resource: 'food', name: 'Barents Sea', box: [20, 68, 45, 78], output: 400, sea: true },
-  { resource: 'food', name: 'Grand Banks', box: [-55, 43, -48, 49], output: 500, sea: true },
-  { resource: 'food', name: 'Georges Bank', box: [-71, 40, -65, 44], output: 400, sea: true },
-  { resource: 'food', name: 'California sardine', box: [-125, 32, -117, 40], output: 600, sea: true },
-  { resource: 'food', name: 'Humboldt Current', box: [-80, -40, -70, -5], output: 300, sea: true },
-  { resource: 'food', name: 'Baltic fisheries', box: [10, 54, 26, 63], output: 300, sea: true },
-  { resource: 'food', name: 'Bay of Bengal', box: [79, 8, 95, 22], output: 500, sea: true },
-  { resource: 'food', name: 'Arabian Sea', box: [50, 8, 78, 25], output: 350, sea: true },
-  { resource: 'food', name: 'South China Sea', box: [105, 2, 122, 23], output: 700, sea: true },
-  { resource: 'food', name: 'Iberian & Moroccan', box: [-12, 30, -6, 44], output: 400, sea: true },
-  { resource: 'food', name: 'Newfoundland–Nova Scotia', box: [-66, 43, -55, 52], output: 250, sea: true },
-  { resource: 'food', name: 'Chilean coast', box: [-76, -45, -70, -25], output: 150, sea: true },
-  { resource: 'food', name: 'South African coast', box: [15, -36, 28, -28], output: 150, sea: true },
 ];
 
 /**
@@ -251,26 +233,3 @@ export const ZONES = [
  * intensively worked plains of western Europe. Multiplies farm output inside
  * the box.
  */
-export const FARM_ZONES = [
-  { name: 'US Corn Belt', box: [-97, 37, -82, 45], factor: 2.4 },
-  { name: 'US Great Plains', box: [-104, 33, -95, 49], factor: 1.9 },
-  { name: 'California Central Valley', box: [-122, 35, -118.5, 40], factor: 1.8 },
-  { name: 'Canadian Prairies', box: [-114, 49, -96, 55], factor: 2.0 },
-  { name: 'Argentine Pampas', box: [-64, -39, -57, -31], factor: 2.3 },
-  { name: 'Ukrainian black earth', box: [26, 46, 42, 52], factor: 2.0 },
-  { name: 'Danube basin', box: [16, 43, 29, 48], factor: 1.7 },
-  { name: 'North-west Europe', box: [-5, 47, 12, 55], factor: 1.6 },
-  { name: 'Po valley', box: [8, 44.5, 12.5, 46], factor: 1.7 },
-  { name: 'Nile', box: [30, 24, 32.5, 31.6], factor: 2.0 },
-  { name: 'Punjab canal colonies', box: [71, 28, 77, 33], factor: 1.8 },
-  { name: 'Gangetic rice', box: [77, 22, 90.5, 30], factor: 1.5 },
-  { name: 'North China plain', box: [112, 31, 122, 41], factor: 1.5 },
-  { name: 'Yangtze rice', box: [106, 27, 122, 33], factor: 1.6 },
-  { name: 'Irrawaddy delta', box: [94, 15, 97.5, 19], factor: 2.2 },
-  { name: 'Chao Phraya delta', box: [99, 13, 101.5, 16], factor: 2.2 },
-  { name: 'Mekong delta', box: [104.5, 8.5, 107, 11.5], factor: 2.2 },
-  { name: 'Java sawah', box: [105, -9, 115.5, -5.5], factor: 1.9 },
-  { name: 'Japanese paddy', box: [130, 31, 142, 42], factor: 1.5 },
-  { name: 'Australian wheat belt', box: [115, -37, 151, -27], factor: 1.6 },
-  { name: 'New Zealand pasture', box: [166, -47, 179.9, -34], factor: 1.7 },
-];
