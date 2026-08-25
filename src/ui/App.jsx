@@ -5,10 +5,10 @@ import { EARTH_RADIUS_KM, TILE_COUNT } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { formatPopulation } from '../world/population.js';
 import { RESOURCES, formatAmount } from '../world/resources.js';
-import { NATIONS, NATION_INDEX, NEUTRAL } from '../world/nations.js';
+import { NATIONS, NEUTRAL } from '../world/nations.js';
 import { UNITS, formatUnits } from '../world/forces.js';
 import { SHIPS } from '../world/navies.js';
-import { canSeeForces } from '../world/intel.js';
+import { seesFleet, visibilityFor } from '../world/intel.js';
 import { economyFor } from '../world/economy.js';
 import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
@@ -413,33 +413,34 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, ownershipVersion]);
 
-  // Force totals for the legend, counting only what this seat may see. The
-  // world's own totals are everybody's, and printing them under a fogged map
-  // would hand back in one line exactly what the fog is for.
+  // Force totals for the panel, counted cell by cell rather than nation by
+  // nation — because the fog is now cell by cell too. What this adds up is
+  // exactly what is drawn on the map: your side, the neutrals, and whatever the
+  // other side has put on the hexes your own troops are looking at.
   const forceTotals = useMemo(() => {
-    if (!world?.forcesByNation) return null;
+    if (!world?.forces) return null;
+    const visible = visibilityFor(world, power);
     const totals = UNITS.map(() => 0);
-    for (const [id, row] of Object.entries(world.forcesByNation)) {
-      if (!canSeeForces(power, NATION_INDEX[id])) continue;
-      row.deployed.forEach((count, u) => {
-        totals[u] += count;
-      });
+    for (let i = 0; i < TILE_COUNT; i += 1) {
+      if (!visible[i]) continue;
+      for (let u = 0; u < UNITS.length; u += 1) totals[u] += world.forces[u][i];
     }
     return totals;
-  }, [world, power]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, power, ownershipVersion]);
 
-  // Hulls this seat may count, by type. Same rule as the armies: your own, your
-  // side's, and the neutrals' — of which there are none at sea, because every
-  // navy on the board belongs to one of the eight.
+  // Hulls this seat may count: its own and its side's wherever they are, and
+  // anyone else's moored against a coast it can see.
   const navalTotals = useMemo(() => {
     if (!world?.navies) return null;
     const totals = Object.fromEntries(SHIPS.map((s) => [s.id, 0]));
     for (const station of world.navies.stations) {
-      if (!canSeeForces(power, NATION_INDEX[station.power])) continue;
+      if (!seesFleet(world, power, station)) continue;
       for (const s of SHIPS) totals[s.id] += station.ships[s.id];
     }
     return totals;
-  }, [world, power]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, power, ownershipVersion]);
 
   // This nation's books: what it holds, what the ground pays it, and what a day
   // of standing still costs. Follows the calendar, so the stores fall as the

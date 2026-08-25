@@ -2,7 +2,7 @@ import { TILE_COUNT } from '../world/sphere.js';
 import { PALETTE_RGB, SHADES, TERRAIN, rgbOf } from '../world/terrain.js';
 import { NATIONS, NEUTRAL, SEA } from '../world/nations.js';
 import { RESOURCES } from '../world/resources.js';
-import { canSeeForces } from '../world/intel.js';
+import { visibilityFor } from '../world/intel.js';
 
 // One colour per cell, as bytes.
 //
@@ -59,6 +59,10 @@ export function terrainColors(world, out) {
  *   dim colour      whose it is, and little or nothing standing on it
  *   grey            whose it is, and you are not allowed to count it
  *
+ * The grey stops one hex short of your own frontier: what is dug in directly
+ * opposite you was never a secret, and the line of colour across an enemy
+ * border is the line your own troops can see.
+ *
  * The floor matters. Ground with no garrison is drawn at 42% rather than fading
  * out, because ownership is public and an empty province is still somebody's;
  * only what the fog takes is allowed to lose its colour, and even then it keeps
@@ -73,6 +77,7 @@ const FOG_MIX = 0.66;
 
 export function politicalColors(world, out, viewer = null) {
   const owner = world.ownership.owner;
+  const visible = viewer ? visibilityFor(world, viewer) : null;
   const strength = world.forceStrength;
   const logMax = Math.log1p(world.maxForceStrength || 1);
   const cache = new Map();
@@ -94,7 +99,7 @@ export function politicalColors(world, out, viewer = null) {
     }
     if (nation === NEUTRAL && !country) rgb = UNCLAIMED;
 
-    if (!canSeeForces(viewer, nation)) {
+    if (visible && !visible[i]) {
       write(out, i, mix(rgb, UNKNOWN, FOG_MIX));
       continue;
     }

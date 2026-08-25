@@ -20,7 +20,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { TILE_COUNT, grid, neighbours } from '../src/world/sphere.js';
+import { TILE_COUNT, cellAt, grid, neighbours } from '../src/world/sphere.js';
 import { nearestTerritory, territoryFor } from '../src/world/territories.js';
 import { dateOf, dayOf, formatDate, formatDateShort } from '../src/game/calendar.js';
 import { EVENTS_1939, eventsOn, nextEventAfter } from '../src/game/events.js';
@@ -36,7 +36,7 @@ import * as G from '../src/game/state.js';
 import { TERRITORIES_1939, territoryAt } from '../src/world/territories.js';
 import { countryFor } from '../src/world/countries.js';
 import { NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
-import { canSeeForces } from '../src/world/intel.js';
+import { canSeeForces, seesCell, seesFleet } from '../src/world/intel.js';
 import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
 import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
 import { buildWorld } from '../src/world/earth.js';
@@ -45,6 +45,27 @@ import { T } from '../src/world/terrain.js';
 
 let checks = 0;
 let failures = 0;
+
+// The finished board — terrain, people, output, armies and fleets. Two sections
+// need all of it and it takes a second to build, so it is built once and only
+// when something asks for it.
+let WORLD = null;
+function board() {
+  if (WORLD) return WORLD;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const bin = fs.readFileSync(path.join(here, '..', 'src', 'world', 'earth.bin'));
+  WORLD = buildWorld(
+    bin.subarray(0, TILE_COUNT),
+    bin.subarray(TILE_COUNT, TILE_COUNT * 2),
+    bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
+  );
+  return WORLD;
+}
+
+/** The cell a place is on, for asking about somewhere by name. */
+function cellFor(lat, lon) {
+  return cellAt(grid(), lat, lon);
+}
 
 function ok(condition, what) {
   checks += 1;
@@ -462,18 +483,53 @@ section('what a seat may know');
   ok(symmetric, 'and it reads the same from either side');
 }
 
+// ------------------------------------------------------- and what it may see
+section('what a seat may see across a border');
+{
+  const world = board();
+  const owner = world.ownership.owner;
+
+  // An army on the far side of a frontier is not a secret: you can see it from
+  // your own trench. One hex deep, and no further.
+  ok(seesCell(world, 'france', cellFor(49.23, 6.99)), 'France sees across the Saar frontier');
+  ok(!seesCell(world, 'france', cellFor(52.5, 13.4)), 'and not as far as Berlin');
+  ok(seesCell(world, 'germany', cellFor(52.5, 13.4)), 'though Germany can see Berlin');
+  ok(seesCell(world, 'france', cellFor(48.7, 2.3)), 'and France its own capital');
+  ok(seesCell(world, 'germany', cellFor(52.2, 21.0)), 'Germany sees Warsaw — Poland is neutral');
+
+  ok(!seesCell(world, 'uk', cellFor(52.5, 13.4)), 'Britain cannot see Berlin either');
+  const germanSeenBy = (viewer) => {
+    let n = 0;
+    for (let i = 0; i < TILE_COUNT; i += 1) {
+      if (owner[i] === NATION_INDEX.germany && seesCell(world, viewer, i)) n += 1;
+    }
+    return n;
+  };
+  ok(germanSeenBy('france') > 0, 'France counts some of the Wehrmacht');
+  ok(germanSeenBy('france') < 20, 'but only what is dug in opposite its own frontier');
+  // An alliance shares what its frontiers can see. Britain has no border with
+  // Germany and would see nothing on its own; what it gets, it gets from
+  // standing next to France.
+  eq(germanSeenBy('uk'), germanSeenBy('france'), 'and Britain sees exactly what France sees');
+  eq(germanSeenBy('germany'), 130, 'while Germany counts every cell it holds');
+
+  // The same rule at sea, where nobody owns the water: a fleet is countable if
+  // it is moored against a coast somebody on your side holds.
+  const stations = Object.fromEntries(world.navies.stations.map((st) => [st.name, st]));
+  ok(seesFleet(world, 'germany', stations.Wilhelmshaven), 'Germany counts its own fleet');
+  ok(!seesFleet(world, 'uk', stations.Wilhelmshaven), 'and Britain does not, across the Bight');
+  ok(!seesFleet(world, 'germany', stations['Scapa Flow']), 'nor Germany the Home Fleet');
+  ok(seesFleet(world, 'germany', stations['Admiral Graf Spee']), 'a raider is its own navy&apos;s');
+  ok(
+    !seesFleet(world, 'uk', stations['Admiral Graf Spee']),
+    'and nobody else&apos;s: mid-ocean touches no coast',
+  );
+}
+
 // --------------------------------------------------------- the books balance
 section('the books balance');
 {
-  // The only section that builds the whole world — population, output, armies
-  // and fleets — because the economy is the sum of all four.
-  const HERE = path.dirname(fileURLToPath(import.meta.url));
-  const bin = fs.readFileSync(path.join(HERE, '..', 'src', 'world', 'earth.bin'));
-  const world = buildWorld(
-    bin.subarray(0, TILE_COUNT),
-    bin.subarray(TILE_COUNT, TILE_COUNT * 2),
-    bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
-  );
+  const world = board();
 
   ok(
     POWERS.every((id) => STOCKPILES_1939[id]),

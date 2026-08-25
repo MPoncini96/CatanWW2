@@ -1,5 +1,5 @@
 import { NATIONS, NATION_INDEX } from '../world/nations.js';
-import { canSeeForces } from '../world/intel.js';
+import { seesFleet } from '../world/intel.js';
 import { facingAt, discRadius, overlapsAny } from './labels.js';
 import { drawFleetIcons } from './units.js';
 
@@ -57,7 +57,7 @@ export function drawFleetMarkers(ctx, world, camera, width, height, viewer, take
   const placed = taken.slice();
 
   for (const station of order) {
-    const known = canSeeForces(viewer, NATION_INDEX[station.power]);
+    const known = seesFleet(world, viewer, station);
     // A commerce raider already at sea is nobody else's to see.
     if (station.secret && !known) continue;
     camera.project(station.lat, station.lon, width, height, out);

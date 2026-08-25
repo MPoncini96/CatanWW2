@@ -3,7 +3,7 @@ import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
 import { NATION_INDEX, SEA } from '../world/nations.js';
-import { canSeeForces } from '../world/intel.js';
+import { seesCell, seesFleet } from '../world/intel.js';
 import { Globe } from './globe.js';
 import { GlobeCamera, MAX_DISTANCE, MIN_DISTANCE } from './globeCamera.js';
 import { drawCountryLabels } from './labels.js';
@@ -130,7 +130,7 @@ export class GlobeView {
     const owner = this.world.ownership ? this.world.ownership.get(index) : null;
     // The sea has no garrison to keep from anybody: not knowing and there being
     // nothing to know are different, and water is the second one.
-    const known = owner === null || owner === SEA || canSeeForces(this.viewer, owner);
+    const known = owner === null || owner === SEA || seesCell(this.world, this.viewer, index);
     return {
       index,
       terrain: TERRAIN[this.world.biome[index]],
@@ -178,7 +178,7 @@ export class GlobeView {
   fleetAt(index) {
     const fleet = this.world.navies?.byCell.get(index) ?? null;
     if (!fleet) return { fleet: null, fleetKnown: false };
-    const known = canSeeForces(this.viewer, NATION_INDEX[fleet.power]);
+    const known = seesFleet(this.world, this.viewer, fleet);
     if (fleet.secret && !known) return { fleet: null, fleetKnown: false };
     return { fleet, fleetKnown: known };
   }

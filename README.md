@@ -37,9 +37,20 @@ be taken, so nobody becomes Germany by accident.
 garrison on a hex is visible if the ground is yours, your side's, or a neutral's;
 the other side's is *Not known*, and on the map it keeps its colour but loses
 its shading — you can see whose ground it is, which was never a secret, and not
-how much is standing on it. The totals under the legend count only what you can
-see, since printing the world's total would hand back in one line exactly what
-the fog is for.
+how much is standing on it.
+
+**Except across a frontier.** An army dug in opposite you is not a secret
+either: you can see it from your own trench, and in 1939 both sides of every
+border in Europe knew roughly what was facing them. So the fog is drawn cell by
+cell, and it stops one hex short of ground your side holds. On France's page the
+German hexes along the Rhine are lit and counted while everything behind them
+is dark; Britain, which borders Germany nowhere, sees exactly what France sees
+and nothing more, because an alliance shares what its frontiers can see.
+
+The line is *ground your side holds*, not *ground you can see*. The neutrals are
+visible to everybody, and if their ground counted as a frontier then Britain
+would be reading the Wehrmacht's order of battle through Belgium and Poland from
+four hundred miles away. The totals count what the map draws and no more.
 
 HexWW2.worldin, population, cities and output stay visible to everyone. Those were in
 every almanac in 1939, and a game where you cannot see that Germany has no oil is
@@ -117,7 +128,7 @@ into.
 ### What is not the game
 
 `src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
-it under plain Node — 200 checks: 6,800 days round-tripped through the civil
+it under plain Node — 215 checks: 6,800 days round-tripped through the civil
 calendar, every belligerence rule checked on the day either side of the event
 that grants it, the turn engine driven through a game where one player is in the
 war and the other is watching, and a hundred places on the map asked who holds
@@ -831,13 +842,24 @@ Admiralty did not find Graf Spee until December.
 
 **Close in, the shading gives way to the units themselves.** Past about thirty
 pixels a cell there is room to draw what is actually standing there, so the
-board does: a box with an X is infantry, a box with an oval is armour, a box
-with a dot is artillery — the NATO symbols, which were designed to be told apart
-at a glance on a paper map in bad light, which is the same problem. Aircraft and
-ships get silhouettes instead, because nobody reads a box with a wing in it as
-an aeroplane. Up to three arms per hex, chosen by what they contribute to its
-strength, so three hundred riflemen and one bomber both get a symbol; counts
-appear beside them once the symbols are big enough to carry them.
+board does — everything on the hex, not a selection of it, scattered over the
+ground rather than lined up in a row. A row reads as a legend, a list of what is
+here; scattered, it reads as men and machines standing on ground, which is what
+it is. The scatter comes out of the cell number rather than a random generator,
+so the same hex holds the same arrangement for ever and the map does not crawl.
+
+  a helmet          infantry — the one shape that needs no legend
+  a box with an oval  armour
+  a box with a dot    artillery
+  a small aeroplane   fighters
+  a large one, twin-engined  bombers
+
+Ships are silhouettes too, and a different one each: a battleship with turrets
+fore and aft and a tripod mast, a cruiser with a single funnel, a destroyer low
+and all bow wave, a carrier with its island and an aeroplane on the deck, a
+submarine with a conning tower. Recognition manuals told them apart by their
+outlines at sea, which is the same problem again. Counts appear beside each
+symbol once there is room for them.
 
 Only the cells near the middle of the view are considered — at that zoom the
 screen holds a few hundred, and walking all 114,492 to find out which are on it
