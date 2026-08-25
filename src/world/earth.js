@@ -276,6 +276,17 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
   world.forcesByNation = armies.byNation;
   world.forceStrength = armies.strength;
   world.maxForceStrength = armies.maxStrength;
+  // The formations themselves, so a hex can say what is standing on it rather
+  // than only how many of them there are.
+  world.garrisons = {
+    placements: armies.placements,
+    byCell: armies.byCell,
+    airbases: armies.airbases,
+    access: armies.access,
+    fieldInfantry: armies.fieldInfantry,
+    roleAt: armies.roleAt,
+    warnings: armies.warnings,
+  };
 
   // And the fleets, which sit on the water rather than over the ground.
   world.navies = buildNavies(world);

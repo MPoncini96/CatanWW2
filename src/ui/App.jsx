@@ -6,7 +6,7 @@ import { TERRAIN } from '../world/terrain.js';
 import { formatPopulation } from '../world/population.js';
 import { RESOURCES, formatAmount } from '../world/resources.js';
 import { NATIONS, NEUTRAL } from '../world/nations.js';
-import { UNITS, formatUnits } from '../world/forces.js';
+import { ROLES, UNITS, formatUnits } from '../world/forces.js';
 import { SHIPS } from '../world/navies.js';
 import { seesFleet, visibilityFor } from '../world/intel.js';
 import { economyFor } from '../world/economy.js';
@@ -163,6 +163,25 @@ function TileInspector({ tile, layer }) {
                     <strong>{formatUnits(u.count)}</strong>
                   </div>
                 ))}
+                {/* Which of those men are soldiers in the line. A hex holding
+                    twelve thousand recruits in a training barracks used to
+                    read exactly like a hex holding a division, and that was
+                    the most misleading thing on the board. */}
+                {tile.forces.some((u) => u.id === 'infantry') && (
+                  <p className="garrison__field">
+                    {tile.fieldInfantry === 0
+                      ? 'None of them are field troops.'
+                      : `${formatUnits(tile.fieldInfantry)} of them are field troops.`}
+                  </p>
+                )}
+                <ul className="garrison">
+                  {tile.garrison.map((unit) => (
+                    <li className="garrison__unit" key={unit.id} title={unit.source}>
+                      <span className="garrison__name">{unit.name}</span>
+                      <span className="garrison__role">{ROLES[unit.type]?.name ?? unit.type}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ) : (
               <div className="output output--unknown">

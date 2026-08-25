@@ -2,6 +2,7 @@ import { formatGeo, grid } from '../world/sphere.js';
 import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
+import { formationName } from '../world/deploy.js';
 import { NATION_INDEX, SEA } from '../world/nations.js';
 import { seesCell, seesFleet } from '../world/intel.js';
 import { Globe } from './globe.js';
@@ -153,6 +154,23 @@ export class GlobeView {
           : [],
       // Told apart from "nobody is there", which is a different fact.
       forcesUnknown: !known,
+      // What is standing there, by name and by role. A hex with twelve
+      // thousand men on it can be an army or a training barracks, and the
+      // difference is the whole point of the order of battle.
+      garrison:
+        known && this.world.garrisons
+          ? (this.world.garrisons.byCell.get(index) ?? []).map((placement) => ({
+              id: placement.formation.id,
+              name: formationName(placement.formation),
+              type: placement.formation.type,
+              echelon: placement.formation.echelon,
+              nation: placement.formation.nation,
+              source: placement.formation.source,
+              strength: placement.strength,
+            }))
+          : [],
+      fieldInfantry: known && this.world.garrisons ? this.world.garrisons.fieldInfantry[index] : 0,
+      airbase: this.world.garrisons ? this.world.garrisons.airbases.has(index) : false,
       // A fleet is at a station rather than spread over the water, so it is
       // looked up by cell rather than read off a per-cell array. What may be
       // known about it turns on whose fleet it is — not on who owns the water,

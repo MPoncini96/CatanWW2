@@ -1559,3 +1559,40 @@ button:disabled {
   border: 0;
   max-width: none;
 }
+
+/* The formations standing on a hex, under the counts of what they are made
+   of. The names matter: "4th Army" and "Wehrkreis III depot" are the same
+   twelve thousand men on the old map and two entirely different facts. */
+.garrison {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid rgba(190, 210, 235, 0.12);
+  display: grid;
+  gap: 0.25rem;
+}
+
+.garrison__unit {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  font-size: 0.76rem;
+}
+
+.garrison__name {
+  color: #cfe0f2;
+}
+
+.garrison__role {
+  color: #8fa3bb;
+  font-size: 0.68rem;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+.garrison__field {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: #9db2cb;
+}

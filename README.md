@@ -711,54 +711,129 @@ independent hex to see its split.
 
 ## The armies of 1939
 
-Every hex a power holds carries a garrison — infantry, tanks, artillery,
-fighters and bombers — and the totals are the real orders of battle on the eve
-of the war:
+The armies are a table of **formations**, not a quantity of men to be spread
+over a country. `oob1939.js` lists two hundred of them — armies, corps,
+divisions, air fleets, fortress commands, depots, flak belts — each with a
+strength, a type, a quality, and either a deployment zone or a list of named
+places. `deploy.js` reads that table and decides which hex each formation
+stands on. Nothing in the model divides a national total by an area.
+
+That is a rewrite of what used to be here, and the reason is worth keeping.
+The old generator scored every hex a power owned — frontier pressure, terrain,
+population — and handed out the army in proportion to the score. It produced a
+smooth field, and 1939 was not smooth. It gave Berlin fifteen tanks, nine
+fighters and fourteen bombers, when Berlin held a guard regiment, some
+replacement battalions and a great deal of anti-aircraft. It gave a farming
+district of Brandenburg seven thousand six hundred men and eight tanks, when
+the whole point of the Wehrkreis system was that the field divisions *left*
+their home districts on mobilisation. Every German cell held tanks, and Germany
+had 3,200 of them, all in six panzer divisions and four light divisions parked
+in four provinces. The map was answering a question nobody asks — what is the
+average military presence here — instead of the one everybody asks, which is
+where is the army.
 
 | | Infantry | Tanks | Artillery | Fighters | Bombers |
 | --- | --- | --- | --- | --- | --- |
-| Germany | 3.18M | 3,200 | 11,000 | 1,100 | 1,600 |
-| Soviet Union | 2.40M | 21,000 | 40,000 | 4,000 | 3,500 |
-| France | 2.90M | 3,300 | 11,000 | 700 | 400 |
-| Britain | 1.10M | 1,150 | 1,300 | 750 | 550 |
-| Italy | 1.60M | 1,500 | 7,000 | 800 | 800 |
-| Japan | 1.70M | 2,000 | 5,000 | 1,200 | 1,000 |
-| China | 2.50M | 100 | 800 | 200 | 100 |
-| United States | 190,000 | 400 | 800 | 800 | 500 |
-| The neutrals | 5.20M | 2,600 | 9,000 | 900 | 500 |
+| Germany | 3.43M | 3,390 | 15,535 | 1,100 | 1,600 |
+| Soviet Union | 2.50M | 21,000 | 30,930 | 4,000 | 3,500 |
+| France | 3.20M | 3,300 | 12,300 | 800 | 600 |
+| Britain | 1.04M | 1,150 | 2,315 | 750 | 550 |
+| Italy | 1.64M | 1,320 | 6,550 | 800 | 800 |
+| Japan | 1.78M | 2,000 | 5,360 | 1,200 | 1,000 |
+| China | 2.50M | 100 | 780 | 200 | 100 |
+| United States | 233,000 | 400 | 1,025 | 800 | 500 |
+| The neutrals | 5.68M | 2,059 | 12,315 | 900 | 500 |
 
-The shape of that table is the story: the Red Army with more tanks than everyone
-else combined and the Wehrmacht with a fifth as many; the United States, about
-to out-build the world, fielding an army smaller than Portugal's.
+Those totals are **summed from the formation table**, not declared beside it, so
+a correction to one division moves the national figure with it and the two can
+never drift apart. The shape of the table is the story: the Red Army with more
+tanks than everyone else combined and the Wehrmacht with a sixth as many; the
+United States, about to out-build the world, fielding an army smaller than
+Belgium's.
 
 The neutral row is a pool, not a bloc — thirty separate armies that never fought
-as one, of which Poland alone is about a million men and 880 tanks. Leaving them
-out would put Poland at zero while the Wehrmacht massed on its border.
+as one, of which Poland alone is about a million men and 880 tanks. Each of them
+is deployed on its own frontier, because that is where each of them stood.
 
-**Where they stand** matters as much as how many there are. Armies of this
-period concentrated on the frontier they expected to fight on and left the
-interior thinly held, so deployment is driven by three things: the theatres each
-power was actually watching (`DEPLOYMENTS` in `forces.js` — the Polish frontier,
-the Maginot Line, the Manchurian border, the Suez Canal), whether a hex sits on
-a border with a power that nation had reason to fear, and where the people and
-the factories are. Ground and air are scored separately: aircraft sit on
-airfields near cities and industry rather than out on the line.
+### Deployment zones
 
-The result reads the way the histories do — about 71,000 men on the German side
-of the Silesian border against 11,000 in Berlin, the Maginot hexes nine times
-Paris, Yakutsk with a couple of hundred.
+A **zone** is a piece of ground with a front and a doctrine. It names the
+rectangles it covers, the countries its front looks at, and how the strength in
+it falls away with depth. Distance to the enemy is walked hex by hex over *your
+own ground* — not across water, because Denmark is four hexes from Poland over
+the Baltic and no Danish division was facing it, and not through third
+countries, because a walk allowed through Belgium makes the Ruhr four hexes from
+France and puts the reserves of Army Group C in Essen.
 
-Units are apportioned by largest remainder rather than rounded hex by hex.
-Britain has 1,150 tanks and 6,852 hexes: round each independently and almost
-every hex floors to zero, quietly losing two thirds of the tank park. Flooring
-first and then handing the remainder to the hexes with the largest fractions
-keeps every power's total exact and puts the leftovers where the pressure is
-greatest.
+The doctrine is the parameter that makes one nation look unlike another:
 
-Deployment is deterministic, and it is what lifts the colour on the Nations
-layer: a cell's brightness is the weight of the garrison on it, on a logarithmic
-ramp, because a garrison of ten thousand and one of a million are both worth
-seeing and a linear ramp would show only the second.
+| profile | shape | who |
+| --- | --- | --- |
+| `schwerpunkt` | one point carries several times the average | Germany in the east |
+| `cordon` | flat along the whole frontier, thin reserve | Poland |
+| `fortified_line` | heavy on the works, the field armies just behind | France, Finland |
+| `defense_in_depth` | moderate at the line, a large echelon behind | the Soviet western districts |
+| `imperial_nodes` | no line at all — discrete garrison points | Britain, Italy overseas |
+| `corridor_occupation` | cities, ports and the railway between them | Japan in China |
+| `skeleton` | peacetime cadre at a handful of posts | the United States, most neutrals |
+
+Three things are quantised on purpose. **Armour** goes into one hex whole,
+because a panzer division existed as a division and not as a mist; successive
+formations in a zone take successive hexes, so an army group's armour reads as
+several assembly areas rather than one impossible stack. **Aircraft** appear
+only on cells that hold an air formation, and nowhere else on the board — there
+are 58 airfields on a globe of 114,492 hexes. And **depots, rear-area security
+and anti-aircraft are counted apart from field strength**, so a hex holding
+twelve thousand recruits in a training barracks is no longer indistinguishable
+from a hex holding a division. The inspector names what is standing there and
+says how many of the men are field troops.
+
+Two rules keep formations off ground that could not have held them. Terrain
+scales what a hex will carry — mountain, marsh, desert and tundra carry little.
+And a hex with no road and no railway carries nothing at all: there is no rail
+layer in the data, so access is read off settlement and cities, which in 1939 is
+very nearly the same map. It is used as a gate and never as a weight, and that
+distinction is the whole difference from the old model. Every post the order of
+battle names by hand counts as served, whatever the desert around it looks
+like — Tobruk had a road because there was a garrison there.
+
+### What comes out
+
+- **Berlin**: 116,000 men, all of them replacement battalions and flak crews,
+  no field troops, no tanks, no aircraft.
+- **Rural Brandenburg**: nothing whatever.
+- **The Ruhr**: 1,439 anti-aircraft guns, the heaviest concentration on earth,
+  and not one field soldier.
+- **Silesia**: 186,000 men in a single hex — the 10th Army, the main effort.
+  The five heaviest German hexes are all east of the Elbe and not one German
+  tank is west of the Rhine.
+- **Slovakia and Moravia**: the German 14th Army, standing on ground that is not
+  German, which a generator keyed on nationality cannot do at all.
+- **The Maginot Line**: fortress troops on the works, five armies a hex or two
+  behind, and nothing of the kind opposite Belgium — which is the shape of May
+  1940.
+- **French armour**: 2,300 tanks in eight penny packets attached to infantry
+  corps, against Germany's 3,390 in fourteen fists. The same argument both
+  countries were having, visible without a word of explanation.
+- **The BEF**: still in Hampshire. It does not cross until the 4th.
+- **The American interior**: empty. So is Siberia, Soviet Central Asia, the
+  Sahara, the Amazon, interior Australia, interior Canada and the Great Plains.
+- **The Chinese countryside** between the Japanese corridors: empty, because the
+  Japanese army held cities, ports and railways and nothing in between.
+
+1,269 hexes of 114,492 hold anything at all. Roughly 60% of the German field
+army stands in the heaviest tenth of German ground, 86% of the Japanese in the
+heaviest tenth of Japanese; Poland is the deliberate exception, spread flat
+along a frontier it could not hold, and the test suite asserts that it is
+flatter than Germany rather than better.
+
+Strength is apportioned within a formation by largest remainder rather than
+rounded hex by hex, so every formation puts exactly its table strength on the
+board — not one man more and not one fewer. The whole of it is deterministic,
+and it is what lifts the colour on the Nations layer: a cell's brightness is
+the weight of the garrison on it, on a logarithmic ramp, because a garrison of
+ten thousand and one of a million are both worth seeing and a linear ramp would
+show only the second.
 
 ## The books
 
@@ -947,7 +1022,9 @@ src/
            cities.js  regions.js  population.js   — people, 1939
            resourceSites.js  resources.js         — output, 1939
            nations.js  territories.js             — control, 1939
-           forces.js  navies.js                   — armies and fleets, 1939
+           oob1939.js deploy.js  forces.js    — the order of battle, and
+                                                 where each formation stands
+           navies.js                            — the fleets of 1939
            economy.js                            — stores, income and upkeep
            countries.js  leanings.js              — countries, colours, sympathies
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe

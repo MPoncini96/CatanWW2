@@ -40,6 +40,9 @@ import { canSeeForces, seesCell, seesFleet } from '../src/world/intel.js';
 import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
 import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
 import { buildWorld } from '../src/world/earth.js';
+import { FORCES_1939, UNIT_INDEX } from '../src/world/forces.js';
+import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
+import { ACCESS, isField } from '../src/world/deploy.js';
 import { PLAYER_IDS as POWERS } from '../src/game/players.js';
 import { T } from '../src/world/terrain.js';
 
@@ -680,6 +683,307 @@ section('every cell has a region');
   for (const at of vanished) console.error(`        ${at} — ${ENCLAVES.get(at)} — is no longer an enclave`);
   eq(unexplained.length, 0, 'no cell is cut off from its nation but a known enclave');
   eq(vanished.length, 0, 'and every known enclave is still one');
+}
+
+
+// ------------------------------------------------- and where the armies are
+//
+// The invariants of the deployment model, and the reason it exists.
+//
+// The old generator scored every hex a nation owned and handed out its army in
+// proportion, which put fifteen tanks and a bomber wing in Berlin, eight tanks
+// in a Brandenburg village, and some of every arm in almost every cell of the
+// Reich. Every check below is a statement about 1939 that the smooth model
+// broke and this one is supposed to keep — so if one of them fails, the
+// question to ask is not how to move the threshold but what moved the army.
+section('the armies stand where they stood');
+{
+  const world = board();
+  const owner = world.ownership.owner;
+  const sphere = grid();
+  const { placements, byCell, airbases, access, fieldInfantry } = world.garrisons;
+  const ARM = ['infantry', 'tanks', 'artillery', 'fighters', 'bombers'];
+
+  // ---- conservation: every formation placed, once, in full ---------------
+  const placedById = new Map();
+  for (const p of placements) {
+    const sum = placedById.get(p.formation.id) ?? { infantry: 0, tanks: 0, artillery: 0, fighters: 0, bombers: 0 };
+    for (const arm of ARM) sum[arm] += p.strength[arm];
+    placedById.set(p.formation.id, sum);
+  }
+  eq(placedById.size, FORMATIONS.length, 'every formation in the order of battle is on the board');
+  const shortfall = FORMATIONS.filter((f) => {
+    const got = placedById.get(f.id);
+    if (!got) return true;
+    return ARM.some((arm) => got[arm] !== (f.strength[arm] ?? 0));
+  });
+  for (const f of shortfall) console.error(`        ${f.id} — placed strength does not match the table`);
+  eq(shortfall.length, 0, 'and each of them at its table strength, no more and no less');
+
+  const drift = [];
+  for (const [id, want] of Object.entries(FORCES_1939)) {
+    const got = world.forcesByNation[id].deployed;
+    for (const arm of ARM) {
+      const off = Math.abs(got[UNIT_INDEX[arm]] - want[arm]) / Math.max(1, want[arm]);
+      if (off > 0.02) drift.push(`${id} ${arm}: ${got[UNIT_INDEX[arm]]} on the board, ${want[arm]} in the table`);
+    }
+  }
+  for (const line of drift) console.error(`        ${line}`);
+  eq(drift.length, 0, 'and every national total matches the table to within 2%');
+
+  // ---- quantisation: armour and aircraft come in whole formations --------
+  //
+  // A tank formation stands in one hex or it does not exist. The old model
+  // dusted Germany's 3,200 tanks over all 130 of its cells, which is 25 tanks
+  // a hex and no panzer division anywhere.
+  const slotsFor = (nation) =>
+    FORMATIONS.filter((f) => f.nation === nation && (f.strength.tanks ?? 0) > 0).reduce(
+      (n, f) => n + (f.sites?.length ?? 1),
+      0,
+    );
+  const tankCells = {};
+  const smallestStack = {};
+  for (const p of placements) {
+    if (!p.strength.tanks) continue;
+    (tankCells[p.formation.nation] ??= new Set()).add(p.cell);
+  }
+  for (const [nation, cells] of Object.entries(tankCells)) {
+    let least = Infinity;
+    for (const cell of cells) least = Math.min(least, world.forces[UNIT_INDEX.tanks][cell]);
+    smallestStack[nation] = least;
+  }
+  const overspread = Object.entries(tankCells).filter(([nation, cells]) => cells.size > slotsFor(nation));
+  for (const [nation, cells] of overspread) {
+    console.error(`        ${nation}: tanks on ${cells.size} cells, ${slotsFor(nation)} formations to put them in`);
+  }
+  eq(overspread.length, 0, 'no nation has tanks on more cells than it has armoured formations');
+  ok(tankCells.germany.size <= 14, `Germany's tanks stand on ${tankCells.germany.size} hexes, not on all 130`);
+  ok(smallestStack.germany >= 100, 'and the lightest of those hexes still holds a division');
+  ok(smallestStack.ussr >= 100, 'the Red Army the same, on a far larger scale');
+
+  let strayAircraft = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    const air = world.forces[UNIT_INDEX.fighters][i] + world.forces[UNIT_INDEX.bombers][i];
+    if (air > 0 && !airbases.has(i)) strayAircraft += 1;
+  }
+  eq(strayAircraft, 0, 'no aircraft stands anywhere that is not an airfield');
+  ok(airbases.size < 80, `and there are ${airbases.size} airfields on the board, not thousands`);
+
+  // On 1 September every German tank is in the east. Not one is on the Rhine,
+  // which is the fact the Allies did not act on for eight months.
+  let tanksWest = 0;
+  for (const p of placements) {
+    if (p.formation.nation === 'germany' && sphere.lon[p.cell] < 8.5) tanksWest += p.strength.tanks;
+  }
+  eq(tanksWest, 0, 'not one German tank is west of the Rhine');
+
+  // ---- concentration -----------------------------------------------------
+  //
+  // Measured over the ground a nation holds, which is the denominator that
+  // means anything here: the question is what share of an army stands in the
+  // heaviest tenth of its country, and the answer for an empire is "all of
+  // it", because the other nine tenths are empty.
+  const fieldByCell = (keep) => {
+    const per = new Map();
+    for (const p of placements) {
+      if (!keep(p) || !isField(p.formation)) continue;
+      per.set(p.cell, (per.get(p.cell) ?? 0) + p.strength.infantry);
+    }
+    return [...per.values()].filter((n) => n > 0).sort((a, b) => b - a);
+  };
+  const held = {};
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (owner[i] === SEA) continue;
+    held[owner[i]] = (held[owner[i]] ?? 0) + 1;
+  }
+  const shareOfTop = (values, cells) => {
+    const total = values.reduce((a, b) => a + b, 0);
+    if (!total) return 0;
+    return values.slice(0, Math.max(1, cells)).reduce((a, b) => a + b, 0) / total;
+  };
+  const concentration = (nation) => {
+    const values = fieldByCell((p) => p.formation.nation === nation);
+    return shareOfTop(values, Math.ceil((held[NATION_INDEX[nation]] ?? 0) * 0.1));
+  };
+  for (const [nation, floor] of [
+    ['germany', 0.6],
+    ['japan', 0.7],
+    ['ussr', 0.7],
+    ['usa', 0.8],
+    ['uk', 0.85],
+  ]) {
+    const got = concentration(nation);
+    ok(got >= floor, `${nation}: ${(got * 100).toFixed(0)}% of the field army is in the heaviest tenth of its ground`);
+  }
+
+  // Poland is the exception, and deliberately. Six armies strung along two
+  // thousand kilometres of frontier including a salient that could not be
+  // held: the cordon is the mistake, and the board should show it as one.
+  const gini = (values) => {
+    const v = values.slice().sort((a, b) => a - b);
+    const sum = v.reduce((a, b) => a + b, 0);
+    if (!sum) return 0;
+    let acc = 0;
+    for (let k = 0; k < v.length; k += 1) acc += (2 * (k + 1) - v.length - 1) * v[k];
+    return acc / (v.length * sum);
+  };
+  const polish = gini(fieldByCell((p) => p.formation.theater === 'poland'));
+  const german = gini(fieldByCell((p) => p.formation.nation === 'germany'));
+  ok(polish < german - 0.15, `Poland is spread flat (gini ${polish.toFixed(2)}) where Germany is massed (${german.toFixed(2)})`);
+
+  // Snapshots, so a later change to the generator cannot quietly re-smear the
+  // map without a test going red. Loose enough to survive a data correction,
+  // tight enough that a return to a smooth field would break every one.
+  for (const [nation, low, high] of [
+    ['germany', 0.5, 0.75],
+    ['ussr', 0.5, 0.75],
+    ['japan', 0.7, 0.9],
+    ['france', 0.35, 0.6],
+    ['china', 0.4, 0.65],
+  ]) {
+    const g = gini(fieldByCell((p) => p.formation.nation === nation));
+    ok(g > low && g < high, `${nation} keeps its shape: gini ${g.toFixed(2)} between ${low} and ${high}`);
+  }
+
+  // ---- emptiness ---------------------------------------------------------
+  //
+  // Most of the world held no soldiers at all, and the old model could not
+  // say so: every cell a nation owned got a share of its army, so there were
+  // tanks in the Gobi and a bomber group in the Amazon.
+  const EMPTY = [
+    ['Siberia', [60, 100, 110, 130]],
+    ['Soviet Central Asia', [40, 55, 48, 70]],
+    ['the Sahara', [18, -6, 28, 10]],
+    ['the Amazon', [-8, -70, 2, -55]],
+    ['the Australian interior', [-28, 122, -20, 140]],
+    ['the Canadian interior', [55, -110, 65, -90]],
+    ['the Great Plains and the Rockies', [33, -112, 48, -99]],
+    ['interior Brazil', [-16, -58, -6, -46]],
+    ['interior Africa', [-6, 16, 6, 28]],
+  ];
+  for (const [name, [south, west, north, east]] of EMPTY) {
+    let men = 0;
+    let machines = 0;
+    for (const p of placements) {
+      const lat = sphere.lat[p.cell];
+      const lon = sphere.lon[p.cell];
+      if (lat < south || lat > north || lon < west || lon > east) continue;
+      if (isField(p.formation)) men += p.strength.infantry;
+      machines += p.strength.tanks + p.strength.fighters + p.strength.bombers;
+    }
+    eq(men + machines, 0, `no field formation, tank or aeroplane in ${name}`);
+  }
+
+  // Nothing that has to be supplied stands where nothing can reach it.
+  const trackless = placements.filter(
+    (p) => access[p.cell] === ACCESS.NONE && (isField(p.formation) || p.formation.type === 'air'),
+  );
+  for (const p of trackless.slice(0, 5)) console.error(`        ${p.formation.id} on trackless ground`);
+  eq(trackless.length, 0, 'no army and no airfield on ground with neither road nor railway');
+
+  // ---- the fixtures ------------------------------------------------------
+  const men = (lat, lon) => world.forces[UNIT_INDEX.infantry][cellFor(lat, lon)];
+  const at = (lat, lon) => {
+    const cell = cellFor(lat, lon);
+    return {
+      cell,
+      field: fieldInfantry[cell],
+      infantry: world.forces[UNIT_INDEX.infantry][cell],
+      tanks: world.forces[UNIT_INDEX.tanks][cell],
+      guns: world.forces[UNIT_INDEX.artillery][cell],
+      air: world.forces[UNIT_INDEX.fighters][cell] + world.forces[UNIT_INDEX.bombers][cell],
+      units: byCell.get(cell) ?? [],
+    };
+  };
+  const roles = (spot) => new Set(spot.units.map((p) => p.formation.type));
+
+  // Berlin held a guard regiment, the replacement battalions of Wehrkreis III
+  // and a heavy flak belt. It did not hold a field corps, a tank park or a
+  // bomber wing, and the old model gave it all three.
+  const berlin = at(52.5, 13.4);
+  eq(berlin.field, 0, 'Berlin holds no field troops at all');
+  eq(berlin.tanks, 0, 'no tanks in Berlin');
+  eq(berlin.air, 0, 'and no aircraft');
+  ok(berlin.infantry > 0, 'but the replacement army is there, and counted apart');
+  ok([...roles(berlin)].every((r) => r === 'depot' || r === 'aa' || r === 'security'), 'depots and flak, nothing else');
+
+  // The Brandenburg countryside behind it: seven hundred thousand farmers and
+  // no soldiers whatever. The old model gave this hex 7,600 men, eight tanks
+  // and nine aircraft, which was the clearest single symptom of the smear.
+  const brandenburg = at(52.9, 12.5);
+  eq(brandenburg.infantry, 0, 'and rural Brandenburg holds nobody');
+
+  // The Ruhr: more anti-aircraft guns than anywhere in the world, and next to
+  // no soldiers.
+  const ruhr = at(51.45, 7.0);
+  ok(roles(ruhr).has('aa'), 'the Ruhr is a flak belt');
+  ok(ruhr.guns > 500, `and carries ${ruhr.guns} guns, the heaviest concentration on the board`);
+  ok(ruhr.field < 10_000, 'with a negligible garrison behind them');
+  const flakByCell = new Map();
+  for (const p of placements) {
+    if (p.formation.type !== 'aa') continue;
+    flakByCell.set(p.cell, (flakByCell.get(p.cell) ?? 0) + p.strength.artillery);
+  }
+  const heaviestFlak = [...flakByCell].sort((a, b) => b[1] - a[1])[0];
+  eq(heaviestFlak[0], ruhr.cell, 'and no other city on earth has more guns over it');
+
+  // The frontier. The heaviest German hexes are all on the Polish border,
+  // and the heaviest of all is the 10th Army's, which was the main effort.
+  const germanCells = [...new Set(placements.filter((p) => p.formation.nation === 'germany').map((p) => p.cell))]
+    .map((cell) => ({ cell, men: fieldInfantry[cell] }))
+    .sort((a, b) => b.men - a.men);
+  const topFive = germanCells.slice(0, 5);
+  ok(topFive.every((e) => sphere.lon[e.cell] > 14), 'the five heaviest German hexes are all east of the Elbe');
+  ok(topFive[0].men > 150_000, `the heaviest holds ${Math.round(topFive[0].men / 1000)}k men — an army, in one place`);
+  ok(at(53.4, 16.1).field > 40_000, 'Pomerania is massed against the Corridor');
+  ok(at(54.4, 21.0).field > 40_000, 'East Prussia is massed, and cut off from the rest of the Reich');
+  ok(at(50.1, 18.1).field > 100_000, 'and Silesia carries the main effort');
+
+  // The 14th Army spent the last week of August assembling on ground that is
+  // not German. A generator keyed on nationality cannot put it there at all.
+  const slovakia = at(49.0, 20.3);
+  ok(owner[slovakia.cell] === NEUTRAL, 'Slovakia is not German ground');
+  ok(slovakia.units.some((p) => p.formation.id === 'de-14-army'), 'and the German 14th Army is standing on it');
+  ok(at(49.4, 17.5).units.some((p) => p.formation.nation === 'germany'), 'as it is in Moravia');
+
+  // France: the works held by fortress troops, the armies behind them, and
+  // nothing of the kind opposite Belgium — which is the shape of May 1940.
+  const maginot = at(49.1, 6.2);
+  ok(maginot.units.some((p) => p.formation.type === 'fortress'), 'the Maginot Line is held by fortress troops');
+  const ardennes = at(50.0, 4.8);
+  ok(
+    !ardennes.units.some((p) => p.formation.type === 'fortress'),
+    'and there are none of them on the Belgian frontier, where the line stops',
+  );
+  ok(
+    fieldInfantry[cellFor(50.63, 3.06)] > 50_000,
+    'the mobile armies stand there instead, waiting to advance into Belgium',
+  );
+
+  // The BEF is in Hampshire on 1 September. It does not cross until the 4th.
+  let befAtHome = 0;
+  for (const p of placements) {
+    if (p.formation.id !== 'uk-bef') continue;
+    befAtHome += p.strength.infantry;
+    ok(sphere.lon[p.cell] < 2 && sphere.lat[p.cell] > 49, 'the BEF is still in southern England');
+  }
+  ok(befAtHome > 100_000, `all ${Math.round(befAtHome / 1000)}k of it, embarking rather than deployed`);
+
+  // The American interior, which had no army in it to spread.
+  eq(men(38.5, -99.0), 0, 'nothing on the Great Plains');
+  eq(men(39.7, -105.0), 0, 'nothing in the Rockies');
+  ok(fieldInfantry[cellFor(32.35, -84.97)] > 5000, 'and the continental army is at its posts, Benning first');
+
+  // The Soviet interior: depots and cadre, and not one field formation from
+  // the Urals to the Pacific outside the Far Eastern zone.
+  eq(fieldInfantry[cellFor(55.0, 82.9)], 0, 'no field troops at Novosibirsk');
+  eq(fieldInfantry[cellFor(41.3, 69.3)], 0, 'none at Tashkent');
+  ok(at(55.0, 82.9).infantry > 0, 'though the depots are there and are labelled as depots');
+  ok(fieldByCell((p) => p.formation.theater === 'far-east').length > 10, 'and the Far East is a front, not a rumour');
+
+  // Japan in China: the cities, the ports and the railway between them.
+  ok(fieldInfantry[cellFor(31.23, 121.47)] > 100_000, 'Shanghai is held in strength');
+  eq(fieldInfantry[cellFor(32.0, 117.0)], 0, 'and the countryside between the corridors is empty');
 }
 
 console.log(
