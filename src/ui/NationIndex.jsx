@@ -61,6 +61,12 @@ export function NationIndex({ state }) {
 
         <p className="index__foot">
           The calendar opens on {formatDate(0)} and turns when every nation in the war says it may.
+          {' '}
+          {/* The ninth door, and the only one that is not a seat. */}
+          <Link href="/master" className="index__master">
+            Or open the master map
+          </Link>
+          , which belongs to nobody and hides nothing.
         </p>
       </div>
     </div>

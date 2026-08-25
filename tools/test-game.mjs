@@ -40,6 +40,7 @@ import { canSeeForces, seesCell, seesFleet } from '../src/world/intel.js';
 import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
 import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
 import { buildWorld } from '../src/world/earth.js';
+import { MASTER, isMaster, pathOf, powerFromPath } from '../src/ui/routes.js';
 import { FORCES_1939, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -984,6 +985,47 @@ section('the armies stand where they stood');
   // Japan in China: the cities, the ports and the railway between them.
   ok(fieldInfantry[cellFor(31.23, 121.47)] > 100_000, 'Shanghai is held in strength');
   eq(fieldInfantry[cellFor(32.0, 117.0)], 0, 'and the countryside between the corridors is empty');
+}
+
+
+// ------------------------------------------------------ the seat that is not
+section('the page that belongs to nobody');
+{
+  // Nine pages and an index. Eight of them are somebody's war; the ninth is
+  // the board itself, for setting a game up and for checking that the fog on
+  // the other eight is hiding the right things.
+  eq(powerFromPath('/germany'), 'germany', 'a nation page names its nation');
+  eq(powerFromPath('/'), null, 'the root is the index');
+  eq(powerFromPath('/nowhere'), null, 'and so is anything else');
+  eq(powerFromPath('/master'), MASTER, 'the master page names the overseer');
+  eq(powerFromPath('/Master/'), MASTER, 'however it is written');
+  eq(powerFromPath('/all'), MASTER, 'and under the names people reach for first');
+  eq(powerFromPath('/god'), MASTER, 'including that one');
+  ok(isMaster(powerFromPath('/overview')), 'isMaster agrees with the router');
+  ok(!isMaster('germany'), 'and a real seat is not the overseer');
+  ok(!PLAYER_IDS.includes(MASTER), 'the overseer is not one of the eight seats');
+  eq(pathOf('france'), '/france', 'and every seat still has its own path');
+
+  // The whole of the master page is one substitution: it hands the fog no
+  // viewer. Everything downstream — the shading, the totals, the inspector,
+  // the fleets — reads that as "no rule applies", so there is no second copy
+  // of the visibility logic that could disagree with the first.
+  const world = board();
+  const owner = world.ownership.owner;
+  let hidden = 0;
+  let land = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (owner[i] === SEA) continue;
+    land += 1;
+    if (!seesCell(world, null, i)) hidden += 1;
+  }
+  eq(hidden, 0, `the overseer sees all ${land.toLocaleString()} cells of land`);
+  ok(!seesCell(world, 'uk', cellFor(52.5, 13.4)), 'where a seat at the table does not');
+
+  const stations = Object.fromEntries(world.navies.stations.map((st) => [st.name, st]));
+  ok(seesFleet(world, null, stations.Wilhelmshaven), 'the overseer counts every fleet');
+  ok(seesFleet(world, null, stations['Admiral Graf Spee']), 'the raiders at sea included');
+  ok(!seesFleet(world, 'uk', stations['Admiral Graf Spee']), 'which Britain still cannot');
 }
 
 console.log(

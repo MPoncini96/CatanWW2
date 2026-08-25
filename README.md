@@ -156,14 +156,54 @@ profiles.
 
 The board takes 80% of the width and sits in the top right. Down the left is the
 rail — the nation, its seat, the day's one button, the ledger, and whatever cell
-was last clicked — and along the bottom of the board a single line: the cursor's
-reading on the left, and **the date in the bottom right corner**, which is the
-one number the whole table shares.
+was last clicked. Along the bottom of the board sits the dossier, and under that
+a single line: the cursor's reading on the left, and **the date in the bottom
+right corner**, which is the one number the whole table shares.
 
 The rail is 20% of the width but never narrower than 240px: below a 1200px
 window the board gives way rather than the writing. The globe watches its own
 box and fits itself to the shorter side of it, so the split is a grid rule and
 nothing else needs telling.
+
+### Two inspectors, on purpose
+
+The **rail** answers the question the map is currently asking, and refuses to
+answer any other. On Terrain it says this is forest and what it costs to cross;
+on Nations who holds it and what is standing on it; on Output how much oil comes
+out. A hex is a dozen facts at once, and printing all of them means the one you
+are looking for is somewhere in the middle of a column.
+
+That is the right rule for a panel you read while working, and the wrong one for
+the moment you want to know everything about one place. So the **dossier** along
+the foot of the board is the other half of the same idea: every question at once,
+in columns — the ground, the place, the people, what it makes, what holds it, and
+what is moored off it. Switching layer does not change it. It is read in a sweep
+rather than scrolled, which is why it lies across the bottom instead of being
+added to the rail, and it folds down to its own title bar when the globe wants
+the whole screen.
+
+The two obey the same fog. On Britain's page the dossier on a Berlin hex gives
+the terrain, the region, the population and the steel — all of which were in
+every almanac in 1939 — and says of the garrison only that it is not known,
+because nobody on Britain's side is looking at it.
+
+### /master
+
+A ninth page, and the only one that is not a seat. `/master` — also `/all`,
+`/overview`, `/god` — hands the fog no viewer, and every rule that asks whether
+this seat may see a thing answers yes. Every garrison, every fleet and every hex
+on the globe reads as it is.
+
+It is one substitution and not a second copy of the visibility logic: the page
+passes `null` where the others pass their nation, and the shading, the totals,
+the dossier and the fleet markers all read that as "no rule applies". There is
+nothing to disagree with, which matters, because a second implementation of a
+fog rule is a leak waiting for the first divergence.
+
+The rail there carries what the eight pages cannot: all nine powers side by
+side, land, men, field army, tanks, guns, aircraft and hulls. It is for setting
+a game up, for arguing about a rule, and for checking that the fog everywhere
+else is hiding the right things.
 
 ## Controls
 
@@ -1031,7 +1071,11 @@ src/
            globeView.js                           — input and the frame loop
            labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
            units.js                              — what is standing on a hex
-  ui/      App.jsx  routes.jsx  NationIndex.jsx   — the pages
+  ui/      App.jsx  NationIndex.jsx  Survey.jsx  — the pages
+           routes.js routes.jsx                  — what a path means, and
+                                                   the link that follows it
+           Dossier.jsx                           — the whole of a hex, along
+                                                   the foot of the board
            Economy.jsx  Totals.jsx               — the books, and the board
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know

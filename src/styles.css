@@ -1596,3 +1596,295 @@ button:disabled {
   font-size: 0.72rem;
   color: #9db2cb;
 }
+
+/* ---------- the dossier: everything about one hex, along the bottom ----------
+
+   The rail on the left is one question in depth and this is every question at
+   a glance, which is why it lies across the foot of the map rather than under
+   the rail: it is read in a sweep, not scrolled. It collapses to its own title
+   bar, because a reader who wants the whole screen for the globe should be
+   able to have it without losing the handle to get back. */
+
+.dossier {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  max-height: 34vh;
+  border-top: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(16, 23, 34, 0.96), rgba(11, 16, 25, 0.98));
+}
+
+.dossier--shut {
+  grid-template-rows: auto;
+  max-height: none;
+}
+
+.dossier__handle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 16px;
+  border: 0;
+  background: none;
+  color: #cfe0f2;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dossier__handle:hover {
+  background: rgba(120, 160, 210, 0.08);
+}
+
+.dossier__chevron {
+  color: #7f93ab;
+  font-size: 9px;
+}
+
+.dossier__seat {
+  margin-left: auto;
+  color: #8fa3bb;
+  font-size: 10.5px;
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dossier__empty,
+.dossier__none {
+  margin: 0;
+  padding: 0 16px 12px;
+  max-width: 70ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dossier__none {
+  padding: 2px 0 0;
+}
+
+.dossier__columns {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.dossier__column {
+  flex: 0 0 auto;
+  min-width: 168px;
+  max-width: 260px;
+  padding: 0 16px;
+  border-left: 1px solid rgba(140, 170, 210, 0.1);
+}
+
+.dossier__column:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.dossier__column--wide {
+  min-width: 250px;
+  max-width: 360px;
+}
+
+.dossier__column h4 {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7f93ab;
+}
+
+.dossier__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+  line-height: 1.75;
+}
+
+.dossier__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dossier__label i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.dossier__value {
+  color: #dbe7f5;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.dossier__arms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 4px;
+}
+
+.dossier__arm {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.dossier__arm i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.dossier__arm strong {
+  color: #dbe7f5;
+}
+
+.dossier__field {
+  margin: 2px 0 5px;
+  font-size: 11px;
+  color: #9db2cb;
+}
+
+.dossier__units {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.dossier__units li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11.5px;
+}
+
+.dossier__units li span {
+  color: #cfe0f2;
+}
+
+.dossier__units li em {
+  color: #8fa3bb;
+  font-size: 10px;
+  font-style: normal;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+
+/* ---------- the overseer's rail ---------- */
+
+/* The panel is a flex row — a swatch beside a body — and this one has no
+   swatch and three stacked children, which that layout turns into three
+   narrow columns of wrapped text. */
+.survey {
+  display: block;
+}
+
+.survey__list {
+  list-style: none;
+  margin: 4px 0 8px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.survey__list li {
+  display: grid;
+  gap: 1px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid rgba(140, 170, 210, 0.09);
+}
+
+.survey__list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.survey__name {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 12px;
+  color: #cfe0f2;
+}
+
+.survey__name i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+  align-self: center;
+}
+
+.survey__name a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.survey__name a:hover {
+  border-bottom-color: rgba(190, 210, 235, 0.45);
+}
+
+.survey__name em {
+  margin-left: auto;
+  font-style: normal;
+  font-size: 10.5px;
+  color: #7f93ab;
+  white-space: nowrap;
+}
+
+.survey__stats {
+  padding-left: 16px;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.survey__stats b {
+  color: #dbe7f5;
+  font-weight: 600;
+}
+
+.survey__stats i {
+  margin: 0 5px;
+  font-style: normal;
+  color: rgba(190, 210, 235, 0.3);
+}
+
+.survey__stats--minor {
+  font-size: 10.5px;
+  color: #7f93ab;
+}
+
+.index__master {
+  color: #cfe0f2;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(190, 210, 235, 0.35);
+}
+
+.index__master:hover {
+  border-bottom-color: rgba(190, 210, 235, 0.8);
+}

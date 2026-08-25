@@ -17,7 +17,12 @@ import { EventCard } from './EventCard.jsx';
 import { NationIndex } from './NationIndex.jsx';
 import { Economy } from './Economy.jsx';
 import { Totals } from './Totals.jsx';
-import { Link, powerFromPath, useRoute } from './routes.jsx';
+import { Link, MASTER, isMaster, powerFromPath, useRoute } from './routes.jsx';
+
+/** The overseer is not a power, but the page furniture wants a name and a colour. */
+const MASTER_SEAT = { id: MASTER, name: 'Master', color: '#9fb2c8' };
+import { Dossier } from './Dossier.jsx';
+import { Survey } from './Survey.jsx';
 import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
 
 // Every cell is the same size now, so there is a single honest number for it.
@@ -252,6 +257,12 @@ function TileInspector({ tile, layer }) {
 export default function App() {
   const path = useRoute();
   const power = powerFromPath(path);
+  // The overseer's page has no seat at the table, and a seat is exactly what
+  // the fog is drawn from: hand the globe no viewer and every rule that asks
+  // "may this seat see it" answers yes. One value, and nothing else has to
+  // know there is a tenth page.
+  const master = isMaster(power);
+  const seat = master ? null : power;
 
   const canvasRef = useRef(null);
   const overlayRef = useRef(null);
@@ -264,6 +275,9 @@ export default function App() {
   const [legendOpen, setLegendOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
+  // The bottom strip starts open: it is the half of the inspector that shows
+  // everything, and a reader who has never seen it cannot ask for it.
+  const [dossierOpen, setDossierOpen] = useState(true);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState('nations');
@@ -377,7 +391,7 @@ export default function App() {
       onHover: setHover,
       onSelect: setSelected,
       onCamera: setCam,
-      viewer: power,
+      viewer: seat,
     });
     viewRef.current = view;
     if (import.meta.env.DEV) window.__globe = view; // handy for perf probing
@@ -390,7 +404,7 @@ export default function App() {
   // Whose board this is. Changing it repaints the Forces layer, because what a
   // seat may see moves with the seat.
   useEffect(() => {
-    viewRef.current?.setViewer(power);
+    viewRef.current?.setViewer(seat);
     setSelected(null);
     setHover(null);
   }, [power, world]);
@@ -438,7 +452,7 @@ export default function App() {
   // other side has put on the hexes your own troops are looking at.
   const forceTotals = useMemo(() => {
     if (!world?.forces) return null;
-    const visible = visibilityFor(world, power);
+    const visible = visibilityFor(world, seat);
     const totals = UNITS.map(() => 0);
     for (let i = 0; i < TILE_COUNT; i += 1) {
       if (!visible[i]) continue;
@@ -446,7 +460,7 @@ export default function App() {
     }
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, ownershipVersion]);
+  }, [world, seat, ownershipVersion]);
 
   // Hulls this seat may count: its own and its side's wherever they are, and
   // anyone else's moored against a coast it can see.
@@ -454,24 +468,25 @@ export default function App() {
     if (!world?.navies) return null;
     const totals = Object.fromEntries(SHIPS.map((s) => [s.id, 0]));
     for (const station of world.navies.stations) {
-      if (!seesFleet(world, power, station)) continue;
+      if (!seesFleet(world, seat, station)) continue;
       for (const s of SHIPS) totals[s.id] += station.ships[s.id];
     }
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, ownershipVersion]);
+  }, [world, seat, ownershipVersion]);
 
   // This nation's books: what it holds, what the ground pays it, and what a day
   // of standing still costs. Follows the calendar, so the stores fall as the
   // war goes on without anything having to be stored.
   const economy = useMemo(() => {
-    if (!world?.ownership || !power) return null;
+    // The overseer has no stores to spend, because the overseer is not playing.
+    if (!world?.ownership || !power || master) return null;
     return economyFor(world, power, game?.day ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, power, game?.day, ownershipVersion]);
 
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
-  const player = power ? BY_ID[power] : null;
+  const player = master ? MASTER_SEAT : power ? BY_ID[power] : null;
 
   // The index: eight nations and nothing else to decide.
   if (!power) return <NationIndex state={game} />;
@@ -497,7 +512,7 @@ export default function App() {
           <span className="brand__mark" style={{ background: player.color }} aria-hidden="true" />
           <div>
             <h1>{player.name}</h1>
-            <p>HexWW2.world · Earth on a hex globe</p>
+            <p>{master ? 'Every hex · no fog' : 'HexWW2.world · Earth on a hex globe'}</p>
           </div>
         </Link>
         <div className="layers" role="group" aria-label="Map layer">
@@ -556,17 +571,23 @@ export default function App() {
 
       <div className="layout">
         <aside className="rail">
-          <WarRoom
-            power={power}
-            state={game}
-            onReady={declareReady}
-            onClaim={takeSeat}
-            onLeave={logOut}
-            onLedger={() => setLedgerOpen(true)}
-            busy={busy}
-            error={seatError}
-          />
-          <Economy economy={economy} onActions={() => {}} />
+          {master ? (
+            <Survey world={world} tally={tally} />
+          ) : (
+            <>
+              <WarRoom
+                power={power}
+                state={game}
+                onReady={declareReady}
+                onClaim={takeSeat}
+                onLeave={logOut}
+                onLedger={() => setLedgerOpen(true)}
+                busy={busy}
+                error={seatError}
+              />
+              <Economy economy={economy} onActions={() => {}} />
+            </>
+          )}
           <TileInspector tile={selected} layer={overlay} />
           {overlay === 'nations' && (
             <p className="legend__note legend__note--loose">
@@ -651,6 +672,16 @@ export default function App() {
               </button>
             </div>
           </main>
+
+          {/* Everything about one hex, across every layer, along the bottom.
+              The rail answers the question the map is asking; this answers all
+              of them at once, and the two are meant to be read together. */}
+          <Dossier
+            tile={selected}
+            open={dossierOpen}
+            onToggle={() => setDossierOpen((v) => !v)}
+            master={master}
+          />
 
           <footer className="statusbar">
             <span className="statusbar__cursor">
