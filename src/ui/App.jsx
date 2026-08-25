@@ -9,11 +9,14 @@ import { NATIONS, NATION_INDEX, NEUTRAL } from '../world/nations.js';
 import { UNITS, formatUnits } from '../world/forces.js';
 import { SHIPS } from '../world/navies.js';
 import { canSeeForces } from '../world/intel.js';
+import { economyFor } from '../world/economy.js';
 import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
 import { WarLedger } from './WarLedger.jsx';
 import { EventCard } from './EventCard.jsx';
 import { NationIndex } from './NationIndex.jsx';
+import { Economy } from './Economy.jsx';
+import { Totals } from './Totals.jsx';
 import { Link, powerFromPath, useRoute } from './routes.jsx';
 import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
 
@@ -241,6 +244,7 @@ export default function App() {
   const [cam, setCam] = useState(null);
   const [legendOpen, setLegendOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [totalsOpen, setTotalsOpen] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState('nations');
@@ -437,6 +441,15 @@ export default function App() {
     return totals;
   }, [world, power]);
 
+  // This nation's books: what it holds, what the ground pays it, and what a day
+  // of standing still costs. Follows the calendar, so the stores fall as the
+  // war goes on without anything having to be stored.
+  const economy = useMemo(() => {
+    if (!world?.ownership || !power) return null;
+    return economyFor(world, power, game?.day ?? 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, power, game?.day, ownershipVersion]);
+
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
   const player = power ? BY_ID[power] : null;
 
@@ -493,6 +506,14 @@ export default function App() {
           </button>
         </div>
 
+        <button
+          type="button"
+          className={`topbar__totals${totalsOpen ? ' is-open' : ''}`}
+          onClick={() => setTotalsOpen((open) => !open)}
+        >
+          Totals
+        </button>
+
         <div className="topbar__actions">
           <label className="toggle">
             <input
@@ -525,55 +546,18 @@ export default function App() {
             busy={busy}
             error={seatError}
           />
+          <Economy economy={economy} onActions={() => {}} />
           <TileInspector tile={selected} layer={overlay} />
-          {overlay === 'nations' && tally.length > 0 && (
-            <div className="legend legend--static">
-              <div className="legend__items">
-                {tally.map(({ nation, tiles }) => (
-                  <span key={nation.id} className="legend__item">
-                    <i style={{ background: nation.color }} />
-                    {nation.name}
-                    <em>{tiles}</em>
-                  </span>
-                ))}
-              </div>
-              {navalTotals && (
-                <div className="legend__items legend__items--rule">
-                  {SHIPS.map((s) => (
-                    <span key={s.id} className="legend__item">
-                      <i style={{ background: s.color }} />
-                      {s.name}
-                      <em>{navalTotals[s.id]}</em>
-                    </span>
-                  ))}
-                </div>
-              )}
-              {forceTotals && (
-                <>
-                  <div className="legend__items legend__items--rule">
-                    {UNITS.map((u, i) => (
-                      <span key={u.id} className="legend__item">
-                        <i style={{ background: u.color }} />
-                        {u.name}
-                        <em>{formatUnits(forceTotals[i])}</em>
-                      </span>
-                    ))}
-                  </div>
-                  <p className="legend__note">
-                    Colour is who holds the ground; brightness is how much is standing on it. A
-                    diamond on the water is a fleet — filled and sized if you may count it, an
-                    outline if you may not. The counts are {player.name}, its side and the
-                    neutrals; the grey ground is the ground you are not allowed to count.
-                  </p>
-                </>
-              )}
-              <p className="legend__note">
-                Eight powers, so Canada, Australia, New Zealand, South Africa and Newfoundland are
-                drawn as the United Kingdom — they were self-governing and declared war separately.
-                Independent covers both the genuinely neutral and the colonies of neutral powers:
-                the Congo is Belgian, the East Indies Dutch, Angola Portuguese.
-              </p>
-            </div>
+          {overlay === 'nations' && (
+            <p className="legend__note legend__note--loose">
+              Colour is who holds the ground; brightness is how much is standing on it, and close
+              in it becomes the units themselves. A diamond on the water is a fleet — filled and
+              sized if you may count it, an outline if you may not. Canada, Australia, New Zealand,
+              South Africa and Newfoundland are drawn as the United Kingdom: there are eight seats,
+              and they were self-governing. Independent covers both the genuinely neutral and the
+              colonies of neutral powers — the Congo is Belgian, the East Indies Dutch, Angola
+              Portuguese.
+            </p>
           )}
           {overlay === 'output' && world && (
             <div className="legend legend--static">
@@ -688,6 +672,15 @@ export default function App() {
         </div>
       </div>
 
+      {totalsOpen && (
+        <Totals
+          tally={tally}
+          navalTotals={navalTotals}
+          forceTotals={forceTotals}
+          player={player}
+          onClose={() => setTotalsOpen(false)}
+        />
+      )}
       {ledgerOpen && <WarLedger state={game} onClose={() => setLedgerOpen(false)} />}
       {session && pending.length > 0 && (
         <EventCard event={pending[0]} onDismiss={dismiss} remaining={pending.length} />

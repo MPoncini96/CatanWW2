@@ -117,7 +117,7 @@ into.
 ### What is not the game
 
 `src/game/` is pure: no browser, no network, no clock, no file. `npm test` runs
-it under plain Node — 189 checks: 6,800 days round-tripped through the civil
+it under plain Node — 200 checks: 6,800 days round-tripped through the civil
 calendar, every belligerence rule checked on the day either side of the event
 that grants it, the turn engine driven through a game where one player is in the
 war and the other is watching, and a hundred places on the map asked who holds
@@ -749,6 +749,45 @@ layer: a cell's brightness is the weight of the garrison on it, on a logarithmic
 ramp, because a garrison of ten thousand and one of a million are both worth
 seeing and a linear ramp would show only the second.
 
+## The books
+
+Each nation's page carries its own books down the left: what it holds, what the
+ground it holds pays it, and what a day of standing still costs it. Not
+fighting — existing. Engines are run, tracks and airframes wear out, shells are
+fired on ranges, and men are drafted through to replace those leaving.
+
+| | Oil in hand | A day's net | Lasts |
+| --- | --- | --- | --- |
+| Germany | 2.4 Mt | −13.7 kt | **174 days** |
+| Italy | 1.8 Mt | −8.7 kt | 206 days |
+| France | 3.0 Mt | −13.0 kt | 231 days |
+| Japan | 5.3 Mt | −10.6 kt | 499 days |
+| China | 100 kt | −7.9 kt | **12 days** |
+| United Kingdom | 5.5 Mt | −1.1 kt | — |
+| Soviet Union | 4.0 Mt | +53.0 kt | — |
+| United States | 25 Mt | +416 kt | — |
+
+That column on the right is the whole argument of the war in one number.
+Germany opens with about three months of oil, which is what sent it into
+Romania and eventually into the Caucasus; Japan with two years of it, and no
+way of making more, which is what sent it into the Indies; China with a fortnight
+and an army of two and a half million; the United States with a surplus of
+everything it digs up — and no rubber at all, because rubber is a tropical crop
+and every ton of it came from Malaya and the Indies. That last row is why
+synthetic rubber became a war programme in Washington as well as in Berlin.
+
+Stores are the opening figure plus the net of every day since, which makes them
+a pure function of the date — the same trick the belligerence table uses, and
+for the same reason: a number that is derived cannot drift out of step with the
+thing it is derived from. When orders arrive and a player can spend, this is
+what moves to the server. The **Actions** button under the books is where those
+orders will go; it does nothing yet, and says so.
+
+Totals for the whole board — ground held by each power, and the fighting
+strengths this seat may count — sit behind the **Totals** button beside the
+layer switches. Ground held is everybody's; the two military columns are not,
+and stop at what the fog allows.
+
 ## The fleets of 1939
 
 An army is spread over the ground its nation owns. A navy is not — it is a few
@@ -887,12 +926,14 @@ src/
            resourceSites.js  resources.js         — output, 1939
            nations.js  territories.js             — control, 1939
            forces.js  navies.js                   — armies and fleets, 1939
+           economy.js                            — stores, income and upkeep
            countries.js  leanings.js              — countries, colours, sympathies
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
            labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
            units.js                              — what is standing on a hex
   ui/      App.jsx  routes.jsx  NationIndex.jsx   — the pages
+           Economy.jsx  Totals.jsx               — the books, and the board
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know
 tools/     build-earth.mjs  preview-earth.mjs     — data baking

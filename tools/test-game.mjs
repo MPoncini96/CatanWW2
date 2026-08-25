@@ -38,6 +38,9 @@ import { countryFor } from '../src/world/countries.js';
 import { NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
 import { canSeeForces } from '../src/world/intel.js';
 import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
+import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
+import { buildWorld } from '../src/world/earth.js';
+import { PLAYER_IDS as POWERS } from '../src/game/players.js';
 import { T } from '../src/world/terrain.js';
 
 let checks = 0;
@@ -457,6 +460,80 @@ section('what a seat may know');
     }
   }
   ok(symmetric, 'and it reads the same from either side');
+}
+
+// --------------------------------------------------------- the books balance
+section('the books balance');
+{
+  // The only section that builds the whole world — population, output, armies
+  // and fleets — because the economy is the sum of all four.
+  const HERE = path.dirname(fileURLToPath(import.meta.url));
+  const bin = fs.readFileSync(path.join(HERE, '..', 'src', 'world', 'earth.bin'));
+  const world = buildWorld(
+    bin.subarray(0, TILE_COUNT),
+    bin.subarray(TILE_COUNT, TILE_COUNT * 2),
+    bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
+  );
+
+  ok(
+    POWERS.every((id) => STOCKPILES_1939[id]),
+    'every power opens the war with stores on hand',
+  );
+
+  const germany = economyFor(world, 'germany', 0);
+  const oil = germany.stores.find((s) => s.id === 'oil');
+  eq(oil.stock, STOCKPILES_1939.germany.oil, 'day 0 is the opening figure exactly');
+  ok(oil.net < 0, 'Germany burns more oil than its ground produces');
+  ok(
+    oil.daysLeft > 120 && oil.daysLeft < 250,
+    `and has about three months of it (${oil.daysLeft} days)`,
+  );
+
+  // Stores are the opening figure plus the net of every day since, which is
+  // what lets them be derived from the date rather than stored.
+  const later = economyFor(world, 'germany', 100);
+  const laterOil = later.stores.find((s) => s.id === 'oil');
+  ok(
+    Math.abs(laterOil.stock - (oil.stock + oil.net * 100)) < 1e-6,
+    'and a hundred days on, the opening figure plus a hundred days of the net',
+  );
+  eq(
+    economyFor(world, 'germany', 10000).stores.find((s) => s.id === 'oil').stock,
+    0,
+    'stores stop at empty rather than going negative',
+  );
+
+  // Manpower has to add up: everyone under arms is either in the field or at
+  // sea, and everyone else on that ground is a civilian.
+  let addsUp = true;
+  for (const id of POWERS) {
+    const books = economyFor(world, id, 0);
+    if (books.military !== books.soldiers + books.sailors) addsUp = false;
+    if (books.civilian + books.military !== books.people) addsUp = false;
+    if (books.stores.length !== 5) addsUp = false;
+  }
+  ok(addsUp, 'and the manpower adds up for all eight');
+
+  // The shape of the table, which is the point of having it.
+  const china = economyFor(world, 'china', 0);
+  const japan = economyFor(world, 'japan', 0);
+  const usa = economyFor(world, 'usa', 0);
+  ok(
+    china.stores.find((s) => s.id === 'oil').daysLeft < 30,
+    'China has weeks of oil, not months',
+  );
+  ok(japan.stores.find((s) => s.id === 'oil').net < 0, 'Japan cannot fuel its own fleet');
+  ok(
+    usa.stores.filter((s) => s.id !== 'rubber').every((s) => s.net > 0),
+    'and the United States runs a surplus in everything it digs up',
+  );
+  // Which is not everything. No rubber grew north of the tropics, and every
+  // ton of it came from Malaya and the Indies — the reason synthetic rubber
+  // became a war programme in Washington as well as in Berlin.
+  ok(
+    usa.stores.find((s) => s.id === 'rubber').net < 0,
+    'though not one ton of rubber, which is a tropical crop',
+  );
 }
 
 // ------------------------------------------------- every cell has a region

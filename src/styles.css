@@ -1302,3 +1302,260 @@ button:disabled {
   font-size: 10.5px;
   color: var(--muted);
 }
+
+/* ---------------------------------------------------------- the nation's books */
+/* What it has, what the ground pays it, and what a day of standing still costs.
+   Two lines per resource: the stock reads first, the flow underneath. */
+.economy {
+  padding: 13px 14px 12px;
+  border-radius: 12px;
+  background: var(--panel, rgba(19, 26, 36, 0.92));
+  border: 1px solid var(--panel-border);
+}
+
+.economy h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.economy h3 em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+.economy h3 + * {
+  margin-top: 0;
+}
+
+.economy__stores {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.economy__head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.economy__head i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.economy__name {
+  flex: 1;
+}
+
+.economy__head strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.economy__flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-left: 16px;
+  margin-top: 2px;
+  font-size: 10.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.economy__in {
+  color: #8fd3a3;
+}
+
+.economy__out {
+  color: #d89b8f;
+}
+
+.economy__net {
+  color: var(--text);
+}
+
+.economy__flow.is-falling .economy__net {
+  color: #e88b7d;
+}
+
+.economy__left {
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(232, 139, 125, 0.16);
+  color: #e88b7d;
+}
+
+.economy__people {
+  margin: 0 0 8px;
+  display: grid;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.economy__people div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.economy__people dt {
+  color: var(--muted);
+}
+
+.economy__people dd {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.economy__note {
+  margin: 0 0 8px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.economy__actions {
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 10px;
+  border: 1px solid rgba(184, 137, 74, 0.5);
+  border-radius: 8px;
+  background: rgba(184, 137, 74, 0.14);
+  color: #e0b678;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.economy__actions:hover {
+  background: rgba(184, 137, 74, 0.24);
+}
+
+/* ------------------------------------------------------------------ totals */
+/* Reference, not working state: a button beside the layer switches, and a
+   panel that closes the moment you look away from it. */
+.topbar__totals {
+  flex: none;
+  padding: 7px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.topbar__totals:hover,
+.topbar__totals.is-open {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.totals__scrim {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+  z-index: 40;
+}
+
+.totals {
+  position: fixed;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22px;
+  width: min(700px, calc(100vw - 32px));
+  padding: 16px 18px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  /* Solid: this is a table of numbers, and a globe turning behind them is not
+     texture, it is noise. */
+  background: #141b25;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  z-index: 41;
+}
+
+.totals__group {
+  flex: 1 1 190px;
+  min-width: 0;
+}
+
+.totals__group h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.totals__group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.totals__group li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.totals__group li i {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.totals__group li span {
+  flex: 1;
+}
+
+.totals__group li strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.totals__note {
+  margin: 8px 0 0;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.totals__note--wide {
+  flex: 1 1 100%;
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.legend__note--loose {
+  padding: 0 2px;
+  border: 0;
+  max-width: none;
+}
