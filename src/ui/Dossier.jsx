@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { formatPopulation } from '../world/population.js';
+import { ordersFor } from '../game/orders.js';
 import { formatAmount } from '../world/resources.js';
 import { ROLES, UNITS, formatUnits } from '../world/forces.js';
 import { SHIPS } from '../world/navies.js';
@@ -18,25 +20,93 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [given, setGiven] = useState(null);
+  // A different hex is a different decision, so the menu shuts and whatever was
+  // picked on the last one stops being displayed against this one.
+  useEffect(() => {
+    setMenuOpen(false);
+    setGiven(null);
+  }, [tile?.index]);
+  // A menu that stays open while you go back to the map is a menu you have to
+  // dismiss twice. Escape and a click anywhere else both shut it.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const shut = (event) => {
+      if (event.type === 'keydown' && event.key !== 'Escape') return;
+      if (event.type === 'pointerdown' && event.target.closest('.dossier__orders')) return;
+      setMenuOpen(false);
+    };
+    window.addEventListener('keydown', shut);
+    window.addEventListener('pointerdown', shut);
+    return () => {
+      window.removeEventListener('keydown', shut);
+      window.removeEventListener('pointerdown', shut);
+    };
+  }, [menuOpen]);
+  const orders = ordersFor({ power, day, tile });
+
   if (!open) {
     return (
       <div className="dossier dossier--shut">
-        <button type="button" className="dossier__handle" onClick={onToggle}>
-          <span className="dossier__chevron">▲</span>
-          {tile ? `${tile.city ? `${tile.city.name} — ` : ''}${tile.terrain.name} · ${tile.label}` : 'Hex dossier'}
-        </button>
+        <div className="dossier__bar">
+          <button type="button" className="dossier__handle" onClick={onToggle}>
+            <span className="dossier__chevron">▲</span>
+            {tile ? `${tile.city ? `${tile.city.name} — ` : ''}${tile.terrain.name} · ${tile.label}` : 'Hex dossier'}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="dossier">
-      <button type="button" className="dossier__handle" onClick={onToggle}>
-        <span className="dossier__chevron">▼</span>
-        {tile ? `${tile.city ? `${tile.city.name} — ` : ''}${tile.terrain.name} · ${tile.label}` : 'Hex dossier'}
-        {master && <em className="dossier__seat">every hex, no fog</em>}
-      </button>
+      <div className="dossier__bar">
+        <button type="button" className="dossier__handle" onClick={onToggle}>
+          <span className="dossier__chevron">▼</span>
+          {tile ? `${tile.city ? `${tile.city.name} — ` : ''}${tile.terrain.name} · ${tile.label}` : 'Hex dossier'}
+        </button>
+        {master ? (
+          <em className="dossier__seat">every hex, no fog</em>
+        ) : (
+          <div className="dossier__orders">
+            {given && <span className="dossier__given">{given} — not yet sent</span>}
+            <button
+              type="button"
+              className={`dossier__actions${menuOpen ? ' is-open' : ''}`}
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-expanded={menuOpen}
+            >
+              Actions
+            </button>
+            {menuOpen && (
+              <div className="dossier__menu" role="menu">
+                {orders.map((order) => (
+                  <button
+                    type="button"
+                    key={order.id}
+                    role="menuitem"
+                    disabled={!order.allowed}
+                    title={order.why ?? order.hint}
+                    onClick={() => {
+                      setGiven(order.name);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <span>{order.name}</span>
+                    <em>{order.allowed ? order.hint : order.why}</em>
+                  </button>
+                ))}
+                <p className="dossier__menu-note">
+                  The turn engine takes no orders yet. These say what you would do, and the board
+                  already knows which of them it would let you.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {!tile ? (
         <p className="dossier__empty">
@@ -45,6 +115,10 @@ export function Dossier({ tile, open, onToggle, master }) {
         </p>
       ) : (
         <div className="dossier__columns">
+          {/* The ground belongs to the Terrain view. On Nations you are asking
+              who holds a hex and on Output what comes out of it, and neither
+              question is answered by how wet it is. */}
+          {layer === null && (
           <Column title="The ground">
             <Row label="Terrain" value={tile.terrain.name} swatch={tile.terrain.color} />
             {/* Both of these are stored as 0-1 and have to be read back out:
@@ -55,6 +129,7 @@ export function Dossier({ tile, open, onToggle, master }) {
             <Row label="Rainfall" value={rainfall(tile.moisture)} />
             <Row label="Move cost" value={tile.terrain.move} />
           </Column>
+          )}
 
           <Column title="The place">
             <Row label="Position" value={tile.label} />

@@ -35,13 +35,14 @@ import { PLAYER_IDS } from '../src/game/players.js';
 import * as G from '../src/game/state.js';
 import { TERRITORIES_1939, territoryAt } from '../src/world/territories.js';
 import { countryFor } from '../src/world/countries.js';
-import { NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
+import { NATIONS, NATION_INDEX, NEUTRAL, SEA } from '../src/world/nations.js';
 import { canSeeForces, seesCell, seesFleet } from '../src/world/intel.js';
 import { NAVIES_1939, SHIPS, STATIONS, buildNavies } from '../src/world/navies.js';
 import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
 import { buildWorld } from '../src/world/earth.js';
 import { MASTER, isMaster, pathOf, powerFromPath } from '../src/ui/routes.js';
-import { FORCES_1939, UNIT_INDEX } from '../src/world/forces.js';
+import { ORDERS, ordersFor, partiesAt, partyAt } from '../src/game/orders.js';
+import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
 import { PLAYER_IDS as POWERS } from '../src/game/players.js';
@@ -1026,6 +1027,96 @@ section('the page that belongs to nobody');
   ok(seesFleet(world, null, stations.Wilhelmshaven), 'the overseer counts every fleet');
   ok(seesFleet(world, null, stations['Admiral Graf Spee']), 'the raiders at sea included');
   ok(!seesFleet(world, 'uk', stations['Admiral Graf Spee']), 'which Britain still cannot');
+}
+
+
+// ------------------------------------------------------------ what you may do
+section('what a seat may order on a hex');
+{
+  // Three orders, and which of them a hex will take is read off the board
+  // rather than decided in the button: the war table says whom you may attack
+  // and ownership says whose ground you may stand on. Nothing moves yet — the
+  // turn engine takes no orders — but the refusals are already the real ones.
+  eq(ORDERS.length, 3, 'three orders: reinforce, attack, hold');
+  eq(ORDERS.map((o) => o.id).join(' '), 'reinforce attack hold', 'and they are those three');
+
+  const world = board();
+  const view = (lat, lon) => {
+    const index = cellFor(lat, lon);
+    const owner = world.ownership.owner[index];
+    const country = world.countryOf[index] >= 0 ? world.countries[world.countryOf[index]] : null;
+    return {
+      index,
+      nation: owner === SEA ? null : NATIONS[owner],
+      country,
+      forces: UNITS.map((unit, u) => ({ id: unit.id, count: world.forces[u][index] })).filter(
+        (arm) => arm.count > 0,
+      ),
+    };
+  };
+  const may = (power, tile, day = 0) =>
+    Object.fromEntries(ordersFor({ power, day, tile }).map((o) => [o.id, o.allowed]));
+
+  const warsaw = view(52.23, 21.0);
+  const silesia = view(50.1, 18.1);
+  const paris = view(48.86, 2.35);
+  const berlin = view(52.5, 13.4);
+  const baltic = view(55.5, 18.5);
+
+  eq(partyAt(warsaw), 'Poland', 'a hex is known to the war table by its country');
+  ok(warsaw.nation.id === 'neutral', 'even where the pool that owns it is Independent');
+
+  // Neither name answers on its own. A country can be a belligerent its owner
+  // is not — Poland is Independent ground — while a metropole is deliberately
+  // not a separate party from its power, so France the country is in no war at
+  // all and france the power is in several.
+  ok(partiesAt(warsaw).includes('Poland'), 'Warsaw answers as Poland');
+  ok(partiesAt(paris).includes('france'), 'Paris answers as the French power');
+  const prussia = view(54.4, 21.0);
+  ok(
+    may('uk', prussia, 2).attack,
+    'Britain may attack East Prussia on the third — the country is German ground',
+  );
+
+  // Day 0: Germany is at war with Poland and with nobody else.
+  ok(may('germany', warsaw).attack, 'Germany may attack Poland on the first day');
+  ok(!may('germany', warsaw).reinforce, 'and may not reinforce ground it does not hold');
+  ok(!may('germany', paris).attack, 'France is not yet at war, so no');
+  ok(may('germany', paris, 2).attack, 'and on the third of September it is');
+  ok(!may('germany', silesia).attack, 'nobody attacks their own ground');
+  ok(may('germany', silesia).reinforce, 'which they may reinforce instead');
+  ok(may('germany', silesia).hold, 'and dig into, having troops on it');
+  ok(may('germany', berlin).hold, 'Berlin too — depot troops are still troops standing there');
+  ok(!may('germany', baltic).reinforce, 'there is no ground in the Baltic to reinforce');
+  ok(!may('germany', baltic).attack, 'and nobody there to attack');
+
+  // From the other side of the same hexes.
+  ok(!may('france', warsaw).attack, 'France may not attack Poland');
+  ok(may('france', paris).reinforce, 'and may reinforce its own capital');
+  ok(!may('uk', silesia).reinforce, 'Britain has no business in Silesia');
+
+  // The overseer is not playing, and the empty selection refuses everything.
+  const nobody = ordersFor({ power: null, day: 0, tile: silesia });
+  ok(nobody.every((o) => !o.allowed), 'the master page orders nothing');
+  eq(nobody[0].why, 'Nobody is sitting at this seat.', 'and says why');
+  const nothing = ordersFor({ power: 'germany', day: 0, tile: null });
+  ok(nothing.every((o) => !o.allowed), 'and neither does a page with no hex chosen');
+
+  // Every refusal has a reason attached, because a greyed-out button with no
+  // explanation is worse than no button.
+  const reasons = [
+    ...ordersFor({ power: 'germany', day: 0, tile: paris }),
+    ...ordersFor({ power: 'germany', day: 0, tile: baltic }),
+    ...ordersFor({ power: 'uk', day: 0, tile: silesia }),
+  ];
+  ok(
+    reasons.every((o) => (o.allowed ? o.why === null : typeof o.why === 'string' && o.why.length > 8)),
+    'every refusal carries a sentence saying why',
+  );
+  ok(
+    ordersFor({ power: 'germany', day: 0, tile: paris })[0].why.includes('France'),
+    'and names the country rather than the pool it is counted in',
+  );
 }
 
 console.log(

@@ -11,14 +11,19 @@ import { formatPopulation } from '../world/population.js';
  * hand, Italy 206, China twelve — which is the whole of why the map looks the
  * way it does by 1941.
  */
-export function Economy({ economy, onActions }) {
+export function Economy({ economy, open, onToggle }) {
   if (!economy) return null;
 
   return (
     <div className="economy">
-      <h3>
-        Stores <em>what it earns · what it burns · the day&apos;s net</em>
-      </h3>
+      {/* Five resources with three figures each is fifteen numbers, and they
+          are reference rather than working state — you check the oil, you close
+          it, you go back to the map. So they fold away behind their own name
+          and the manpower, which is one line, stays out. */}
+      <details className="economy__vault" open={open} onToggle={(e) => onToggle?.(e.currentTarget.open)}>
+        <summary>
+          Resources <em>what it earns · what it burns · the day&apos;s net</em>
+        </summary>
       <ul className="economy__stores">
         {economy.stores.map((store) => (
           <li key={store.id}>
@@ -43,6 +48,7 @@ export function Economy({ economy, onActions }) {
           </li>
         ))}
       </ul>
+      </details>
 
       <h3>Manpower</h3>
       <dl className="economy__people">
@@ -67,10 +73,6 @@ export function Economy({ economy, onActions }) {
         {economy.machines.hulls.toLocaleString()} hulls
       </p>
 
-      <button type="button" className="economy__actions" onClick={onActions}>
-        Actions
-      </button>
-      <p className="economy__note">Nothing to order yet — this is where orders will go.</p>
     </div>
   );
 }

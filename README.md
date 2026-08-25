@@ -175,17 +175,42 @@ are looking for is somewhere in the middle of a column.
 
 That is the right rule for a panel you read while working, and the wrong one for
 the moment you want to know everything about one place. So the **dossier** along
-the foot of the board is the other half of the same idea: every question at once,
-in columns — the ground, the place, the people, what it makes, what holds it, and
-what is moored off it. Switching layer does not change it. It is read in a sweep
-rather than scrolled, which is why it lies across the bottom instead of being
-added to the rail, and it folds down to its own title bar when the globe wants
-the whole screen.
+the foot of the board is the other half of the same idea: the place, the people,
+what it makes, what holds it and what is moored off it, all in columns at once.
+It is read in a sweep rather than scrolled, which is why it lies across the
+bottom instead of being added to the rail, and it folds down to its own title bar
+when the globe wants the whole screen.
+
+The ground itself — terrain, height, temperature, rainfall — is the one column
+that follows the layer, and appears only on Terrain. On Nations you are asking
+who holds a hex and on Output what comes out of it, and neither question is
+answered by how wet it is.
 
 The two obey the same fog. On Britain's page the dossier on a Berlin hex gives
 the terrain, the region, the population and the steel — all of which were in
 every almanac in 1939 — and says of the garrison only that it is not known,
 because nobody on Britain's side is looking at it.
+
+### Orders
+
+**Actions** sits at the right-hand end of the dossier bar, because an order is
+given to a hex and that is the panel about a hex. It offers three: **Reinforce**,
+**Attack**, and **Retreat / Fortify**.
+
+Nothing moves yet — the turn engine takes no orders — but which of the three a
+hex will take is already decided by the board rather than by the button, in
+`game/orders.js`. Ownership says whose ground you may stand on and the war table
+says whom you may attack, so on 1 September Germany may attack Warsaw and not
+Paris, and on the 3rd it may attack both, without a line of that file changing.
+Every refusal carries the reason: *This ground is Poland's*, *You are not at war
+with France*, *Nothing of yours is standing here*. A greyed-out button with no
+explanation is worse than no button.
+
+The one subtlety is what to call a hex when asking. Both names have to be tried,
+because neither answers alone: a country can be a belligerent its owner is not —
+Poland is Independent ground and the reason the war started — while a metropole
+is deliberately *not* a separate party from its power, so France the country is
+in no war at all and `france` the power is in several.
 
 ### /master
 
@@ -1079,6 +1104,10 @@ src/
            Economy.jsx  Totals.jsx               — the books, and the board
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know
+  game/    calendar.js  events.js                — the date, and the war table
+           belligerence.js                       — who may fight whom, and when
+           orders.js                             — what a seat may order on a hex
+           players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
 

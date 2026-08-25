@@ -278,6 +278,9 @@ export default function App() {
   // The bottom strip starts open: it is the half of the inspector that shows
   // everything, and a reader who has never seen it cannot ask for it.
   const [dossierOpen, setDossierOpen] = useState(true);
+  // Fifteen figures that are looked at rather than worked from: shut to begin
+  // with, and remembered once opened.
+  const [storesOpen, setStoresOpen] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState('nations');
@@ -585,7 +588,11 @@ export default function App() {
                 busy={busy}
                 error={seatError}
               />
-              <Economy economy={economy} onActions={() => {}} />
+                  <Economy
+                economy={economy}
+                open={storesOpen}
+                onToggle={setStoresOpen}
+              />
             </>
           )}
           <TileInspector tile={selected} layer={overlay} />
@@ -681,6 +688,9 @@ export default function App() {
             open={dossierOpen}
             onToggle={() => setDossierOpen((v) => !v)}
             master={master}
+            layer={overlay}
+            power={seat}
+            day={game?.day ?? 0}
           />
 
           <footer className="statusbar">
