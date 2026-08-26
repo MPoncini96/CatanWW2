@@ -45,8 +45,10 @@ const world = (() => {
 // --------------------------------------------------------------- the game
 
 let game = load();
-// Put the armies where the log says they are, in case this is a resumed game.
-world.march(game.moves ?? [], game.day);
+// Put the armies where the record says they are and the ground where it says
+// it went, in case this is a resumed game.
+for (const capture of game.captures ?? []) world.ownership.set(capture.cell, capture.to, capture);
+world.march(game.moves ?? [], game.day, game.battles ?? []);
 
 function load() {
   if (fs.existsSync(SAVE)) {
@@ -57,6 +59,8 @@ function load() {
       // against it is exactly what that game was.
       saved.orders ??= {};
       saved.moves ??= [];
+      saved.battles ??= [];
+      saved.captures ??= [];
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {
@@ -225,15 +229,23 @@ async function api(req, res, url) {
  */
 function maybeAdvance() {
   if (!G.readyToAdvance(game)) return;
-  const before = game.moves.length;
-  const fired = G.advance(game);
-  // The armies move on the server's own board as well, so tomorrow's orders
-  // are checked against where the columns actually are rather than where they
-  // stood when the game began.
-  world.march(game.moves, game.day);
-  const marched = game.moves.length - before;
+  const before = { moves: game.moves.length, battles: game.battles.length };
+  // The world goes in, because the day is not only a date: the marches happen
+  // on it, the fights happen on it, and the ground changes hands on it.
+  const fired = G.advance(game, world);
+  world.march(game.moves, game.day, game.battles);
+  const marched = game.moves.length - before.moves;
+  const fought = game.battles.length - before.battles;
   const when = G.publicState(game, null).date;
-  if (marched) console.log(`    ${marched} column${marched === 1 ? '' : 's'} marched`);
+  if (marched) console.log(`    ${marched} column${marched === 1 ? '' : 's'} on the move`);
+  for (const battle of game.battles.slice(before.battles)) {
+    console.log(
+      `    battle at ${battle.cell}: ${battle.attacker} ${battle.attack} against ` +
+        `${battle.defender} ${battle.defence} — ${battle.winner} holds it` +
+        (battle.pocket ? ', the beaten side destroyed where it stood' : ''),
+    );
+  }
+  void fought;
   if (fired.length) {
     console.log(`--> ${when}: ${fired.map((e) => e.name).join('; ')}`);
   } else {

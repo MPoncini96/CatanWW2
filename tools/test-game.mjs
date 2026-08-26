@@ -44,12 +44,26 @@ import { MASTER, isMaster, pathOf, powerFromPath } from '../src/ui/routes.js';
 import { ORDERS, ordersFor, partiesAt, partyAt } from '../src/game/orders.js';
 import {
   arrivalsAt,
+  atWar,
   executeOrders,
   isMobile,
   mayMarch,
   positionsAt,
   restDays,
 } from '../src/game/movement.js';
+import {
+  RATINGS,
+  TERRAIN_DEFENCE,
+  fight,
+  groundBonus,
+  isCapital,
+  luckAt,
+  resolveDay,
+  retreatTo,
+  strengthOf,
+  strengthsAt,
+} from '../src/game/combat.js';
+import { CAPITALS_1939, capitalAt } from '../src/world/capitals.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1249,14 +1263,34 @@ section('the armies march');
   // ---- where it may not go ------------------------------------------------
   // Marching onto somebody else's ground is an attack, and attacks wait for a
   // resolver. Poland is next door to Silesia and is not German ground.
-  const foreign = [...neighbours(silesia)].find(
+  const polish = [...neighbours(silesia)].find(
     (j) =>
       world.ownership.owner[j] !== world.ownership.owner[silesia] &&
       world.ownership.owner[j] !== SEA &&
-      !(world.garrisons.byCell.get(j) ?? []).some((p) => p.formation.nation === 'germany'),
+      world.countryOf[j] >= 0 &&
+      world.countries[world.countryOf[j]].name.startsWith('Poland'),
   );
-  ok(foreign !== undefined, 'Silesia has a foreign hex next to it');
-  ok(ask({ column, to: foreign })?.includes('attack'), 'marching onto foreign ground is an attack');
+  ok(polish !== undefined, 'Silesia has Polish ground next to it');
+  eq(ask({ column, to: polish }), null, 'marching onto it is an attack, and today Germany may make it');
+
+  // But not into somebody it is not fighting. Switzerland is neutral on every
+  // day of this game and marching in would be a declaration, which belongs to
+  // the timeline rather than to a column commander.
+  const swiss = world.countries.find((c) => c.name === 'Switzerland');
+  let swissHex = -1;
+  for (let i = 0; i < TILE_COUNT && swissHex < 0; i += 1) if (world.countryOf[i] === swiss.id) swissHex = i;
+  const germanBeside = [...neighbours(swissHex)].find(
+    (j) => world.ownership.owner[j] === NATION_INDEX.germany,
+  );
+  if (germanBeside !== undefined) {
+    const guard = (world.garrisons.byCell.get(germanBeside) ?? [])[0];
+    if (guard) {
+      ok(
+        ask({ column: guard, to: swissHex })?.includes('not at war with Switzerland'),
+        'and Switzerland is refused, by name',
+      );
+    }
+  }
   // But the 14th Army, which spent August assembling in Slovakia, can shuffle
   // about in it — because it is already standing there.
   const slovak = opening.find(
@@ -1324,6 +1358,204 @@ section('the armies march');
   eq(game.moves[0].day, 1, 'stamped with the day it landed on');
   eq(Object.keys(game.orders).length, 0, 'and the orders are spent');
   eq(G.publicState(game, 'france').moves.length, 1, 'a march that has happened is not a secret');
+}
+
+
+// ------------------------------------------------------------ and they fight
+section('fighting for a hex');
+{
+  const world = board();
+  const sphere = grid();
+  const opening = world.garrisons.opening;
+
+  // ---- what an arm is worth ----------------------------------------------
+  ok(RATINGS.tanks.attack > RATINGS.tanks.defend, 'a tank is worth more going forward than dug in');
+  ok(RATINGS.artillery.defend > RATINGS.artillery.attack, 'and a gun the other way about');
+  ok(RATINGS.infantry.defend > RATINGS.infantry.attack, 'as is a rifleman, who can dig');
+  ok(RATINGS.bombers.attack > RATINGS.bombers.defend * 4, 'a bomber cannot hold anything');
+
+  const column = { id: 'x', formation: { quality: 1 }, strength: { infantry: 1000, tanks: 10 } };
+  eq(strengthOf([column], 'attack'), 1000 * 1 + 10 * 90, 'strength is the arms at their ratings');
+  const poor = { ...column, formation: { quality: 0.5 } };
+  eq(strengthOf([poor], 'attack'), strengthOf([column], 'attack') / 2, 'and all of it scaled by quality');
+  ok(
+    strengthOf([{ ...column, formation: { quality: 0.28 } }], 'attack') <
+      strengthOf([{ ...column, formation: { quality: 0.85 } }], 'attack'),
+    'which is why three million Chinese are not three million Germans',
+  );
+
+  // ---- the ground ---------------------------------------------------------
+  ok(TERRAIN_DEFENCE.mountain > TERRAIN_DEFENCE.plains * 1.5, 'a mountain is worth holding');
+  ok(TERRAIN_DEFENCE.forest > TERRAIN_DEFENCE.plains, 'so is a wood');
+  ok(TERRAIN_DEFENCE.beach < TERRAIN_DEFENCE.plains, 'and a beach is the worst ground there is');
+  const berlin = cellFor(52.5, 13.4);
+  const openGround = cellFor(52.9, 12.5);
+  ok(
+    groundBonus(world, berlin) > groundBonus(world, openGround),
+    'a city is harder to take than the fields around it',
+  );
+
+  // Height. The same hex is worth more when the attack has to climb to it.
+  let high = -1;
+  let low = -1;
+  for (let i = 0; i < TILE_COUNT && high < 0; i += 1) {
+    if (world.ownership.owner[i] === SEA || world.elevation[i] < 0.4) continue;
+    for (const j of neighbours(i)) {
+      if (world.ownership.owner[j] !== SEA && world.elevation[j] < world.elevation[i] - 0.2) {
+        high = i;
+        low = j;
+      }
+    }
+  }
+  ok(high >= 0, 'the board has a hill with a valley beside it');
+  ok(
+    groundBonus(world, high, low) > groundBonus(world, high, high),
+    'and attacking uphill is dearer than attacking along the level',
+  );
+
+  // ---- luck ---------------------------------------------------------------
+  const [a1, d1] = luckAt(7, 1234);
+  const [a2, d2] = luckAt(7, 1234);
+  eq(a1, a2, 'the same fight rolls the same way twice');
+  eq(d1, d2, 'on both sides of it');
+  ok(a1 !== d1, 'the two sides do not share a roll');
+  ok(a1 > 0.75 && a1 < 1.25, 'and luck moves the answer by a fifth at most');
+  let lucky = 0;
+  for (let n = 0; n < 500; n += 1) if (luckAt(n, n * 37)[0] > 1) lucky += 1;
+  ok(lucky > 200 && lucky < 300, `it is not biased — ${lucky} of 500 rolls above even`);
+
+  // ---- falling back -------------------------------------------------------
+  const german = cellFor(52.5, 13.4);
+  const back = retreatTo(world, german, 'germany', null);
+  ok(back !== null, 'a beaten army in Germany falls back onto German ground');
+  eq(world.ownership.owner[back], NATION_INDEX.germany, 'and not onto anybody else’s');
+  ok(retreatTo(world, german, 'france', null) === null, 'a French army in Berlin has nowhere to go');
+
+  // The retreat is away from whoever pushed, and it never doubles back into
+  // the attack.
+  const pushedFrom = [...neighbours(german)].find(
+    (j) => world.ownership.owner[j] === NATION_INDEX.germany,
+  );
+  ok(retreatTo(world, german, 'germany', pushedFrom) !== pushedFrom, 'and never back through the attack');
+
+  // ---- capitals -----------------------------------------------------------
+  ok(isCapital(cellFor(52.52, 13.4)), 'Berlin is a capital');
+  ok(isCapital(cellFor(52.23, 21.01)), 'so is Warsaw');
+  ok(isCapital(cellFor(29.56, 106.55)), 'and Chongqing, because Nanjing fell in 1937');
+  ok(!isCapital(cellFor(52.9, 12.5)), 'a field in Brandenburg is not');
+  eq(capitalAt(cellFor(48.86, 2.35))?.whose, 'france', 'and each one knows whose it is');
+  eq(CAPITALS_1939.length, new Set(CAPITALS_1939.map((c) => c[0])).size, 'no capital is listed twice');
+
+  // ---- one fight ----------------------------------------------------------
+  const strong = [{ id: 'a', formation: { quality: 0.9, nation: 'france' }, strength: { infantry: 200000, tanks: 600 } }];
+  const weak = [{ id: 'b', formation: { quality: 0.5, nation: 'germany' }, strength: { infantry: 20000 } }];
+  const oneSided = fight({ world, cell: openGround, day: 1, attackers: strong, defenders: weak });
+  eq(oneSided.winner, 'attacker', 'ten to one carries the hex');
+  ok(oneSided.loserShare > oneSided.winnerShare * 5, 'and it is far dearer for the beaten side');
+  ok(oneSided.loserShare <= 0.35, 'though nothing is annihilated in one day');
+  ok(oneSided.winnerShare >= 0.02, 'and nothing is taken for free');
+  ok(oneSided.retreat !== null, 'a beaten German in Brandenburg has German ground to fall back onto');
+  ok(!oneSided.pocket, 'so it is not a pocket');
+
+  // Unless there is nowhere. An army beaten on ground with none of its own
+  // beside it is destroyed where it stands, and so is one beaten on the hex
+  // its government sits on — Warsaw did not withdraw, because by then there
+  // was nowhere left to withdraw to that mattered.
+  const stranded = [{ id: 'c', formation: { quality: 0.5, nation: 'japan' }, strength: { infantry: 20000 } }];
+  const cutOff = fight({ world, cell: openGround, day: 1, attackers: strong, defenders: stranded });
+  ok(cutOff.pocket, 'a Japanese army in Brandenburg has nowhere to go');
+  ok(cutOff.loserShare > 0.5, 'and pays for it');
+  const capital = fight({
+    world,
+    cell: cellFor(52.52, 13.4),
+    day: 1,
+    attackers: strong,
+    defenders: [{ id: 'd', formation: { quality: 0.6, nation: 'germany' }, strength: { infantry: 60000 } }],
+  });
+  ok(capital.pocket, 'and nobody falls back out of Berlin');
+  eq(capital.retreat, null, 'there is no line drawn out of a capital');
+
+  const other = fight({ world, cell: openGround, day: 1, attackers: weak, defenders: strong });
+  eq(other.winner, 'defender', 'and one to ten does not');
+  eq(other.retreat, null, 'a beaten attacker is not pushed anywhere — it goes back the way it came');
+
+  // The same fight, uphill, is a different fight.
+  const evenA = [{ id: 'a', formation: { quality: 0.8 }, strength: { infantry: 100000 } }];
+  const evenB = [{ id: 'b', formation: { quality: 0.8 }, strength: { infantry: 100000 } }];
+  const flat = fight({ world, cell: openGround, day: 3, attackers: evenA, defenders: evenB });
+  eq(flat.winner, 'defender', 'even numbers favour whoever is already there');
+
+  // ---- what is left of a column ------------------------------------------
+  const sample = opening.find((c) => c.strength.infantry > 10000);
+  const record = [
+    { day: 1, losers: [sample.id], winners: [], loserShare: 0.25, winnerShare: 0 },
+    { day: 2, losers: [sample.id], winners: [], loserShare: 0.25, winnerShare: 0 },
+  ];
+  eq(
+    strengthsAt(opening, record, 0).get(sample.id).infantry,
+    sample.strength.infantry,
+    'before the fighting a column is what it deployed with',
+  );
+  eq(
+    strengthsAt(opening, record, 1).get(sample.id).infantry,
+    Math.floor(sample.strength.infantry * 0.75),
+    'a quarter gone after one day',
+  );
+  eq(
+    strengthsAt(opening, record, 2).get(sample.id).infantry,
+    Math.floor(Math.floor(sample.strength.infantry * 0.75) * 0.75),
+    'and again after the second — replayed, never stored',
+  );
+
+  // ---- a whole day, end to end -------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'de', 'A');
+  const silesia = cellFor(50.1, 18.1);
+  const polish = [...neighbours(silesia)].find(
+    (j) =>
+      world.countryOf[j] >= 0 && world.countries[world.countryOf[j]].name.startsWith('Poland'),
+  );
+  ok(polish !== undefined, 'there is Polish ground beside Silesia');
+  ok(atWar(0, 'germany', 'neutral', world, polish), 'and Germany is at war with what is on it');
+
+  const attacking = (world.garrisons.byCell.get(silesia) ?? []).filter((c) => isMobile(c.formation));
+  G.setOrders(game, 'germany', attacking.map((c) => ({ column: c.id, from: silesia, to: polish })));
+  G.setReady(game, 'germany', true);
+  const poles = (world.garrisons.byCell.get(polish) ?? []).map((c) => c.id);
+  G.advance(game, world);
+
+  eq(game.battles.length, 1, 'a hex two armies are standing on is a battle');
+  const battle = game.battles[0];
+  eq(battle.cell, polish, 'fought where they met');
+  eq(battle.attacker, 'germany', 'the side that arrived is the attacker');
+  eq(battle.winner, 'attacker', 'and six columns against one garrison carry it');
+  ok(battle.attack > battle.defence, 'on the numbers');
+  eq(game.captures.length, 1, 'so the ground changes hands');
+  eq(world.ownership.owner[polish], NATION_INDEX.germany, 'and the map says so');
+  ok(
+    game.moves.some((m) => m.retreat && poles.includes(m.column)),
+    'the beaten garrison falls back, without being asked',
+  );
+  ok(
+    game.moves.filter((m) => m.retreat).every((m) => m.day === game.day),
+    'on the same day it lost',
+  );
+
+  // Nobody is invented on the way.
+  world.march(game.moves, game.day, game.battles);
+  const left = strengthsAt(opening, game.battles, game.day);
+  ok(
+    [...left.values()].every((have) => Object.values(have).every((n) => n >= 0)),
+    'no column ends a battle with less than nothing',
+  );
+  ok(
+    left.get(attacking[0].id).infantry < attacking[0].strength.infantry,
+    'and even the winner pays for it',
+  );
+
+  // Put the board back for anything that runs after this.
+  for (const capture of game.captures) world.ownership.set(capture.cell, capture.from, { reason: 'test' });
+  world.march([], 0, []);
 }
 
 console.log(

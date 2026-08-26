@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, march }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, march, battles }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -47,6 +47,8 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
   }, [menuOpen]);
   const available = ordersFor({ power, day, tile });
   const arriving = (orders ?? []).filter((o) => o.to === tile?.index).length;
+  // The last time anybody fought over this hex.
+  const here = (battles ?? []).find((b) => b.cell === tile?.index) ?? null;
 
   if (!open) {
     return (
@@ -100,7 +102,11 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                       // Reinforce is the one that does something now: it opens
                       // the march planner on this hex. The other two are still
                       // waiting on a combat model.
-                      if (order.id === 'reinforce') onMarch?.();
+                      // Both of these are the same act: you march onto a
+                      // hex. Whether it is a reinforcement or an attack is
+                      // decided by who is standing there when you arrive, not
+                      // by which button was pressed.
+                      if (order.id === 'reinforce' || order.id === 'attack') onMarch?.();
                       else setGiven(order.name);
                     }}
                   >
@@ -193,6 +199,32 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
               <Row label="Works" value={tile.sites.map((s) => s.name).join(', ')} />
             )}
           </Column>
+
+          {here && (
+            <Column title="The fighting">
+              <Row label="Day" value={here.day} />
+              <Row
+                label="Attacker"
+                value={`${here.attacker} · ${here.attack.toLocaleString()}`}
+              />
+              <Row
+                label="Defender"
+                value={`${here.defender} · ${here.defence.toLocaleString()}`}
+              />
+              <Row
+                label="Held by"
+                value={here.winner === 'attacker' ? here.attacker : here.defender}
+              />
+              <p className="dossier__field">
+                {here.winner === 'attacker'
+                  ? here.pocket
+                    ? 'The defenders were destroyed where they stood — there was nowhere to fall back to.'
+                    : 'The defenders fell back.'
+                  : 'The attack was thrown back the way it came.'}
+                {` The beaten side lost ${Math.round(here.loserShare * 100)}% of what it brought, the winner ${Math.round(here.winnerShare * 100)}%.`}
+              </p>
+            </Column>
+          )}
 
           <Column title="What holds it" wide>
             {tile.forcesUnknown ? (

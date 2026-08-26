@@ -458,12 +458,19 @@ export default function App() {
   // stream and comparing it would rebuild the board for nothing.
   const [marchVersion, setMarchVersion] = useState(0);
   const moveCount = game?.moves?.length ?? 0;
+  const battleCount = game?.battles?.length ?? 0;
+  const captureCount = game?.captures?.length ?? 0;
   useEffect(() => {
     if (!world?.march || !game) return;
-    world.march(game.moves ?? [], game.day);
+    // Ground first, then the armies: a column that took a hex has to find the
+    // hex already its own, or the fog would hide the men that captured it.
+    for (const capture of game.captures ?? []) {
+      world.ownership.set(capture.cell, capture.to, { day: capture.day, reason: 'taken' });
+    }
+    world.march(game.moves ?? [], game.day, game.battles ?? []);
     setMarchVersion((v) => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, moveCount, game?.day]);
+  }, [world, moveCount, battleCount, captureCount, game?.day]);
 
   // Where every column stands today, and when it got there. Both are replayed
   // from the same log the server replays, so the two agree without either
@@ -478,6 +485,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [moveCount, game?.day],
   );
+
+  // What happened when the day turned, newest first, and only the fights this
+  // seat has any business knowing about — its own, and anything it can see.
+  const dispatches = useMemo(() => {
+    if (!world || !game?.battles?.length) return [];
+    const visible = visibilityFor(world, seat);
+    return game.battles
+      .filter((b) => !seat || b.attacker === seat || b.defender === seat || visible[b.cell])
+      .slice(-40)
+      .reverse();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, seat, battleCount, ownershipVersion]);
 
   // The server's copy of this seat's orders is the truth; a new day clears it.
   useEffect(() => {
@@ -769,6 +788,7 @@ export default function App() {
             orders={orders}
             marchTo={marchTo}
             onMarch={() => setMarchTo(selected?.index ?? null)}
+            battles={dispatches}
             march={
               marchTo !== null && world && positions ? (
                 <March

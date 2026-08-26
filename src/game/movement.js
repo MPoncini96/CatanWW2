@@ -1,7 +1,8 @@
 import { neighbours } from '../world/sphere.js';
-import { NATION_INDEX, SEA } from '../world/nations.js';
+import { NATIONS, NATION_INDEX, SEA } from '../world/nations.js';
 import { TERRAIN } from '../world/terrain.js';
 import { formationName } from '../world/deploy.js';
+import { mayFight } from './belligerence.js';
 
 // Marching.
 //
@@ -25,6 +26,23 @@ import { formationName } from '../world/deploy.js';
 // 261 hexes and cannot march as a thing. Not a number of men either, because
 // then every order needs a slider and every hex needs bookkeeping. What stands
 // on a hex moves off it whole, and never divides further.
+
+/**
+ * May these two nations fight each other on this hex today?
+ *
+ * Both names are tried, because the pooled neutral is not a belligerent and
+ * the country standing on the ground is: Germany is at war with Poland on the
+ * first of September and with Independent never, and the hex under Warsaw has
+ * to answer to the first of those.
+ */
+export function atWar(day, a, b, world, cell) {
+  if (a === b) return false;
+  const named = (nation) =>
+    nation === 'neutral' && world.countryOf[cell] >= 0
+      ? world.countries[world.countryOf[cell]].name
+      : nation;
+  return mayFight(day, named(a), named(b)) || mayFight(day, a, b);
+}
 
 /** Ground that costs a second day of rest to enter. */
 const HIGH_GROUND = new Set(['mountain', 'peak', 'glacier']);
@@ -128,18 +146,24 @@ export function mayMarch({ world, column, to, power, day, positions, arrivals, o
     }
   }
 
-  // Where it may go. Ground its own nation holds, and neutral ground it is
-  // already standing on — the 14th Army spent the last week of August in
-  // Slovakia and has to be able to shuffle about in it. Marching onto anybody
-  // else's ground is an attack, and attacks wait for a resolver.
+  // Where it may go. Ground its own nation holds; neutral ground it is already
+  // standing on, because the 14th Army spent the last week of August in
+  // Slovakia and has to be able to shuffle about in it; and the ground of
+  // anybody it is at war with, which is the only definition of an attack this
+  // model needs — you march onto a hex somebody else is holding and the day
+  // works out what happens.
+  //
+  // What is refused is the third case: marching into a neutral you are not
+  // fighting. That is an invasion, and an invasion is a declaration, which
+  // belongs to the timeline rather than to a column commander.
   const homeGround = owner[to] === NATION_INDEX[power];
   if (!homeGround) {
     const alreadyThere = world.garrisons.byCell
       .get(to)
       ?.some((p) => p.formation.nation === power);
-    if (!alreadyThere) {
+    if (!alreadyThere && !atWar(day, power, NATIONS[owner[to]].id, world, to)) {
       const held = world.countryOf[to] >= 0 ? world.countries[world.countryOf[to]].name : 'that ground';
-      return `${held} is not yours to march into — that would be an attack.`;
+      return `You are not at war with ${held}.`;
     }
   }
 

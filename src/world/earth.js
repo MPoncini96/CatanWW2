@@ -9,6 +9,7 @@ import { territoryFor } from './territories.js';
 import { buildForces, tallyPlacements } from './forces.js';
 import { buildNavies } from './navies.js';
 import { positionsAt } from '../game/movement.js';
+import { strengthsAt } from '../game/combat.js';
 import { buildCountries } from './countries.js';
 
 // Turns the baked per-hex Earth samples (land mask, relief, vegetation)
@@ -303,12 +304,25 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
    * is a few hundred entries and the tally is 1,682 columns, so doing the
    * whole thing again costs less than a frame.
    */
-  world.march = (moves, day) => {
+  world.march = (moves, day, battles = []) => {
     const at = positionsAt(world.garrisons.opening, moves, day);
-    const placements = world.garrisons.opening.map((placement) => {
+    const left = strengthsAt(world.garrisons.opening, battles, day);
+    const placements = [];
+    for (const placement of world.garrisons.opening) {
       const cell = at.get(placement.id);
-      return cell === placement.cell ? placement : { ...placement, cell };
-    });
+      const strength = left.get(placement.id) ?? placement.strength;
+      // A column with nothing left of it is off the board. It is not deleted
+      // from anything — the record still has it, and replaying to an earlier
+      // day puts it back.
+      let any = 0;
+      for (const arm of Object.keys(strength)) any += strength[arm];
+      if (!any) continue;
+      placements.push(
+        cell === placement.cell && strength === placement.strength
+          ? placement
+          : { ...placement, cell, strength },
+      );
+    }
     const tallied = tallyPlacements(placements);
     world.forces = tallied.counts;
     world.forceTotals = tallied.totals;

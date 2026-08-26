@@ -962,6 +962,90 @@ is deterministic and every client already builds every garrison from the same
 tables, so where an army *is* could never have been a secret. What you *intend*
 still is.
 
+## Fighting for a hex
+
+A cell is 4,455 km² and the heaviest of them holds 186,000 men, so a battle here
+is not a battle — it is an army group's frontage for a day. That decides almost
+everything about the model. **Losses are percentages, not counts**, nothing is
+annihilated in an afternoon, and a fight that took a week in the histories is a
+week of daily attacks here rather than one enormous roll.
+
+There is no separate attack order. **You march onto a hex somebody else is
+holding**, and if you are at war with them the day works out what happens. What
+is refused is marching into a neutral you are *not* fighting: that is an
+invasion, and an invasion is a declaration, which belongs to the timeline rather
+than to a column commander.
+
+### What each arm is worth
+
+| | attacking | defending |
+| --- | --- | --- |
+| Infantry | 1 | 1.3 |
+| Tanks | 90 | 40 |
+| Artillery | 60 | 80 |
+| Fighters | 25 | 25 |
+| Bombers | 80 | 15 |
+
+In men, and every figure is an argument. **A tank is 90 men going forward and 40
+standing still**: a panzer division of 300 tanks and 13,000 men fought like two
+or three infantry divisions, and armour dug in to hold ground wastes the only
+thing that made it worth having. **Artillery is the reverse** — it killed more
+men than anything else in both wars, and it killed most of them from a prepared
+position onto ground the attacker had to cross. **Infantry defends better than
+it attacks**, because it can dig. **Bombers hit hard and hold nothing.**
+Fighters decide who else gets to do those things, which on the ground is worth
+something and not much.
+
+All of it is multiplied by the formation's **quality**, which is what stops
+2.5 million Chinese infantry outweighing 1.8 million Japanese. That field has
+been sitting in the order of battle since it was written and this is the first
+thing to read it.
+
+### What the ground is worth
+
+The defender multiplies by terrain — mountain 2.0, swamp and jungle 1.6, forest
+1.4, hills 1.25, plains 1.0, **beach 0.9**, because there is nowhere worse to be
+caught. A city is worth another 1.3 on top; ask Stalingrad. And attacking uphill
+costs up to a further 30%, read off the real height difference in metres.
+
+Then both sides are rolled against a **±20% band**, seeded from the day and the
+hex rather than from a generator with a hidden state — so a battle can be
+recomputed from the record and comes out the same everywhere, which is what lets
+the whole game be replayed rather than stored.
+
+### Who leaves
+
+The loser's share of losses rises with how badly it was beaten and the winner's
+falls, both clamped: **nothing costs less than 2% or more than 35% in a day**. A
+ten-to-one attack is cheap for the attacker and dear for the defender; an even
+one costs both about a tenth of what they brought.
+
+**Retreat is automatic and not a decision.** An army that has lost a position
+withdraws — asking eight seats to choose each time would stall the day, and the
+men on the ground were doing it without orders anyway. It falls back onto its own
+nation's ground, preferring to put distance between itself and whatever pushed
+it, then the hardest ground to be followed onto. Nothing random: the same rout
+gives the same answer on every machine.
+
+Two exceptions, and both are the same rule. **An army with nowhere of its own to
+fall back to is destroyed where it stands**, losing 60% rather than 35%. And
+**nobody retreats out of a capital** — Warsaw held for three weeks after the
+campaign around it was decided, because by then there was nowhere left to
+withdraw to that mattered. `world/capitals.js` lists the twenty-six governments
+of 1939 and that is the only thing being a capital does.
+
+A beaten *attacker* is not pushed anywhere. It goes back the hex it came from,
+which it always can, because it was standing there that morning.
+
+### What that does to an offensive
+
+A column that arrives somewhere rests the next day, and a column that has just
+taken a hex has arrived. So **an attack cannot be repeated the following day by
+the troops that made it** — pressing an offensive means feeding fresh columns in
+behind, which is what relief in place is, and it holds an advance to roughly one
+hex every two days. That was not designed; it falls out of the movement rule and
+the combat rule meeting.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1149,6 +1233,7 @@ src/
            cities.js  regions.js  population.js   — people, 1939
            resourceSites.js  resources.js         — output, 1939
            nations.js  territories.js             — control, 1939
+           capitals.js                           — the twenty-six governments
            oob1939.js deploy.js  forces.js    — the order of battle, and
                                                  where each formation stands
            navies.js                            — the fleets of 1939
@@ -1170,6 +1255,8 @@ src/
            belligerence.js                       — who may fight whom, and when
            orders.js                             — what a seat may order on a hex
            movement.js                           — marching, resting and replay
+           combat.js                             — what an arm is worth, and
+                                                   who is left holding the hex
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
@@ -1182,12 +1269,13 @@ verified.
 
 ## Not built yet
 
-A combat model. Columns march, but nothing yet resolves what happens when two
-of them want the same hex — which is why Attack and Retreat / Fortify are still
-inert and why marching is confined to ground you already hold. Air missions are
-specified and not built: fighters 3 hexes, bombers 10, returning to the airfield
-they left. And any rule that would make ownership move
-on its own. The board carries terrain, movement cost (`TERRAIN[].move`),
+Air missions: fighters 3 hexes, bombers 10, returning to the airfield they left
+— specified and not built, so aircraft presently fight only for the hex they are
+parked on. Supply, which is the thing that should stop an advance outrunning its
+railheads, and which the access layer built for deployment already knows enough
+to model. Production, so that the stores mean something and Germany's 165 days
+of oil have a consequence. And a way to win or lose, which the game does not yet
+have: a nation reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

@@ -3,6 +3,7 @@ import { eventsOn, nextEventAfter } from './events.js';
 import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
 import { executeOrders } from './movement.js';
+import { resolveDay } from './combat.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -35,6 +36,12 @@ export function newGame() {
     // record of where an army is — every client replays it against the opening
     // deployment rather than being sent a map.
     moves: [],
+    // And the fights, which are the other half of the same record: the moves
+    // say where a column is and these say what is left of it.
+    battles: [],
+    // Ground that has changed hands, so a client can replay the map as well as
+    // the armies.
+    captures: [],
     // Bumped on every change so clients can tell whether they are current.
     revision: 0,
   };
@@ -128,14 +135,29 @@ export function readyToAdvance(game) {
  * the new date is written into the log for the clients to put in front of
  * their players.
  */
-export function advance(game) {
-  // Orders given yesterday happen today, before anything else about the new
-  // day is decided. They are stamped with the day they land on rather than the
-  // day they were given, because that is the day a reader of the log cares
-  // about.
+export function advance(game, world = null) {
+  // The order of a day, and it matters: the marches happen, then whoever ends
+  // up sharing a hex with somebody they are at war with fights over it, then
+  // the beaten fall back — which is itself a march, stamped with the same day,
+  // so that where an army is stays one question with one answer.
   game.day += 1;
   game.moves.push(...executeOrders(game.orders, game.day));
   game.orders = {};
+
+  if (world) {
+    const { battles, retreats, captures } = resolveDay({
+      world,
+      day: game.day,
+      moves: game.moves,
+      battles: game.battles,
+    });
+    game.battles.push(...battles);
+    game.moves.push(...retreats);
+    for (const capture of captures) {
+      world.ownership.set(capture.cell, capture.to, { day: game.day, reason: 'taken' });
+      game.captures.push(capture);
+    }
+  }
   for (const id of PLAYER_IDS) {
     if (game.seats[id]) game.seats[id].ready = false;
   }
@@ -213,6 +235,8 @@ export function publicState(game, viewer) {
     // what a seat intends to do tomorrow, which is why the orders below are
     // the viewer's own and nobody else's.
     moves: game.moves,
+    battles: game.battles,
+    captures: game.captures,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
