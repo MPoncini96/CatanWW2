@@ -1530,7 +1530,11 @@ section('fighting for a hex');
   eq(battle.attacker, 'germany', 'the side that arrived is the attacker');
   eq(battle.winner, 'attacker', 'and six columns against one garrison carry it');
   ok(battle.attack > battle.defence, 'on the numbers');
-  eq(game.captures.length, 1, 'so the ground changes hands');
+  ok(game.captures.length >= 1, 'so the ground changes hands');
+  ok(
+    game.captures.some((c) => c.cell === polish && !c.walkedIn && !c.cutOff),
+    'the hex that was fought over is taken by the fighting',
+  );
   eq(world.ownership.owner[polish], NATION_INDEX.germany, 'and the map says so');
   ok(
     game.moves.some((m) => m.retreat && poles.includes(m.column)),
@@ -1556,6 +1560,114 @@ section('fighting for a hex');
   // Put the board back for anything that runs after this.
   for (const capture of game.captures) world.ownership.set(capture.cell, capture.from, { reason: 'test' });
   world.march([], 0, []);
+}
+
+
+// -------------------------------------------------------- and ground is taken
+section('ground changes hands');
+{
+  // Most of a country has nobody standing on it. Until this existed an army
+  // could march across all of it and take none of it: ownership only moved
+  // when there was a battle, and there is no battle when nobody is home.
+  const world = board();
+  const opening = world.garrisons.opening;
+
+  let poland = 0;
+  let garrisoned = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    const country = world.countryOf[i] >= 0 ? world.countries[world.countryOf[i]].name : '';
+    if (!country.startsWith('Poland')) continue;
+    poland += 1;
+    if ((world.garrisons.byCell.get(i) ?? []).length) garrisoned += 1;
+  }
+  ok(garrisoned < poland, `${poland - garrisoned} of Poland's ${poland} hexes hold nobody`);
+
+  // ---- walking onto undefended ground ------------------------------------
+  let from = -1;
+  let empty;
+  for (let i = 0; i < TILE_COUNT && empty === undefined; i += 1) {
+    if (world.ownership.owner[i] !== NATION_INDEX.germany) continue;
+    if (!(world.garrisons.byCell.get(i) ?? []).some((c) => isMobile(c.formation))) continue;
+    for (const j of neighbours(i)) {
+      if (world.ownership.owner[j] === SEA || world.ownership.owner[j] === NATION_INDEX.germany) continue;
+      if ((world.garrisons.byCell.get(j) ?? []).length) continue;
+      const name = world.countryOf[j] >= 0 ? world.countries[world.countryOf[j]].name : '';
+      if (!name.startsWith('Poland')) continue;
+      from = i;
+      empty = j;
+      break;
+    }
+  }
+  ok(empty !== undefined, 'there is undefended Polish ground beside a German garrison');
+
+  const game = G.newGame();
+  G.claim(game, 'germany', 'de', 'A');
+  const column = (world.garrisons.byCell.get(from) ?? []).find((c) => isMobile(c.formation));
+  G.setOrders(game, 'germany', [{ column: column.id, from, to: empty }]);
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  eq(game.battles.length, 0, 'walking into an empty hex is not a battle');
+  ok(
+    game.captures.some((c) => c.cell === empty && c.walkedIn),
+    'but it is a capture, and the record says it was walked into',
+  );
+  eq(world.ownership.owner[empty], NATION_INDEX.germany, 'the hex is German now');
+
+  // ---- and ground that is simply cut off ----------------------------------
+  // An undefended hex whose every land neighbour is held by one enemy has been
+  // cut off from whatever it belonged to. It falls without anybody marching in,
+  // which is what mops up pockets — and the only way a mountain is ever taken
+  // from an army that will not come down off it.
+  const encircled = game.captures.filter((c) => c.cutOff);
+  for (const capture of encircled) {
+    let ring = null;
+    let same = true;
+    for (const j of neighbours(capture.cell)) {
+      if (world.ownership.owner[j] === SEA) continue;
+      if (ring === null) ring = world.ownership.owner[j];
+      if (world.ownership.owner[j] !== ring) same = false;
+    }
+    ok(same, `the cut-off hex at ${capture.cell} really was surrounded by one nation`);
+  }
+
+  // Nothing is taken from somebody you are not fighting. Switzerland is neutral
+  // on every day of this game and no amount of standing next to it changes that.
+  const swiss = world.countries.find((c) => c.name === 'Switzerland');
+  let swissHexes = 0;
+  let swissLost = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (world.countryOf[i] !== swiss.id) continue;
+    swissHexes += 1;
+    if (world.ownership.owner[i] !== NEUTRAL) swissLost += 1;
+  }
+  ok(swissHexes > 0, 'Switzerland is on the board');
+  eq(swissLost, 0, 'and none of it has been taken by anybody');
+
+  // Every capture is from somebody the taker is at war with.
+  const wrong = game.captures.filter((c) => !atWar(c.day, c.to, c.from, world, c.cell));
+  for (const c of wrong.slice(0, 3)) console.error(`        ${c.to} took ${c.cell} from ${c.from}, uninvited`);
+  eq(wrong.length, 0, 'and every hex that changed hands changed it between belligerents');
+
+  // Nothing changes hands on its own. A game where nobody gives an order is a
+  // game where the map does not move — which sounds obvious and was not: the
+  // 8th Route Army deploys inside the Japanese occupation on purpose, and a
+  // rule that gave ground to whoever was standing on it handed three hexes of
+  // Shanxi to China before anybody had played a turn.
+  for (const capture of game.captures) {
+    world.ownership.set(capture.cell, capture.from, { reason: 'test' });
+  }
+  const quiet = G.newGame();
+  G.claim(quiet, 'germany', 'de2', 'B');
+  for (let n = 0; n < 3; n += 1) {
+    G.setReady(quiet, 'germany', true);
+    G.advance(quiet, world);
+  }
+  eq(quiet.captures.length, 0, 'three days with no orders move nothing on the map');
+  eq(quiet.battles.length, 0, 'and nobody fights anybody');
+
+  world.march([], 0, []);
+  void opening;
 }
 
 console.log(

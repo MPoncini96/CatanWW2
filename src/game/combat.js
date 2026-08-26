@@ -1,5 +1,5 @@
 import { neighbours } from '../world/sphere.js';
-import { NATION_INDEX, SEA } from '../world/nations.js';
+import { NATIONS, NATION_INDEX, SEA } from '../world/nations.js';
 import { TERRAIN } from '../world/terrain.js';
 import { CAPITAL_CELLS } from '../world/capitals.js';
 import { atWar, positionsAt } from './movement.js';
@@ -341,6 +341,70 @@ export function resolveDay({ world, day, moves, battles: past }) {
         });
       }
     }
+  }
+
+  // ------------------------------------------------------------------------
+  // Ground taken without a fight.
+  //
+  // Most of a country has nobody standing on it — forty of Poland's seventy
+  // hexes hold no garrison at all — and until this existed an army could march
+  // across all of them without taking one. A hex belongs to whoever is standing
+  // on it, and if nobody is, to whoever walks in.
+  const held = new Map();
+  for (const [cell, columns] of onCell) {
+    const nations = new Set(columns.map((c) => c.formation.nation));
+    if (nations.size === 1) held.set(cell, [...nations][0]);
+  }
+  const alreadyTaken = new Set(captures.map((c) => c.cell));
+  for (const [cell, nation] of [...held].sort((a, b) => a[0] - b[0])) {
+    if (alreadyTaken.has(cell)) continue;
+    const owner = world.ownership.owner[cell];
+    if (owner === NATION_INDEX[nation]) continue;
+    // Somebody has to have walked in. Standing where you deployed does not
+    // take ground, or the 8th Route Army would own its base areas in Shanxi
+    // before anybody had given an order — which is not what a partisan base is,
+    // and is a strange thing to find on the first morning of a game.
+    if (!(onCell.get(cell) ?? []).some((c) => arrivedToday.has(c.id))) continue;
+    if (!atWar(day, nation, NATIONS[owner].id, world, cell)) continue;
+    captures.push({ day, cell, from: NATIONS[owner].id, to: nation, walkedIn: true });
+    alreadyTaken.add(cell);
+  }
+
+  // ------------------------------------------------------------------------
+  // And ground nobody can hold any longer.
+  //
+  // An undefended hex whose every land neighbour is held by one enemy has been
+  // cut off from whatever it belonged to, and falls without anyone marching
+  // into it. This is what mops up pockets, and it is also the only way a
+  // mountain is taken from an army that will not come down off it.
+  //
+  // Worked out against the ownership as it stood at the start of the pass, so
+  // one pocket collapsing cannot collapse the next in the same day — a pocket
+  // gives way over days, and a pass that cascaded would depend on the order
+  // the cells happened to be visited in.
+  const before = world.ownership.owner.slice();
+  for (let cell = 0; cell < before.length; cell += 1) {
+    const owner = before[cell];
+    if (owner === SEA || alreadyTaken.has(cell)) continue;
+    if ((onCell.get(cell) ?? []).length) continue;
+
+    let ring = null;
+    let land = 0;
+    let surrounded = true;
+    for (const j of neighbours(cell)) {
+      if (before[j] === SEA) continue;
+      land += 1;
+      if (ring === null) ring = before[j];
+      if (before[j] !== ring) {
+        surrounded = false;
+        break;
+      }
+    }
+    if (!surrounded || land < 2 || ring === null || ring === owner) continue;
+    const taker = NATIONS[ring].id;
+    if (!atWar(day, taker, NATIONS[owner].id, world, cell)) continue;
+    captures.push({ day, cell, from: NATIONS[owner].id, to: taker, cutOff: true });
+    alreadyTaken.add(cell);
   }
 
   return { battles: fought, retreats, captures };

@@ -1037,6 +1037,32 @@ of 1939 and that is the only thing being a capital does.
 A beaten *attacker* is not pushed anywhere. It goes back the hex it came from,
 which it always can, because it was standing there that morning.
 
+### Taking ground
+
+A battle is not the only way a hex changes hands, and for most of a map it is
+not even the usual one: **forty of Poland's seventy hexes hold no garrison at
+all**, and until the rule below existed an army could march across every one of
+them and take none. Ownership moved only when there was a fighting, and there is
+no fight when nobody is home.
+
+So there are three ways ground changes hands, and all of them require being at
+war with whoever holds it:
+
+- **Fought for.** The attacker wins and the defenders leave.
+- **Walked into.** A column marches onto undefended enemy ground. It has to have
+  *marched* — standing where you deployed does not take anything, or the 8th
+  Route Army would own its base areas in Shanxi before anybody had given an
+  order, which is not what a partisan base is.
+- **Cut off.** An undefended hex whose every land neighbour is held by one enemy
+  has been severed from whatever it belonged to and falls without anyone
+  entering it. This is what mops up pockets, and it is the only way a mountain
+  is ever taken from an army that will not come down off it.
+
+The last is worked out against the ownership as it stood at the start of the
+pass, so one pocket collapsing cannot collapse the next one in the same day. A
+pocket gives way over days, and a cascade would depend on the order the cells
+happened to be visited in.
+
 ### What that does to an offensive
 
 A column that arrives somewhere rests the next day, and a column that has just
