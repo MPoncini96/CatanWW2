@@ -15,7 +15,8 @@ import { WarRoom } from './WarRoom.jsx';
 import { WarLedger } from './WarLedger.jsx';
 import { EventCard } from './EventCard.jsx';
 import { NationIndex } from './NationIndex.jsx';
-import { Economy } from './Economy.jsx';
+import { Forces, Stores } from './Economy.jsx';
+import { Drawers } from './Drawer.jsx';
 import { Totals } from './Totals.jsx';
 import { Link, MASTER, isMaster, powerFromPath, useRoute } from './routes.jsx';
 
@@ -58,216 +59,6 @@ function pct(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-/**
- * The cell, read through whichever layer is on show.
- *
- * A hex is a dozen facts at once — terrain, people, owner, sympathy, garrison,
- * six kinds of output — and printing all of them means the one you are looking
- * for is somewhere in the middle of a column. So the panel answers the question
- * the map is currently asking and nothing else: on Terrain it says this is
- * forest and what it costs to cross, on Nations who holds it and which way it
- * leans, on Forces what is standing on it, and on Oil how much oil comes out.
- *
- * The swatch follows the same rule and shows the colour this cell is drawn in,
- * so the panel and the ground agree at a glance.
- */
-function TileInspector({ tile, layer }) {
-  if (!tile) {
-    return (
-      <div className="panel panel--empty">
-        <h2>No cell selected</h2>
-        <p>Click anywhere on the globe to inspect it.</p>
-      </div>
-    );
-  }
-
-  const city = tile.city;
-  // On the output layer the swatch takes the colour of whatever this cell is
-  // most notable for, which is the colour the map has drawn it in.
-  const chief = layer === 'output' ? tile.resources[0] : null;
-
-  const swatch =
-    layer === 'nations'
-      ? (tile.country?.color ?? tile.nation?.color ?? tile.terrain.color)
-      : layer === 'output'
-        ? (chief?.color ?? '#2a303a')
-        : tile.terrain.color;
-
-  return (
-    <div className="panel">
-      <div
-        className={`panel__swatch${city ? ' panel__swatch--city' : ''}`}
-        style={{ background: swatch }}
-      />
-      <div className="panel__body">
-        <h2>{city ? city.name : tile.terrain.name}</h2>
-        <p className="panel__coords">
-          {city ? `${tile.terrain.name} · ` : ''}
-          {tile.label}
-        </p>
-
-        {/* ---- Terrain: the ground itself, and who lives on it ---- */}
-        {layer === null && (
-          <>
-            <dl>
-              {city && (
-                <div>
-                  <dt>City (1939)</dt>
-                  <dd>{formatPopulation(city.population)}</dd>
-                </div>
-              )}
-              <div>
-                <dt>{city ? 'Surrounding' : 'Population'}</dt>
-                <dd>{formatPopulation(city ? city.rural : tile.population)}</dd>
-              </div>
-              <div>
-                <dt>Move cost</dt>
-                <dd>{tile.terrain.move}</dd>
-              </div>
-            </dl>
-            {city && city.merged.length > 1 && (
-              <p className="panel__note">with {city.merged.slice(1).join(', ')}</p>
-            )}
-          </>
-        )}
-
-        {/* ---- Nations: who holds it, and which way it leans ---- */}
-        {layer === 'nations' && tile.nation && (
-          <>
-            <p className="panel__owner">
-              <span className="panel__flag" style={{ background: tile.nation.color }} />
-              {tile.country ? tile.country.name : tile.nation.name}
-              {/* A colony names its metropole rather than reporting itself
-                  Independent, which is what a colony most certainly was not. */}
-              {tile.country?.sovereign
-                ? ` · ${tile.country.sovereign}`
-                : tile.country && tile.country.name !== tile.nation.name
-                  ? ` · ${tile.nation.name}`
-                  : ''}
-            </p>
-            {tile.country?.dominion && (
-              <p className="panel__note">
-                A self-governing Dominion. It is drawn as the United Kingdom because there are
-                eight seats, but it had its own parliament and declared war on its own account.
-              </p>
-            )}
-            {tile.country && tile.country.leanAllied !== undefined && (
-              <div className="lean">
-                <div className="lean__bar">
-                  <span className="lean__allies" style={{ width: `${tile.country.leanAllied}%` }} />
-                  <span
-                    className="lean__axis"
-                    style={{ width: `${100 - tile.country.leanAllied}%` }}
-                  />
-                </div>
-                <p className="lean__legend">
-                  <span>Allies {tile.country.leanAllied}%</span>
-                  <span>Axis {100 - tile.country.leanAllied}%</span>
-                </p>
-              </div>
-            )}
-            {/* Who holds it and what they hold it with are one question, so
-                they are one section. */}
-            {tile.forcesUnknown ? (
-              <div className="output output--unknown">
-                <h3>Garrison, 1939</h3>
-                <p>Not known — this ground is held by the other side.</p>
-              </div>
-            ) : tile.forces.length > 0 ? (
-              <div className="output">
-                <h3>Garrison, 1939</h3>
-                {tile.forces.map((u) => (
-                  <div className="output__row" key={u.id}>
-                    <span className="output__dot" style={{ background: u.color }} />
-                    <span className="output__name">{u.name}</span>
-                    <strong>{formatUnits(u.count)}</strong>
-                  </div>
-                ))}
-                {/* Which of those men are soldiers in the line. A hex holding
-                    twelve thousand recruits in a training barracks used to
-                    read exactly like a hex holding a division, and that was
-                    the most misleading thing on the board. */}
-                {tile.forces.some((u) => u.id === 'infantry') && (
-                  <p className="garrison__field">
-                    {tile.fieldInfantry === 0
-                      ? 'None of them are field troops.'
-                      : `${formatUnits(tile.fieldInfantry)} of them are field troops.`}
-                  </p>
-                )}
-                <ul className="garrison">
-                  {tile.garrison.map((unit) => (
-                    <li className="garrison__unit" key={unit.id} title={unit.source}>
-                      <span className="garrison__name">{unit.name}</span>
-                      <span className="garrison__role">{ROLES[unit.type]?.name ?? unit.type}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <div className="output output--unknown">
-                <h3>Garrison, 1939</h3>
-                <p>Nobody is holding this ground.</p>
-              </div>
-            )}
-          </>
-        )}
-
-        {/* ---- A fleet, if one is moored on this cell ---- */}
-        {layer === 'nations' && tile.fleet && (
-          <div className={`output${tile.fleetKnown ? '' : ' output--unknown'}`}>
-            <h3>{tile.fleet.name}</h3>
-            {tile.fleetKnown ? (
-              <>
-                {SHIPS.map((s) =>
-                  tile.fleet.ships[s.id] > 0 ? (
-                    <div className="output__row" key={s.id}>
-                      <span className="output__dot" style={{ background: s.color }} />
-                      <span className="output__name">{s.name}</span>
-                      <strong>{tile.fleet.ships[s.id]}</strong>
-                    </div>
-                  ) : null,
-                )}
-                {tile.fleet.aircraft > 0 && (
-                  <p className="panel__note">
-                    {tile.fleet.aircraft} aircraft embarked in{' '}
-                    {tile.fleet.ships.carriers === 1
-                      ? 'the carrier'
-                      : `${tile.fleet.ships.carriers} carriers`}
-                  </p>
-                )}
-              </>
-            ) : (
-              <p>A fleet is based here. Its strength is not known.</p>
-            )}
-          </div>
-        )}
-
-        {/* ---- Output: everything this cell produced in a year ---- */}
-        {layer === 'output' && (
-          <div className={`output${tile.resources.length ? '' : ' output--unknown'}`}>
-            <h3>Output, 1939</h3>
-            {tile.resources.length ? (
-              <>
-                {tile.resources.map((r) => (
-                  <div className="output__row" key={r.id}>
-                    <span className="output__dot" style={{ background: r.color }} />
-                    <span className="output__name">{r.name}</span>
-                    <strong>{formatAmount(r.amount, r.unit)}</strong>
-                  </div>
-                ))}
-                {tile.sites.length > 0 && (
-                  <p className="panel__note">{tile.sites.map((x) => x.name).join(' · ')}</p>
-                )}
-              </>
-            ) : (
-              <p>Nothing is raised here.</p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default function App() {
   const path = useRoute();
@@ -287,7 +78,6 @@ export default function App() {
   const [hover, setHover] = useState(null);
   const [selected, setSelected] = useState(null);
   const [cam, setCam] = useState(null);
-  const [legendOpen, setLegendOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
   // The bottom strip starts open: it is the half of the inspector that shows
@@ -295,7 +85,8 @@ export default function App() {
   const [dossierOpen, setDossierOpen] = useState(true);
   // Fifteen figures that are looked at rather than worked from: shut to begin
   // with, and remembered once opened.
-  const [storesOpen, setStoresOpen] = useState(false);
+  // Which drawer of the rail is open, if any. One at a time.
+  const [drawer, setDrawer] = useState(null);
   // The day's returns. Opened on its own when the day turns and there is
   // something to say, and re-openable from the top bar afterwards, because the
   // first thing you want after reading it is the map back and the second is to
@@ -769,74 +560,95 @@ export default function App() {
           {master ? (
             <Survey world={world} tally={tally} />
           ) : (
-            <>
-              <WarRoom
-                power={power}
-                state={game}
-                onReady={declareReady}
-                onClaim={takeSeat}
-                onLeave={logOut}
-                onLedger={() => setLedgerOpen(true)}
-                busy={busy}
-                error={seatError}
-              />
-                  <Economy
-                economy={economy}
-                open={storesOpen}
-                onToggle={setStoresOpen}
-                capacity={capacity}
-              />
-            </>
+            <WarRoom
+              power={power}
+              state={game}
+              onReady={declareReady}
+              onClaim={takeSeat}
+              onLeave={logOut}
+              onLedger={() => setLedgerOpen(true)}
+              busy={busy}
+              error={seatError}
+            />
           )}
-          <TileInspector tile={selected} layer={overlay} />
-          {overlay === 'nations' && (
-            <p className="legend__note legend__note--loose">
-              Colour is who holds the ground; brightness is how much is standing on it, and close
-              in it becomes the units themselves. A diamond on the water is a fleet — filled and
-              sized if you may count it, an outline if you may not. Canada, Australia, New Zealand,
-              South Africa and Newfoundland are drawn as the United Kingdom: there are eight seats,
-              and they were self-governing. Independent covers both the genuinely neutral and the
-              colonies of neutral powers — the Congo is Belgian, the East Indies Dutch, Angola
-              Portuguese.
-            </p>
-          )}
-          {overlay === 'output' && world && (
-            <div className="legend legend--static">
-              <div className="legend__items">
-                {RESOURCES.map((r, i) => (
-                  <span key={r.id} className="legend__item">
-                    <i style={{ background: r.color }} />
-                    {r.name}
-                    <em>{formatAmount(world.resourceTotals[i], r.unit)}</em>
-                  </span>
-                ))}
-              </div>
-              <p className="legend__note">
-                A cell takes the colour of whatever it is most notable for, measured against the
-                largest producer of that same thing — iron is raised by the hundred million tonnes
-                and aluminium by the hundred thousand, so the two cannot be compared directly.
-              </p>
-            </div>
-          )}
-          <details
-            className="legend"
-            open={legendOpen}
-            onToggle={(e) => setLegendOpen(e.currentTarget.open)}
-          >
-            <summary>Terrain · {present.length}</summary>
-            <div className="legend__items">
-              {present.map((t) => (
-                <span key={t.id} className="legend__item">
-                  <i style={{ background: t.color }} />
-                  {t.name}
-                </span>
-              ))}
-            </div>
-          </details>
-          <p className="rail__stats">
-            {TILE_COUNT.toLocaleString()} cells · {KM2_PER_CELL.toLocaleString()} km² each ·{' '}
-            {world ? formatPopulation(world.totalPopulation) : '—'} people
-          </p>
+
+          {/* Everything that is reference rather than working state, behind a
+              row of names with one open at a time. The rail had grown to seven
+              stacked blocks in a column three hundred pixels wide — I wrote the
+              industry panel and then had to scroll to find it. */}
+          <Drawers
+            open={drawer}
+            onOpen={setDrawer}
+            drawers={[
+              ...(master
+                ? []
+                : [
+                    {
+                      id: 'stores',
+                      name: 'Stores',
+                      note: "what it earns · what it burns · the day's net",
+                      body: <Stores economy={economy} />,
+                    },
+                    {
+                      id: 'forces',
+                      name: 'Forces',
+                      note: 'the men, and the plant that puts them back',
+                      body: <Forces economy={economy} capacity={capacity} />,
+                    },
+                  ]),
+              {
+                id: 'key',
+                name: 'Map key',
+                body: (
+                  <>
+                    {overlay === 'nations' && (
+                      <p className="legend__note legend__note--loose">
+                        Colour is who holds the ground; brightness is how much is standing on it,
+                        and close in it becomes the units themselves. Ground of yours that nothing
+                        can reach is drained towards a dead grey. A diamond on the water is a fleet
+                        — filled and sized if you may count it, an outline if you may not. Canada,
+                        Australia, New Zealand, South Africa and Newfoundland are drawn as the
+                        United Kingdom: there are eight seats, and they were self-governing.
+                        Independent covers both the genuinely neutral and the colonies of neutral
+                        powers — the Congo is Belgian, the East Indies Dutch, Angola Portuguese.
+                      </p>
+                    )}
+                    {overlay === 'output' && world && (
+                      <div className="legend legend--static">
+                        <div className="legend__items">
+                          {RESOURCES.map((r, i) => (
+                            <span key={r.id} className="legend__item">
+                              <i style={{ background: r.color }} />
+                              {r.name}
+                              <em>{formatAmount(world.resourceTotals[i], r.unit)}</em>
+                            </span>
+                          ))}
+                        </div>
+                        <p className="legend__note">
+                          A cell takes the colour of whatever it is most notable for, measured
+                          against the largest producer of that same thing — iron is raised by the
+                          hundred million tonnes and aluminium by the hundred thousand, so the two
+                          cannot be compared directly.
+                        </p>
+                      </div>
+                    )}
+                    <div className="legend__items">
+                      {present.map((t) => (
+                        <span key={t.id} className="legend__item">
+                          <i style={{ background: t.color }} />
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="rail__stats">
+                      {TILE_COUNT.toLocaleString()} cells · {KM2_PER_CELL.toLocaleString()} km²
+                      each · {world ? formatPopulation(world.totalPopulation) : '—'} people
+                    </p>
+                  </>
+                ),
+              },
+            ]}
+          />
         </aside>
 
         <div className="field">

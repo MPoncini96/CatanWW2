@@ -2368,3 +2368,80 @@ button:disabled {
   font-size: 10.5px;
   color: #8fa3bb;
 }
+
+/* ---------- the rail's drawers ----------
+
+   Everything that is reference rather than working state, behind a row of
+   names with one open at a time. The rail had grown to seven stacked blocks in
+   a column three hundred pixels wide, and the industry panel — written the same
+   afternoon — had to be scrolled to. */
+
+.drawers {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.drawers__tabs {
+  display: flex;
+}
+
+.drawers__tab {
+  flex: 1;
+  padding: 7px 6px;
+  border: 0;
+  border-right: 1px solid var(--panel-border);
+  background: rgba(120, 160, 210, 0.05);
+  color: #9db2cb;
+  font: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.drawers__tab:last-child {
+  border-right: 0;
+}
+
+.drawers__tab:hover {
+  background: rgba(120, 160, 210, 0.12);
+  color: #cfe0f2;
+}
+
+.drawers__tab.is-open {
+  background: rgba(200, 160, 90, 0.16);
+  color: #e6c98a;
+}
+
+.drawers__body {
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.drawers__note {
+  margin: 0 0 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #7f93ab;
+}
+
+.drawers__body .economy {
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.drawers__body .legend,
+.drawers__body .legend--static {
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.drawers__body .rail__stats {
+  margin-top: 8px;
+}

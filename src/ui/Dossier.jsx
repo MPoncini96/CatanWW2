@@ -168,6 +168,30 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
               value={tile.nation?.name ?? 'Nobody'}
               swatch={tile.nation?.color}
             />
+            {/* A colony names its metropole rather than reporting itself
+                Independent, which is what a colony most certainly was not. */}
+            {tile.country?.sovereign && <Row label="Ruled from" value={tile.country.sovereign} />}
+            {tile.country?.leanAllied !== undefined && (
+              <div className="dossier__lean">
+                <div className="lean__bar">
+                  <span className="lean__allies" style={{ width: `${tile.country.leanAllied}%` }} />
+                  <span
+                    className="lean__axis"
+                    style={{ width: `${100 - tile.country.leanAllied}%` }}
+                  />
+                </div>
+                <p className="lean__legend">
+                  <span>Allies {tile.country.leanAllied}%</span>
+                  <span>Axis {100 - tile.country.leanAllied}%</span>
+                </p>
+              </div>
+            )}
+            {tile.country?.dominion && (
+              <p className="dossier__field">
+                A self-governing Dominion, drawn as the United Kingdom because there are eight
+                seats — but it had its own parliament and declared war on its own account.
+              </p>
+            )}
           </Column>
 
           <Column title="The people">

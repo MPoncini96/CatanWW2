@@ -165,26 +165,34 @@ window the board gives way rather than the writing. The globe watches its own
 box and fits itself to the shorter side of it, so the split is a grid rule and
 nothing else needs telling.
 
-### Two inspectors, on purpose
+### One inspector, and a rail that is not one
 
-The **rail** answers the question the map is currently asking, and refuses to
-answer any other. On Terrain it says this is forest and what it costs to cross;
-on Nations who holds it and what is standing on it; on Output how much oil comes
-out. A hex is a dozen facts at once, and printing all of them means the one you
-are looking for is somewhere in the middle of a column.
+The hex lives in the **dossier**, along the foot of the board: the place, the
+people, what it makes, what holds it, what has been fought over it and what is
+moored off it, all in columns at once. It is read in a sweep rather than
+scrolled, which is why it lies across the bottom, and it folds down to its own
+title bar when the globe wants the whole screen.
 
-That is the right rule for a panel you read while working, and the wrong one for
-the moment you want to know everything about one place. So the **dossier** along
-the foot of the board is the other half of the same idea: the place, the people,
-what it makes, what holds it and what is moored off it, all in columns at once.
-It is read in a sweep rather than scrolled, which is why it lies across the
-bottom instead of being added to the rail, and it folds down to its own title bar
-when the globe wants the whole screen.
+There used to be a second inspector in the rail, layer-scoped, answering only
+the question the map was currently asking. That was the right idea before the
+dossier existed and pure duplication afterwards — the same hex described twice,
+in two shapes, in two places. It is gone, and took 197 lines of App.jsx with it.
 
 The ground itself — terrain, height, temperature, rainfall — is the one column
 that follows the layer, and appears only on Terrain. On Nations you are asking
 who holds a hex and on Output what comes out of it, and neither question is
 answered by how wet it is.
+
+### The rail, and its drawers
+
+What is left on the left is what you *work with*: the seat, who else is at the
+table, the button that ends the day, and the hour at which it ends itself.
+
+Everything else there is **reference** — the stores, the manpower, the industry,
+the map key — and reference now lives behind a row of three names with one open
+at a time. The rail had grown to seven stacked blocks in a column three hundred
+pixels wide, and the test that failed was writing the industry panel and then
+having to scroll to find it. It no longer scrolls at all.
 
 The two obey the same fog. On Britain's page the dossier on a Berlin hex gives
 the terrain, the region, the population and the steel — all of which were in
@@ -1545,7 +1553,8 @@ src/
                                                    the link that follows it
            Dossier.jsx                           — the whole of a hex, along
                                                    the foot of the board
-           Economy.jsx  Totals.jsx               — the books, and the board
+           Economy.jsx  Drawer.jsx               — the books, and the rail
+           Totals.jsx  DayReport.jsx             — the board, and the day
            WarRoom.jsx  WarLedger.jsx  EventCard.jsx
            intel.js (in world/)                  — what a seat may know
   game/    calendar.js  events.js                — the date, and the war table
