@@ -22,8 +22,18 @@ import { Link, MASTER, isMaster, powerFromPath, useRoute } from './routes.jsx';
 /** The overseer is not a power, but the page furniture wants a name and a colour. */
 const MASTER_SEAT = { id: MASTER, name: 'Master', color: '#9fb2c8' };
 import { Dossier } from './Dossier.jsx';
+import { arrivalsAt, positionsAt } from '../game/movement.js';
 import { Survey } from './Survey.jsx';
-import { claimSeat, fetchState, leaveSeat, savedSession, setReady, watch } from '../game/client.js';
+import { March } from './March.jsx';
+import {
+  claimSeat,
+  fetchState,
+  leaveSeat,
+  savedSession,
+  setOrders as setOrdersOnServer,
+  setReady,
+  watch,
+} from '../game/client.js';
 
 // Every cell is the same size now, so there is a single honest number for it.
 const KM2_PER_CELL = Math.round((4 * Math.PI * EARTH_RADIUS_KM ** 2) / TILE_COUNT);
@@ -281,6 +291,13 @@ export default function App() {
   // Fifteen figures that are looked at rather than worked from: shut to begin
   // with, and remembered once opened.
   const [storesOpen, setStoresOpen] = useState(false);
+  // The hex being marched into, and the day's orders. The orders come back
+  // from the server on every frame, so this is a working copy that is replaced
+  // whenever the server has something to say about them.
+  const [marchTo, setMarchTo] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [orderError, setOrderError] = useState(null);
+  const [sending, setSending] = useState(false);
   const [showCities, setShowCities] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [overlay, setOverlay] = useState('nations');
@@ -435,6 +452,64 @@ export default function App() {
     return world.ownership.onChange((o) => setOwnershipVersion(o.version));
   }, [world]);
 
+  // Put the armies where the log of marches says they are. The log only ever
+  // grows, so its length and the date together are enough to know whether
+  // anything has changed — the array itself is new on every frame from the
+  // stream and comparing it would rebuild the board for nothing.
+  const [marchVersion, setMarchVersion] = useState(0);
+  const moveCount = game?.moves?.length ?? 0;
+  useEffect(() => {
+    if (!world?.march || !game) return;
+    world.march(game.moves ?? [], game.day);
+    setMarchVersion((v) => v + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, moveCount, game?.day]);
+
+  // Where every column stands today, and when it got there. Both are replayed
+  // from the same log the server replays, so the two agree without either
+  // sending the other a map.
+  const positions = useMemo(
+    () => (world ? positionsAt(world.garrisons.opening, game?.moves ?? [], game?.day ?? 0) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [world, moveCount, game?.day],
+  );
+  const arrivals = useMemo(
+    () => arrivalsAt(game?.moves ?? [], game?.day ?? 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [moveCount, game?.day],
+  );
+
+  // The server's copy of this seat's orders is the truth; a new day clears it.
+  useEffect(() => {
+    setOrders(game?.orders ?? []);
+    setOrderError(null);
+    setMarchTo(null);
+  }, [game?.day, game?.you]);
+
+  const toggleColumn = useCallback((column, from) => {
+    setOrderError(null);
+    setOrders((current) =>
+      current.some((o) => o.column === column.id)
+        ? current.filter((o) => o.column !== column.id)
+        : [...current, { column: column.id, from, to: marchTo }],
+    );
+  }, [marchTo]);
+
+  const sendOrders = useCallback(async () => {
+    if (!session?.token) return;
+    setSending(true);
+    setOrderError(null);
+    try {
+      const state = await setOrdersOnServer(session.token, orders);
+      setOrders(state.orders ?? []);
+      setMarchTo(null);
+    } catch (err) {
+      setOrderError(err.message);
+    } finally {
+      setSending(false);
+    }
+  }, [session?.token, orders]);
+
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
   const tally = useMemo(() => {
@@ -463,7 +538,7 @@ export default function App() {
     }
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, seat, ownershipVersion]);
+  }, [world, seat, ownershipVersion, marchVersion]);
 
   // Hulls this seat may count: its own and its side's wherever they are, and
   // anyone else's moored against a coast it can see.
@@ -486,7 +561,7 @@ export default function App() {
     if (!world?.ownership || !power || master) return null;
     return economyFor(world, power, game?.day ?? 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, game?.day, ownershipVersion]);
+  }, [world, power, game?.day, ownershipVersion, marchVersion]);
 
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
   const player = master ? MASTER_SEAT : power ? BY_ID[power] : null;
@@ -691,6 +766,27 @@ export default function App() {
             layer={overlay}
             power={seat}
             day={game?.day ?? 0}
+            orders={orders}
+            marchTo={marchTo}
+            onMarch={() => setMarchTo(selected?.index ?? null)}
+            march={
+              marchTo !== null && world && positions ? (
+                <March
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  to={marchTo}
+                  positions={positions}
+                  arrivals={arrivals}
+                  orders={orders}
+                  onToggle={toggleColumn}
+                  onSend={sendOrders}
+                  onCancel={() => setMarchTo(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : null
+            }
           />
 
           <footer className="statusbar">

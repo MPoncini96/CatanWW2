@@ -495,7 +495,16 @@ export function placeFormations(world) {
         any += strength[arm];
       }
       if (!any) return;
-      const placement = { formation, cell: target.cell, strength };
+      // A stable name for this piece of this formation. It has to survive the
+      // piece moving, so it cannot be built from the cell: a column is "the
+      // 10th Army's third detachment" for as long as the game lasts, wherever
+      // that detachment happens to be standing.
+      const placement = {
+        id: `${formation.id}#${k}`,
+        formation,
+        cell: target.cell,
+        strength,
+      };
       placements.push(placement);
       if (!byCell.has(target.cell)) byCell.set(target.cell, []);
       byCell.get(target.cell).push(placement);

@@ -78,6 +78,13 @@ export class GlobeView {
       this.globe.refresh();
       this.needsDraw = true;
     });
+    // The same for the armies. A column that marched changes the shading, the
+    // symbols and the totals, and the view finds that out the same way it
+    // finds out that ground changed hands rather than being told twice.
+    this.unmarch = world.onMarch?.(() => {
+      this.globe.refresh();
+      this.needsDraw = true;
+    });
 
     this.resize();
     this.raf = requestAnimationFrame(this.frame);
@@ -88,6 +95,7 @@ export class GlobeView {
     cancelAnimationFrame(this.raf);
     this.observer.disconnect();
     this.unsubscribe?.();
+    this.unmarch?.();
     const c = this.canvas;
     c.removeEventListener('pointerdown', this.onPointerDown);
     c.removeEventListener('pointermove', this.onPointerMove);

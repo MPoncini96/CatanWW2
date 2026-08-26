@@ -195,16 +195,16 @@ because nobody on Britain's side is looking at it.
 
 **Actions** sits at the right-hand end of the dossier bar, because an order is
 given to a hex and that is the panel about a hex. It offers three: **Reinforce**,
-**Attack**, and **Retreat / Fortify**.
+**Attack**, and **Retreat / Fortify**. Reinforce marches; the other two are
+waiting on a combat model.
 
-Nothing moves yet — the turn engine takes no orders — but which of the three a
-hex will take is already decided by the board rather than by the button, in
-`game/orders.js`. Ownership says whose ground you may stand on and the war table
-says whom you may attack, so on 1 September Germany may attack Warsaw and not
-Paris, and on the 3rd it may attack both, without a line of that file changing.
-Every refusal carries the reason: *This ground is Poland's*, *You are not at war
-with France*, *Nothing of yours is standing here*. A greyed-out button with no
-explanation is worse than no button.
+Which of the three a hex will take is decided by the board rather than by the
+button, in `game/orders.js`. Ownership says whose ground you may stand on and
+the war table says whom you may attack, so on 1 September Germany may attack
+Warsaw and not Paris, and on the 3rd it may attack both, without a line of that
+file changing. Every refusal carries the reason: *This ground is Poland's*, *You
+are not at war with France*, *Nothing of yours is standing here*. A greyed-out
+button with no explanation is worse than no button.
 
 The one subtlety is what to call a hex when asking. Both names have to be tried,
 because neither answers alone: a country can be a belligerent its owner is not —
@@ -900,6 +900,68 @@ the weight of the garrison on it, on a logarithmic ramp, because a garrison of
 ten thousand and one of a million are both worth seeing and a linear ramp would
 show only the second.
 
+## Marching
+
+**One hex an order, and a column that arrives somewhere stands still the next
+day.** That is 33 km a day, which is what an army on its feet did in 1939. The
+panzer divisions did twice it and the model does not distinguish, because a rule
+you can hold in your head is worth more here than one that is right about the
+Wehrmacht and wrong about everybody else. Fortress troops do not march at all:
+the whole argument about the Maginot Line is that it could not go anywhere, and
+`mobility` below 0.1 says so.
+
+**High ground costs a second day of that rest**, so a mountain hex takes three
+days to enter rather than two. It is not shut, and nothing on this board is.
+Sealing the mountains was considered and measured: it would wall off **7,138
+cells, 21.7% of all land**, and leave **5,357 of them with no passable neighbour
+at all** — permanently unconquerable, since there would be nothing to surround
+them from. Denver would have no land route to San Francisco and Rostov none to
+Persia. Height is expensive instead, which is also what the Ardennes turned out
+to be.
+
+### What moves
+
+**A column: the part of a formation standing on one hex.** Not the formation,
+because a formation is not in one place — the Kwantung Army holds 261 hexes and
+cannot march as a thing. Not a number of men either, because then every order
+needs a slider and every hex needs bookkeeping. What stands on a hex moves off
+it whole and never divides further, so `de-1-panzer#0` is the 1st Panzer
+Division's first detachment for as long as the game lasts, wherever it happens
+to be standing.
+
+### Giving the order
+
+You pick **the hex you want held**, and the panel lists everything that can be
+standing on it by morning. That is backwards from how a map usually works and it
+is the question a staff officer actually asks — what can reach this place by
+tomorrow — and it lets the one-hex rule choose the list, because the answer is
+exactly the six hexes around it. Each candidate is named by its formation, the
+direction it would come from and what it would bring; the ones that cannot come
+say why.
+
+Orders are for **the next day only**. Sending replaces the whole day rather than
+adding to it, so unticking a column is how you cancel. Concentration is not
+scheduled — you march six divisions to one place over six days, one order at a
+time, in whatever view of it the enemy has.
+
+### Where the answer lives
+
+Nowhere twice. Positions are **replayed** from the opening deployment and the
+log of marches that have happened, exactly as the stores are the opening figure
+plus the net of every day since. Two copies of where an army is would eventually
+disagree, and the copy that disagreed would be the one on screen.
+
+The server builds the world too — the same code, the same `earth.bin` — and
+checks every order against its own copy before accepting it. A column that has
+just arrived, one two hexes away, one that belongs to France: all refused there
+and not only in the browser. What crosses the wire is the log, never the map.
+
+Executed marches are public; **orders for tomorrow are not**, and a seat is only
+ever sent its own. The distinction is the honest one available here: the board
+is deterministic and every client already builds every garrison from the same
+tables, so where an army *is* could never have been a secret. What you *intend*
+still is.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1107,6 +1169,7 @@ src/
   game/    calendar.js  events.js                — the date, and the war table
            belligerence.js                       — who may fight whom, and when
            orders.js                             — what a seat may order on a hex
+           movement.js                           — marching, resting and replay
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
@@ -1119,7 +1182,11 @@ verified.
 
 ## Not built yet
 
-Networking, players, units, turns, and any rule that would make ownership move
+A combat model. Columns march, but nothing yet resolves what happens when two
+of them want the same hex — which is why Attack and Retreat / Fortify are still
+inert and why marching is confined to ground you already hold. Air missions are
+specified and not built: fighters 3 hexes, bombers 10, returning to the airfield
+they left. And any rule that would make ownership move
 on its own. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of

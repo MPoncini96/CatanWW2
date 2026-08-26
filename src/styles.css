@@ -2029,3 +2029,161 @@ button:disabled {
   line-height: 1.45;
   color: #7f93ab;
 }
+
+/* ---------- ordering columns into a hex ----------
+
+   Backwards from how a map usually works, and on purpose: you pick the ground
+   you want held and the panel lists everything that can be standing on it by
+   morning. The one-hex rule chooses the list for you — it is the six hexes
+   around it and nothing else. */
+
+.march {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
+  padding: 0 16px 12px;
+  overflow-y: auto;
+}
+
+.march__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+
+.march__head h4 {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #dbe7f5;
+}
+
+.march__head h4 em {
+  font-style: normal;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f93ab;
+}
+
+.march__buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.march__count {
+  font-size: 11px;
+  color: #9db2cb;
+  white-space: nowrap;
+}
+
+.march__error {
+  font-size: 11px;
+  color: #e08a7a;
+}
+
+.march__buttons button {
+  padding: 4px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(120, 160, 210, 0.08);
+  color: #cfe0f2;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.march__buttons button:hover:not(:disabled) {
+  background: rgba(120, 160, 210, 0.18);
+}
+
+.march__buttons button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.march__send {
+  border-color: rgba(200, 160, 90, 0.5) !important;
+  background: rgba(200, 160, 90, 0.14) !important;
+  color: #e6c98a !important;
+}
+
+.march__send:hover:not(:disabled) {
+  background: rgba(200, 160, 90, 0.26) !important;
+}
+
+.march__none {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.march__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 2px 20px;
+  align-content: start;
+}
+
+.march__list li.is-barred {
+  opacity: 0.55;
+}
+
+.march__list label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.march__list li.is-barred label {
+  cursor: not-allowed;
+}
+
+.march__list label:hover {
+  background: rgba(120, 160, 210, 0.1);
+}
+
+.march__list input {
+  accent-color: #c8a05a;
+  align-self: center;
+}
+
+.march__name {
+  color: #dbe7f5;
+}
+
+.march__from {
+  color: #7f93ab;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.march__men {
+  margin-left: auto;
+  color: #9db2cb;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.march__why {
+  margin: 0 0 3px 30px;
+  font-size: 10px;
+  color: #7f93ab;
+}

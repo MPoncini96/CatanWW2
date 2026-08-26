@@ -42,11 +42,19 @@ import { STOCKPILES_1939, economyFor } from '../src/world/economy.js';
 import { buildWorld } from '../src/world/earth.js';
 import { MASTER, isMaster, pathOf, powerFromPath } from '../src/ui/routes.js';
 import { ORDERS, ordersFor, partiesAt, partyAt } from '../src/game/orders.js';
+import {
+  arrivalsAt,
+  executeOrders,
+  isMobile,
+  mayMarch,
+  positionsAt,
+  restDays,
+} from '../src/game/movement.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
 import { PLAYER_IDS as POWERS } from '../src/game/players.js';
-import { T } from '../src/world/terrain.js';
+import { T, TERRAIN } from '../src/world/terrain.js';
 
 let checks = 0;
 let failures = 0;
@@ -1117,6 +1125,205 @@ section('what a seat may order on a hex');
     ordersFor({ power: 'germany', day: 0, tile: paris })[0].why.includes('France'),
     'and names the country rather than the pool it is counted in',
   );
+}
+
+
+// ------------------------------------------------------------- and marching
+section('the armies march');
+{
+  const world = board();
+  const sphere = grid();
+  const opening = world.garrisons.opening;
+
+  // ---- the two rules the whole model is made of --------------------------
+  eq(restDays('plains'), 1, 'a column rests a day after arriving');
+  eq(restDays('forest'), 1, 'on any ordinary ground');
+  eq(restDays('mountain'), 2, 'and two in the mountains, which makes a hex there three days');
+  eq(restDays('peak'), 2, 'the same for the peaks');
+  ok(isMobile({ mobility: 0.95 }), 'a panzer division marches');
+  ok(isMobile({ mobility: 0.25 }), 'so does an infantry army, at the same speed — the model is flat');
+  ok(!isMobile({ mobility: 0.02 }), 'the Maginot fortress troops do not march at all');
+
+  // ---- replaying where everybody is --------------------------------------
+  const silesia = cellFor(50.1, 18.1);
+  const columns = world.garrisons.byCell.get(silesia) ?? [];
+  ok(columns.length > 0, 'there are columns standing in Silesia');
+  const column = columns.find((c) => c.formation.type === 'field');
+  ok(column.id.includes('#'), `every column has a name of its own — ${column.id}`);
+
+  const next = [...neighbours(silesia)].find(
+    (j) => world.ownership.owner[j] === world.ownership.owner[silesia],
+  );
+  const log = [{ day: 1, power: 'germany', column: column.id, from: silesia, to: next }];
+
+  eq(positionsAt(opening, [], 0).get(column.id), silesia, 'on the first day it is where it deployed');
+  eq(positionsAt(opening, log, 0).get(column.id), silesia, 'and a march tomorrow has not happened yet');
+  eq(positionsAt(opening, log, 1).get(column.id), next, 'on the day itself it is one hex on');
+  eq(arrivalsAt(log, 1).get(column.id), 1, 'and the log says when it got there');
+  eq(arrivalsAt(log, 0).get(column.id), undefined, 'which it does not say a day early');
+
+  // ---- what may be ordered ------------------------------------------------
+  const ask = (opts) =>
+    mayMarch({
+      world,
+      power: 'germany',
+      day: 0,
+      positions: positionsAt(opening, [], 0),
+      arrivals: arrivalsAt([], 0),
+      ordered: new Set(),
+      ...opts,
+    });
+  eq(ask({ column, to: next }), null, 'a German column may march onto German ground next door');
+  ok(
+    ask({ column, to: silesia })?.includes('already there'),
+    'and not onto the hex it is standing on',
+  );
+
+  // Two hexes is two days, given a day at a time.
+  const far = [...neighbours(next)].find(
+    (j) => j !== silesia && ![...neighbours(silesia)].includes(j),
+  );
+  ok(ask({ column, to: far })?.includes('one hex a day'), 'two hexes in one order is refused');
+
+  // Somebody else's army.
+  const french = opening.find((c) => c.formation.nation === 'france' && isMobile(c.formation));
+  ok(ask({ column: french, to: next })?.includes('not yours'), 'and so is somebody else’s column');
+  ok(
+    ask({ column: french, to: next }).match(/^[A-Z0-9]/),
+    'named by what it is called rather than by an id',
+  );
+
+  // Fortress troops are part of the landscape.
+  const fortress = opening.find((c) => c.formation.id === 'fr-maginot-fortress');
+  const beside = [...neighbours(fortress.cell)].find(
+    (j) => world.ownership.owner[j] === world.ownership.owner[fortress.cell],
+  );
+  ok(
+    mayMarch({
+      world,
+      column: fortress,
+      to: beside,
+      power: 'france',
+      day: 0,
+      positions: positionsAt(opening, [], 0),
+      arrivals: arrivalsAt([], 0),
+      ordered: new Set(),
+    })?.includes('cannot march'),
+    'the Maginot garrison is fixed to the ground it holds',
+  );
+
+  // Already spoken for.
+  ok(
+    ask({ column, to: next, ordered: new Set([column.id]) })?.includes('Already under orders'),
+    'a column cannot be ordered twice in one day',
+  );
+
+  // ---- resting ------------------------------------------------------------
+  const after = (day) =>
+    mayMarch({
+      world,
+      column,
+      to: silesia,
+      power: 'germany',
+      day,
+      positions: positionsAt(opening, log, day),
+      arrivals: arrivalsAt(log, day),
+      ordered: new Set(),
+    });
+  ok(after(1)?.includes('rests'), 'a column that arrived today rests tomorrow');
+  eq(after(2), null, 'and marches again the day after');
+
+  // High ground costs the extra day. Find a mountain hex somebody holds and a
+  // way onto it, and check the sum: one day marching, two standing still.
+  let mountains = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (world.ownership.owner[i] === SEA) continue;
+    if (TERRAIN[world.biome[i]].id === 'mountain') mountains += 1;
+  }
+  ok(mountains > 1000, `the board has ${mountains.toLocaleString()} mountain hexes on it`);
+  ok(
+    restDays('mountain') === 2 && restDays('plains') === 1,
+    'and every one of them takes three days to cross rather than two',
+  );
+
+  // ---- where it may not go ------------------------------------------------
+  // Marching onto somebody else's ground is an attack, and attacks wait for a
+  // resolver. Poland is next door to Silesia and is not German ground.
+  const foreign = [...neighbours(silesia)].find(
+    (j) =>
+      world.ownership.owner[j] !== world.ownership.owner[silesia] &&
+      world.ownership.owner[j] !== SEA &&
+      !(world.garrisons.byCell.get(j) ?? []).some((p) => p.formation.nation === 'germany'),
+  );
+  ok(foreign !== undefined, 'Silesia has a foreign hex next to it');
+  ok(ask({ column, to: foreign })?.includes('attack'), 'marching onto foreign ground is an attack');
+  // But the 14th Army, which spent August assembling in Slovakia, can shuffle
+  // about in it — because it is already standing there.
+  const slovak = opening.find(
+    (c) => c.formation.id === 'de-14-army' && world.ownership.owner[c.cell] === NEUTRAL,
+  );
+  if (slovak) {
+    const nearby = [...neighbours(slovak.cell)].find((j) =>
+      (world.garrisons.byCell.get(j) ?? []).some((p) => p.formation.nation === 'germany'),
+    );
+    if (nearby !== undefined) {
+      eq(ask({ column: slovak, to: nearby }), null, 'the 14th Army may move about Slovakia');
+    }
+  }
+
+  // ---- orders become moves, in the same order everywhere ------------------
+  const made = executeOrders(
+    { germany: [{ column: 'b#0', from: 1, to: 2 }], france: [{ column: 'a#0', from: 3, to: 4 }] },
+    7,
+  );
+  eq(made.length, 2, 'both seats’ orders become moves');
+  eq(made[0].power, 'france', 'sorted, so every client replays the same log');
+  eq(made[0].day, 7, 'and stamped with the day they land on');
+
+  // ---- and the board follows ---------------------------------------------
+  const menBefore = { from: world.forces[UNIT_INDEX.infantry][silesia], to: world.forces[UNIT_INDEX.infantry][next] };
+  const totalBefore = world.forceTotals[UNIT_INDEX.infantry];
+  world.march(log, 1);
+  eq(
+    world.forces[UNIT_INDEX.infantry][silesia],
+    menBefore.from - column.strength.infantry,
+    'the men leave the hex they marched off',
+  );
+  eq(
+    world.forces[UNIT_INDEX.infantry][next],
+    menBefore.to + column.strength.infantry,
+    'and arrive on the one they marched to',
+  );
+  eq(world.forceTotals[UNIT_INDEX.infantry], totalBefore, 'and nobody is lost or invented on the way');
+  ok(
+    (world.garrisons.byCell.get(next) ?? []).some((p) => p.id === column.id),
+    'the hex it arrived on knows what is standing there',
+  );
+
+  // Put the world back, since the other sections share it.
+  world.march([], 0);
+  eq(world.forces[UNIT_INDEX.infantry][silesia], menBefore.from, 'and the log can be replayed back to the start');
+
+  // ---- orders in the game, and who may read them --------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'tok-de', 'a');
+  G.claim(game, 'france', 'tok-fr', 'b');
+  eq(game.moves.length, 0, 'a new game has marched nowhere');
+  G.setOrders(game, 'germany', [{ column: column.id, from: silesia, to: next }]);
+  eq(game.orders.germany.length, 1, 'a seat can write down what it will do tomorrow');
+  eq(G.publicState(game, 'germany').orders.length, 1, 'and read its own orders back');
+  eq(G.publicState(game, 'france').orders.length, 0, 'while nobody else can see them');
+  eq(G.publicState(game, null).orders.length, 0, 'and neither can a passer-by');
+
+  G.setReady(game, 'germany', true);
+  G.setReady(game, 'france', true);
+  ok(G.readyToAdvance(game), 'both seats are finished with the day');
+  G.advance(game);
+  eq(game.day, 1, 'so the day turns');
+  eq(game.moves.length, 1, 'the order becomes a march that has happened');
+  eq(game.moves[0].day, 1, 'stamped with the day it landed on');
+  eq(Object.keys(game.orders).length, 0, 'and the orders are spent');
+  eq(G.publicState(game, 'france').moves.length, 1, 'a march that has happened is not a secret');
 }
 
 console.log(

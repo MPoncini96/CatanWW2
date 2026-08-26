@@ -2,6 +2,7 @@ import { PLAYER_IDS, isPlayer } from './players.js';
 import { eventsOn, nextEventAfter } from './events.js';
 import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
+import { executeOrders } from './movement.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -27,6 +28,13 @@ export function newGame() {
     seats: Object.fromEntries(PLAYER_IDS.map((id) => [id, null])),
     // Every event that has fired, oldest first — the game's own history.
     log: [],
+    // Orders for tomorrow, per seat. Secret: a seat is only ever sent its own.
+    // Cleared when the day turns, because an order is for one day.
+    orders: {},
+    // Marches that have actually happened, oldest first. Public, and the only
+    // record of where an army is — every client replays it against the opening
+    // deployment rather than being sent a map.
+    moves: [],
     // Bumped on every change so clients can tell whether they are current.
     revision: 0,
   };
@@ -121,7 +129,13 @@ export function readyToAdvance(game) {
  * their players.
  */
 export function advance(game) {
+  // Orders given yesterday happen today, before anything else about the new
+  // day is decided. They are stamped with the day they land on rather than the
+  // day they were given, because that is the day a reader of the log cares
+  // about.
   game.day += 1;
+  game.moves.push(...executeOrders(game.orders, game.day));
+  game.orders = {};
   for (const id of PLAYER_IDS) {
     if (game.seats[id]) game.seats[id].ready = false;
   }
@@ -134,6 +148,20 @@ export function advance(game) {
   game.log.push(...fired);
   game.revision += 1;
   return fired;
+}
+
+/**
+ * Write down a seat's orders for tomorrow, replacing whatever it said before.
+ *
+ * Replacing rather than adding: a player who changes their mind is giving the
+ * day's orders again, not a second set of them, and cancelling one column is
+ * simply sending a shorter list.
+ */
+export function setOrders(game, power, orders) {
+  if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
+  game.orders[power] = orders;
+  game.revision += 1;
+  return { orders };
 }
 
 /** Fire whatever the opening date has to say, once, when a game is created. */
@@ -179,6 +207,13 @@ export function publicState(game, viewer) {
     })),
     war: warSummary(game.day, PLAYER_IDS),
     log: game.log,
+    // Where every army has marched, for the client to replay. This is not a
+    // secret and could not be one: the board is deterministic and every client
+    // already builds every garrison from the same tables. What *is* secret is
+    // what a seat intends to do tomorrow, which is why the orders below are
+    // the viewer's own and nobody else's.
+    moves: game.moves,
+    orders: viewer ? (game.orders[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

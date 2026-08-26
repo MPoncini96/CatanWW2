@@ -66,6 +66,18 @@ export function setReady(token, ready) {
 }
 
 /**
+ * Give this seat's marching orders for tomorrow.
+ *
+ * The whole day's list every time, replacing whatever was there: cancelling a
+ * column is sending the list without it. The server checks every one of them
+ * against its own copy of the board and refuses the lot if any is impossible,
+ * so a client that has drifted cannot half-commit a day.
+ */
+export function setOrders(token, orders) {
+  return call('/api/orders', { method: 'POST', body: { orders }, token });
+}
+
+/**
  * Watch the game.
  *
  * The stream carries the whole public state on every change rather than a

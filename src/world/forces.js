@@ -75,12 +75,16 @@ export const FORCES_1939 = (() => {
 const COMBAT_WORTH = { field: 1, armor: 1, fortress: 1, air: 0.4, aa: 0.15, security: 0.25, depot: 0.08 };
 
 /**
- * Deploy every power's army across the board.
+ * Count what a set of placements puts on the board.
  *
- * @returns {{counts: Uint32Array[], totals: number[][], byNation: object}}
+ * Separated from the placing because it is run more than once: the opening
+ * deployment is placed, and then every day a column marches the whole thing is
+ * counted again from wherever the columns now are. Nothing about where an army
+ * is gets stored twice — the positions are replayed and this reads them.
+ *
+ * @returns {object} the same shape `buildForces` returns
  */
-export function buildForces(world) {
-  const deployment = placeFormations(world);
+export function tallyPlacements(placements) {
   const counts = UNITS.map(() => new Uint32Array(TILE_COUNT));
 
   // Field strength kept apart from everything else, so a depot hex can be told
@@ -101,8 +105,10 @@ export function buildForces(world) {
     };
   }
 
+  const byCell = new Map();
+  const airbases = new Set();
   const held = new Map();
-  for (const placement of deployment.placements) {
+  for (const placement of placements) {
     const nation = byNation[placement.formation.nation];
     const cell = placement.cell;
     for (let u = 0; u < UNITS.length; u += 1) {
@@ -125,6 +131,9 @@ export function buildForces(world) {
     nation.formations += 1;
     if (!held.has(placement.formation.nation)) held.set(placement.formation.nation, new Set());
     held.get(placement.formation.nation).add(cell);
+    if (!byCell.has(cell)) byCell.set(cell, []);
+    byCell.get(cell).push(placement);
+    if (placement.strength.fighters + placement.strength.bombers > 0) airbases.add(cell);
   }
   for (const [id, cells] of held) if (byNation[id]) byNation[id].hexes = cells.size;
 
@@ -143,7 +152,7 @@ export function buildForces(world) {
   // combat power, and a map that lights Berlin as brightly as Silesia is
   // telling the reader the opposite of what was true.
   const strength = new Float32Array(TILE_COUNT);
-  for (const placement of deployment.placements) {
+  for (const placement of placements) {
     const worth = COMBAT_WORTH[placement.formation.type] ?? 1;
     strength[placement.cell] +=
       placement.strength.infantry * worth +
@@ -163,9 +172,22 @@ export function buildForces(world) {
     maxStrength: max,
     fieldInfantry,
     roleAt,
-    placements: deployment.placements,
-    byCell: deployment.byCell,
-    airbases: deployment.airbases,
+    placements,
+    byCell,
+    airbases,
+  };
+}
+
+/**
+ * Deploy every power's army across the board, and count it.
+ *
+ * @returns {{counts: Uint32Array[], totals: number[][], byNation: object}}
+ */
+export function buildForces(world) {
+  const deployment = placeFormations(world);
+  return {
+    ...tallyPlacements(deployment.placements),
+    opening: deployment.placements,
     access: deployment.access,
     warnings: deployment.warnings,
   };

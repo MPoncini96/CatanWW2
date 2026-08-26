@@ -4,6 +4,9 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as G from '../src/game/state.js';
+import { buildWorld } from '../src/world/earth.js';
+import { TILE_COUNT } from '../src/world/sphere.js';
+import { arrivalsAt, mayMarch, positionsAt } from '../src/game/movement.js';
 
 // The one game.
 //
@@ -22,14 +25,38 @@ const SAVE = path.join(HERE, 'game.json');
 const DIST = path.join(HERE, '..', 'dist');
 const PORT = Number(process.env.PORT) || 5170;
 
+// --------------------------------------------------------------- the board
+//
+// The server builds the world too. It costs a second at startup and it is the
+// same code the browser runs, so the two cannot disagree — which starts to
+// matter the moment orders arrive, because whether a column may march
+// somewhere is a question about terrain and ownership, and the browser is not
+// where a rule is enforced.
+
+const world = (() => {
+  const bin = fs.readFileSync(path.join(HERE, '..', 'src', 'world', 'earth.bin'));
+  return buildWorld(
+    bin.subarray(0, TILE_COUNT),
+    bin.subarray(TILE_COUNT, TILE_COUNT * 2),
+    bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
+  );
+})();
+
 // --------------------------------------------------------------- the game
 
 let game = load();
+// Put the armies where the log says they are, in case this is a resumed game.
+world.march(game.moves ?? [], game.day);
 
 function load() {
   if (fs.existsSync(SAVE)) {
     try {
       const saved = JSON.parse(fs.readFileSync(SAVE, 'utf8'));
+      // A game saved before the armies could move has neither field. Fill them
+      // in rather than refusing to load: the opening deployment with no marches
+      // against it is exactly what that game was.
+      saved.orders ??= {};
+      saved.moves ??= [];
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {
@@ -133,6 +160,42 @@ async function api(req, res, url) {
     return json(res, 200, G.publicState(game, seat));
   }
 
+  if (url.pathname === '/api/orders' && req.method === 'POST') {
+    if (!seat) return json(res, 401, { error: 'take a seat first' });
+    const { orders } = await readBody(req);
+    if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
+    if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
+
+    // Checked here and not only in the browser. Each order is checked against
+    // the board as it stands *and* against the ones already accepted in the
+    // same message, so a list cannot quietly order one column twice.
+    const columns = new Map(world.garrisons.opening.map((p) => [p.id, p]));
+    const positions = positionsAt(world.garrisons.opening, game.moves, game.day);
+    const arrivals = arrivalsAt(game.moves, game.day);
+    const taken = new Set();
+    const accepted = [];
+    for (const order of orders) {
+      const column = columns.get(order?.column);
+      const why = mayMarch({
+        world,
+        column,
+        to: order?.to,
+        power: seat,
+        day: game.day,
+        positions,
+        arrivals,
+        ordered: taken,
+      });
+      if (why) return json(res, 409, { error: why, column: order?.column });
+      taken.add(column.id);
+      accepted.push({ column: column.id, from: positions.get(column.id), to: order.to });
+    }
+
+    G.setOrders(game, seat, accepted);
+    broadcast();
+    return json(res, 200, G.publicState(game, seat));
+  }
+
   if (url.pathname === '/api/stream' && req.method === 'GET') {
     res.writeHead(200, {
       'content-type': 'text/event-stream',
@@ -162,8 +225,15 @@ async function api(req, res, url) {
  */
 function maybeAdvance() {
   if (!G.readyToAdvance(game)) return;
+  const before = game.moves.length;
   const fired = G.advance(game);
+  // The armies move on the server's own board as well, so tomorrow's orders
+  // are checked against where the columns actually are rather than where they
+  // stood when the game began.
+  world.march(game.moves, game.day);
+  const marched = game.moves.length - before;
   const when = G.publicState(game, null).date;
+  if (marched) console.log(`    ${marched} column${marched === 1 ? '' : 's'} marched`);
   if (fired.length) {
     console.log(`--> ${when}: ${fired.map((e) => e.name).join('; ')}`);
   } else {

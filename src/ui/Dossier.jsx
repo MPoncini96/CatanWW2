@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, march }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -45,7 +45,8 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
       window.removeEventListener('pointerdown', shut);
     };
   }, [menuOpen]);
-  const orders = ordersFor({ power, day, tile });
+  const available = ordersFor({ power, day, tile });
+  const arriving = (orders ?? []).filter((o) => o.to === tile?.index).length;
 
   if (!open) {
     return (
@@ -71,6 +72,11 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
           <em className="dossier__seat">every hex, no fog</em>
         ) : (
           <div className="dossier__orders">
+            {orders?.length > 0 && (
+              <span className="dossier__given">
+                {orders.length} column{orders.length === 1 ? '' : 's'} marching tomorrow
+              </span>
+            )}
             {given && <span className="dossier__given">{given} — not yet sent</span>}
             <button
               type="button"
@@ -82,7 +88,7 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
             </button>
             {menuOpen && (
               <div className="dossier__menu" role="menu">
-                {orders.map((order) => (
+                {available.map((order) => (
                   <button
                     type="button"
                     key={order.id}
@@ -90,8 +96,12 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
                     disabled={!order.allowed}
                     title={order.why ?? order.hint}
                     onClick={() => {
-                      setGiven(order.name);
                       setMenuOpen(false);
+                      // Reinforce is the one that does something now: it opens
+                      // the march planner on this hex. The other two are still
+                      // waiting on a combat model.
+                      if (order.id === 'reinforce') onMarch?.();
+                      else setGiven(order.name);
                     }}
                   >
                     <span>{order.name}</span>
@@ -108,7 +118,9 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
         )}
       </div>
 
-      {!tile ? (
+      {march ? (
+        march
+      ) : !tile ? (
         <p className="dossier__empty">
           Click a cell. Everything known about it appears here at once — the ground, the people,
           what it produces and what is standing on it — whichever layer the map is showing.
@@ -216,6 +228,11 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day }) {
                     </li>
                   ))}
                 </ul>
+                {arriving > 0 && (
+                  <p className="dossier__field">
+                    {arriving} column{arriving === 1 ? '' : 's'} ordered here for tomorrow.
+                  </p>
+                )}
               </>
             ) : (
               <p className="dossier__none">Nobody is holding this ground.</p>

@@ -6,8 +6,9 @@ import { buildPopulation } from './population.js';
 import { buildResources } from './resources.js';
 import { NATION_INDEX, NEUTRAL, SEA, Ownership } from './nations.js';
 import { territoryFor } from './territories.js';
-import { buildForces } from './forces.js';
+import { buildForces, tallyPlacements } from './forces.js';
 import { buildNavies } from './navies.js';
+import { positionsAt } from '../game/movement.js';
 import { buildCountries } from './countries.js';
 
 // Turns the baked per-hex Earth samples (land mask, relief, vegetation)
@@ -286,6 +287,51 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
     fieldInfantry: armies.fieldInfantry,
     roleAt: armies.roleAt,
     warnings: armies.warnings,
+    // The opening deployment, kept apart from where the columns are now. It is
+    // the fixed point every position is replayed from and it never changes.
+    opening: armies.opening,
+    version: 0,
+    listeners: new Set(),
+  };
+
+  /**
+   * Put the armies where the log of marches says they are on this day.
+   *
+   * Called with the whole log every time, not with the day's moves: replaying
+   * from the opening deployment is what keeps every client agreeing about
+   * where an army is without anybody sending a map. A day's worth of marching
+   * is a few hundred entries and the tally is 1,682 columns, so doing the
+   * whole thing again costs less than a frame.
+   */
+  world.march = (moves, day) => {
+    const at = positionsAt(world.garrisons.opening, moves, day);
+    const placements = world.garrisons.opening.map((placement) => {
+      const cell = at.get(placement.id);
+      return cell === placement.cell ? placement : { ...placement, cell };
+    });
+    const tallied = tallyPlacements(placements);
+    world.forces = tallied.counts;
+    world.forceTotals = tallied.totals;
+    world.forcesByNation = tallied.byNation;
+    world.forceStrength = tallied.strength;
+    world.maxForceStrength = tallied.maxStrength;
+    Object.assign(world.garrisons, {
+      placements: tallied.placements,
+      byCell: tallied.byCell,
+      airbases: tallied.airbases,
+      fieldInfantry: tallied.fieldInfantry,
+      roleAt: tallied.roleAt,
+      version: world.garrisons.version + 1,
+      day,
+    });
+    for (const listener of world.garrisons.listeners) listener(world.garrisons);
+    return world.garrisons.version;
+  };
+
+  /** Tell me when the armies move. Returns the way to stop being told. */
+  world.onMarch = (listener) => {
+    world.garrisons.listeners.add(listener);
+    return () => world.garrisons.listeners.delete(listener);
   };
 
   // And the fleets, which sit on the water rather than over the ground.
