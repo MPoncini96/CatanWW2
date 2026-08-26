@@ -230,11 +230,16 @@ export function strengthsAt(placements, battles, day, replacements = []) {
   for (const placement of placements) left.set(placement.id, { ...placement.strength });
   for (const battle of battles) {
     if (battle.day > day) break;
+    // An entry may name the arms it touches. A battle takes from everything
+    // standing on the hex; a raid takes aircraft and not the ground crew who
+    // fuelled them, which is what the first version did — seventeen per cent of
+    // the bombers lost and seventeen per cent of the fitters with them.
     const take = (ids, share) => {
       for (const id of ids) {
         const have = left.get(id);
         if (!have) continue;
-        for (const arm of Object.keys(have)) {
+        for (const arm of battle.arms ?? Object.keys(have)) {
+          if (have[arm] === undefined) continue;
           have[arm] = Math.max(0, Math.floor(have[arm] * (1 - share)));
         }
       }

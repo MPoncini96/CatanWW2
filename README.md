@@ -1349,6 +1349,60 @@ Set `HEXWW2_DAY_HOURS` to play faster, which is also how the clock was tested:
 a five-second day, one seat that gave no orders, and the log saying *the day ran
 out; germany gave no orders*.
 
+## Strategic bombing
+
+Everything on this board had been waiting for it. Fighters have carried a
+combat rating since the day they were placed and it decided nothing; the
+anti-aircraft formations were a label; the Ruhr sat under the heaviest flak
+concentration in the world guarding nothing at all; and `capacityFor` has taken
+a list of raids since the factories were built without anybody ever putting one
+in it.
+
+**A bomber group flies from its airfield to a works within ten hexes** — about
+seven hundred kilometres, which is a He 111 or a Wellington with a bomb load. It
+is contested by **fighters within three hexes of the target**, because a Bf 109
+could neither escort nor intercept further than that, and by **whatever flak is
+standing on the hex**. Guns do not travel; they defend the hex they are on.
+
+Nobody takes any ground. That is the whole point of the thing, and the argument
+about whether it was worth doing lasted the entire war.
+
+### One night, one raid
+
+Everything a power sends against one works on one day is **a single raid**.
+Bomber Command is three groups on three airfields and it did not attack the Ruhr
+three times in a night — it attacked once, together, and the reason to do so is
+that a large formation saturates a defence that would destroy a small one. The
+first version resolved each group separately and every one of them was cut to
+pieces on its own: 160 bombers, half of them lost, the works shut for a single
+day. Nobody makes that trade twice.
+
+Sent together, the same aircraft do this:
+
+> **480 bombers sent, 398 through, 17% lost** — against 236 fighters and 1,000
+> guns. The Ruhr out for **nine days**, which is **63% of German replacement
+> capacity** gone with it.
+
+A fifth of Bomber Command for nine days of German industry is a real decision,
+and it is the decision the whole offensive was about. An undefended works costs
+almost nothing and is shut for a fortnight, which is why you defend one.
+
+A group that flies is turned round the next day and cannot go again — the same
+rule as a column that marched, for the same reason.
+
+### What it costs
+
+Aircraft, and only aircraft. The first version took the loss share off every arm
+in the group, so seventeen per cent of the bombers were shot down and seventeen
+per cent of the fitters who fuelled them went with them. A casualty entry may
+now name the arms it touches, and a raid names bombers.
+
+The damage is a line in the record — `{ day, cell, until }` — so a works is out
+until the day it is not, and `capacityFor` reads it without knowing anything
+about aeroplanes. Replacements are sent **after** the bombers have flown: a
+works put out this morning makes nothing this afternoon, and that single
+ordering is the whole of what strategic bombing does here.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1563,6 +1617,7 @@ src/
            movement.js                           — marching, resting and replay
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
+           bombing.js                            — the works, and the flak
            production.js                         — the factories, and putting
                                                    the men back
            supply.js                             — and getting it forward
@@ -1579,16 +1634,13 @@ verified.
 
 ## Not built yet
 
-Bombing, which is the next thing and the one most of this is now waiting for:
-fighters 3 hexes, bombers 10, returning to the airfield they left, contested by
-enemy fighters within their own radius of the target and by the flak on it.
-`capacityFor` already takes a list of raids, so the day a raid lands the
-factories stop on their own. Shipyards, which want naval operations first — a
-shipyard would presently build hulls that cannot move to replace losses that
-cannot happen. Blockade, so that sea supply has to be earned. Raising new
-formations, as against rebuilding the ones in the order of battle. And a way to
-win or lose, which the game does not yet have: a nation reduced to nothing
-simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
+Naval operations, which are the last large thing: ships cannot move, cannot
+fight, and cannot be lost, so a shipyard would build hulls with nothing to do to
+replace losses that cannot happen. Blockade belongs with them, so that sea
+supply has to be earned rather than assumed. Fighter sweeps and escorts — a
+fighter presently defends and never flies. Raising new formations, as against
+rebuilding the ones in the order of battle. And a way to win or lose, which the
+game still does not have: a nation reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

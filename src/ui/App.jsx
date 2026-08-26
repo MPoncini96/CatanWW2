@@ -29,6 +29,7 @@ import { March } from './March.jsx';
 import { DayReport } from './DayReport.jsx';
 import { reportFor } from '../game/report.js';
 import { Replacements } from './Replacements.jsx';
+import { Raid } from './Raid.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { capacityFor, spentBy } from '../game/production.js';
 import {
@@ -99,6 +100,8 @@ export default function App() {
   const [marchTo, setMarchTo] = useState(null);
   const [rebuildAt, setRebuildAt] = useState(null);
   const [rebuilding, setRebuilding] = useState([]);
+  const [bombAt, setBombAt] = useState(null);
+  const [raiding, setRaiding] = useState([]);
   const [orders, setOrders] = useState([]);
   const [orderError, setOrderError] = useState(null);
   const [sending, setSending] = useState(false);
@@ -336,10 +339,21 @@ export default function App() {
   useEffect(() => {
     setOrders(game?.orders ?? []);
     setRebuilding(game?.rebuilding ?? []);
+    setRaiding(game?.raiding ?? []);
     setOrderError(null);
     setMarchTo(null);
     setRebuildAt(null);
+    setBombAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleRaid = useCallback((id, target) => {
+    setOrderError(null);
+    setRaiding((current) =>
+      current.some((r) => r.column === id)
+        ? current.filter((r) => r.column !== id)
+        : [...current, { column: id, target }],
+    );
+  }, []);
 
 // And the orders, which change when a player ticks a box. Kept apart from
   // the two above so that ticking one does not throw away the selected hex.
@@ -368,17 +382,19 @@ export default function App() {
     setSending(true);
     setOrderError(null);
     try {
-      const state = await setOrdersOnServer(session.token, orders, rebuilding);
+      const state = await setOrdersOnServer(session.token, orders, rebuilding, raiding);
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
+      setRaiding(state.raiding ?? []);
       setMarchTo(null);
       setRebuildAt(null);
+      setBombAt(null);
     } catch (err) {
       setOrderError(err.message);
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders, rebuilding]);
+  }, [session?.token, orders, rebuilding, raiding]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -700,10 +716,28 @@ export default function App() {
             marchTo={marchTo}
             onMarch={() => setMarchTo(selected?.index ?? null)}
             onRebuild={() => setRebuildAt(selected?.index ?? null)}
+            onBomb={() => setBombAt(selected?.index ?? null)}
+            raiding={raiding}
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              rebuildAt !== null && world ? (
+              bombAt !== null && world ? (
+                <Raid
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={bombAt}
+                  positions={positions}
+                  strengths={strengths}
+                  raids={game?.raids ?? []}
+                  raiding={raiding}
+                  onToggle={toggleRaid}
+                  onSend={sendOrders}
+                  onCancel={() => setBombAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : rebuildAt !== null && world ? (
                 <Replacements
                   world={world}
                   power={seat}

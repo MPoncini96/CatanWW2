@@ -87,6 +87,15 @@ import {
 import { DEPOTS_1939, PORTS_1939 } from '../src/world/depots.js';
 import { placeOf, reportFor } from '../src/game/report.js';
 import { drawOrders } from '../src/render/orders.js';
+import {
+  BOMBER_RANGE,
+  FIGHTER_RANGE,
+  FIGHTER_WEIGHT,
+  FLAK_WEIGHT,
+  defenceOf,
+  hexesApart,
+  mayRaid,
+} from '../src/game/bombing.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1082,11 +1091,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 3, 'three orders a seat may give on a hex');
+  eq(ORDERS.length, 4, 'four orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements',
-    'march in, march onto somebody, or send men up from the depots',
+    'reinforce attack replacements bomb',
+    'march in, march onto somebody, send men up from the depots, or fly',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -2200,6 +2209,146 @@ section('orders drawn on the map');
 
   drawOrders(ctx, world, camera, 1200, 800, [], [], positions);
   eq(calls.stroke, before.stroke, 'and a seat with no orders is drawn nothing');
+}
+
+
+// ------------------------------------------------------------- and the bombing
+section('strategic bombing');
+{
+  const world = board();
+  const opening = world.garrisons.opening;
+  const positions = new Map(opening.map((c) => [c.id, c.cell]));
+  const strengths = strengthsAt(opening, [], 0, []);
+
+  ok(BOMBER_RANGE > FIGHTER_RANGE * 3, 'a bomber goes much further than a fighter');
+  eq(BOMBER_RANGE, 10, 'ten hexes, which is about seven hundred kilometres');
+
+  // ---- how far is it -------------------------------------------------------
+  const berlin = cellFor(52.52, 13.4);
+  const london = cellFor(51.5, -0.13);
+  ok(hexesApart(berlin, berlin) < 0.001, 'a hex is no distance from itself');
+  const apart = hexesApart(berlin, london);
+  ok(apart > 12 && apart < 16, `Berlin to London is ${apart.toFixed(0)} hexes — about 930 km`);
+  ok(
+    Math.abs(hexesApart(berlin, london) - hexesApart(london, berlin)) < 0.001,
+    'and the same measured either way',
+  );
+
+  // ---- what may fly --------------------------------------------------------
+  const ruhr = world.works.find((w) => w.name.startsWith('Ruhr'));
+  ok(ruhr, 'the Ruhr is a works');
+  const command = opening.filter(
+    (c) => c.formation.nation === 'uk' && (c.strength.bombers ?? 0) > 0 && hexesApart(c.cell, ruhr.cell) <= BOMBER_RANGE,
+  );
+  ok(command.length >= 3, `${command.length} British groups are within reach of the Ruhr`);
+
+  const ask = (opts) =>
+    mayRaid({
+      world,
+      power: 'uk',
+      day: 3,
+      positions,
+      raids: [],
+      ordered: new Set(),
+      ...opts,
+    });
+  eq(ask({ column: command[0], target: ruhr.cell }), null, 'Bomber Command may go to the Ruhr');
+  // Range is checked against a group that is genuinely too far: the RAF in
+  // Egypt and Singapore, which cannot reach Germany and did not try.
+  const overseas = opening.find(
+    (c) => c.formation.nation === 'uk' && (c.strength.bombers ?? 0) > 0 && hexesApart(c.cell, ruhr.cell) > BOMBER_RANGE,
+  );
+  ok(overseas, 'Britain has bombers a long way from Germany');
+  ok(
+    ask({ column: overseas, target: ruhr.cell })?.includes('goes 10'),
+    'and they are told exactly how far it is and how far they go',
+  );
+  ok(
+    ask({ column: command[0], target: cellFor(52.9, 12.5) })?.includes('no works'),
+    'nor bomb a field in Brandenburg, there being nothing on it to break',
+  );
+  ok(
+    ask({ column: command[0], target: cellFor(51.5, -0.13) })?.includes('your own'),
+    'nor its own capital',
+  );
+  const german = opening.find((c) => c.formation.nation === 'germany' && (c.strength.bombers ?? 0) > 0);
+  ok(ask({ column: german, target: ruhr.cell })?.includes('not yours'), 'and not somebody else’s group');
+  const noBombers = opening.find((c) => c.formation.nation === 'uk' && !(c.strength.bombers > 0));
+  ok(ask({ column: noBombers, target: ruhr.cell })?.includes('no bombers'), 'nor an army with no aircraft');
+
+  // A group that flew today is turned round tomorrow.
+  ok(
+    ask({
+      column: command[0],
+      target: ruhr.cell,
+      raids: [{ day: 3, columns: [command[0].id] }],
+    })?.includes('turned round'),
+    'and a group that flew today does not fly again tomorrow',
+  );
+
+  // ---- what is waiting for it ---------------------------------------------
+  const guard = defenceOf(world, ruhr.cell, 'uk', positions, strengths);
+  ok(guard.flak > 500, `the Ruhr has ${Math.round(guard.flak)} guns over it`);
+  ok(guard.fighters > 0, 'and fighters within reach');
+  ok(FIGHTER_WEIGHT > FLAK_WEIGHT * 3, 'one fighter is worth several guns');
+  ok(
+    guard.total < guard.flak + guard.fighters,
+    'but a thousand guns are still a thousand guns, and weigh more than the fighters do',
+  );
+  const quiet = defenceOf(world, cellFor(41.6, -87.3), 'germany', positions, strengths);
+  ok(quiet.total < guard.total, 'and Chicago, which nobody can reach, is not defended like that');
+
+  // ---- a raid -------------------------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'uk', 'uk', 'A');
+  for (let n = 0; n < 3; n += 1) {
+    G.setReady(game, 'uk', true);
+    G.advance(game, world);
+  }
+  const beforeSteel = capacityFor(world, 'germany', game.day, game.raids, 0).steel;
+
+  G.setOrders(game, 'uk', [], [], command.map((c) => ({ column: c.id, target: ruhr.cell })));
+  G.setReady(game, 'uk', true);
+  G.advance(game, world);
+
+  eq(game.raids.length, 1, 'everything sent against one works on one night is one raid');
+  const raid = game.raids[0];
+  ok(raid.bombers > 400, `${raid.bombers} bombers went`);
+  ok(raid.share <= 0.25, `and ${Math.round(raid.share * 100)}% did not come back, which is survivable`);
+  ok(raid.share >= 0.02, 'though nothing is free');
+  ok(raid.days > 0, `the Ruhr is out for ${raid.days} days`);
+  eq(raid.until, game.day + raid.days, 'and the record says which day it is back');
+
+  const afterSteel = capacityFor(world, 'germany', game.day, game.raids, 0).steel;
+  ok(afterSteel < beforeSteel * 0.5, 'which takes more than half of German steel with it');
+  eq(
+    capacityFor(world, 'germany', raid.until, game.raids, 0).steel,
+    beforeSteel,
+    'and it is all back on the day the repairs finish',
+  );
+
+  // ---- and what it cost the crews -----------------------------------------
+  const left = strengthsAt(opening, game.battles, game.day, game.replacements);
+  ok(
+    left.get(command[0].id).bombers < command[0].strength.bombers,
+    'the bombers that did not come back are gone',
+  );
+  eq(
+    left.get(command[0].id).infantry,
+    command[0].strength.infantry,
+    'and the ground crew who fuelled them are not — a raid costs aircraft, not fitters',
+  );
+
+  // ---- the report tells both sides ---------------------------------------
+  const ours = reportFor({ world, game, seat: 'uk', day: game.day });
+  eq(ours.flown.length, 1, 'the seat that sent them is told what they did');
+  eq(ours.bombed.length, 0, 'and was not itself bombed');
+  const theirs = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(theirs.bombed.length, 1, 'the seat that was bombed is told so');
+  eq(theirs.flown.length, 0, 'and sent nothing');
+  ok(theirs.bombed[0].works.some((w) => w.startsWith('Ruhr')), 'by name');
+  const nobody = reportFor({ world, game, seat: 'japan', day: game.day });
+  eq(nobody.flown.length + nobody.bombed.length, 0, 'and Japan hears nothing about it');
 }
 
 console.log(

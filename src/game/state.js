@@ -4,6 +4,7 @@ import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
 import { executeOrders, positionsAt } from './movement.js';
 import { resolveDay, strengthsAt } from './combat.js';
+import { resolveRaids } from './bombing.js';
 import { canAfford, capacityFor, replacementFor, spentBy } from './production.js';
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
@@ -55,6 +56,8 @@ export function newGame() {
     raids: [],
     // Which columns each seat wants replacements sent to tomorrow.
     rebuilding: {},
+    // And which bomber groups are to fly, and against what.
+    raiding: {},
     // And the ones that were asked for and not sent, with the reason. The day
     // used to swallow these, which meant a player could ask for fifteen
     // columns, be given four, and never find out why — the most annoying kind
@@ -206,8 +209,24 @@ export function advance(game, world = null, now = 0) {
     }
     // And last, the replacements — after the fighting, so that a column cannot
     // be rebuilt into the middle of the battle it is losing.
-    // A new day's refusals only. Yesterday's are of no use to anybody and the
-    // list would otherwise grow for ever.
+    // The bombers go before the depots do, because a works that was put out
+    // this morning cannot make anything this afternoon. That single ordering
+    // is the whole of what strategic bombing does here.
+    const flying = resolveRaids({
+      world,
+      day: game.day,
+      raiding: game.raiding,
+      positions: positionsAt(world.garrisons.opening, game.moves, game.day),
+      strengths: strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements),
+      past: game.raids,
+    });
+    game.raids.push(...flying.raids);
+    game.battles.push(...flying.losses);
+    game.raiding = {};
+
+    // And last, the replacements — after the fighting and after the bombing,
+    // so that a column cannot be rebuilt into the middle of the battle it is
+    // losing, out of a factory that is on fire.
     game.refused = game.refused.filter((r) => r.day >= game.day);
     game.replacements.push(...sendReplacements(game, world));
     game.rebuilding = {};
@@ -234,12 +253,17 @@ export function advance(game, world = null, now = 0) {
  * day's orders again, not a second set of them, and cancelling one column is
  * simply sending a shorter list.
  */
-export function setOrders(game, power, orders, rebuilding = null) {
+export function setOrders(game, power, orders, rebuilding = null, raiding = null) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   game.orders[power] = orders;
   if (rebuilding !== null) game.rebuilding[power] = rebuilding;
+  if (raiding !== null) game.raiding[power] = raiding;
   game.revision += 1;
-  return { orders, rebuilding: game.rebuilding[power] ?? [] };
+  return {
+    orders,
+    rebuilding: game.rebuilding[power] ?? [],
+    raiding: game.raiding[power] ?? [],
+  };
 }
 
 /**
@@ -374,6 +398,7 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     raids: game.raids,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
+    raiding: viewer ? (game.raiding[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

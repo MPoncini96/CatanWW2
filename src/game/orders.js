@@ -29,6 +29,11 @@ export const ORDERS = [
     name: 'Replacements',
     hint: 'Spend the stores to bring the formations here back up to strength.',
   },
+  {
+    id: 'bomb',
+    name: 'Bomb the works',
+    hint: 'Send the bombers, and put the factory here out of action for days.',
+  },
 ];
 
 /**
@@ -90,11 +95,24 @@ export function ordersFor({ power, day = 0, tile = null }) {
       return war ? null : `You are not at war with ${held}.`;
     }
 
+    // Bombing is the one order that is not about the ground. It asks nothing
+    // about who is standing on the hex and everything about what is built on
+    // it: a works, held by somebody you are fighting, within reach of an
+    // aerodrome of yours.
+    if (order.id === 'bomb') {
+      if (!tile.works?.length) return 'There is no works here to put out of action.';
+      if (mine) return 'That is your own factory.';
+      if (!parties.length) return 'Nothing on this hex answers to anybody.';
+      return parties.some((party) => mayFight(day, power, party))
+        ? null
+        : `You are not at war with ${held}.`;
+    }
+
     // Replacements go to troops you already have standing somewhere. Retreat
-    // used to be the third option and is not offered any more, because it is
-    // not a decision: a beaten army falls back on its own, and asking eight
-    // seats to choose each time would stall the day for the sake of an order
-    // the men on the ground were carrying out without one.
+    // used to be an option and is not offered any more, because it is not a
+    // decision: a beaten army falls back on its own, and asking eight seats to
+    // choose each time would stall the day for the sake of an order the men on
+    // the ground were carrying out without one.
     const men = tile.forces?.reduce((sum, arm) => sum + arm.count, 0) ?? 0;
     if (!men) return 'Nothing of yours is standing here.';
     if (!mine && !tile.garrison?.some((unit) => unit.nation === power)) {

@@ -61,6 +61,43 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {(report.flown.length > 0 || report.bombed.length > 0) && (
+              <section>
+                <h3>The bombing</h3>
+                <ul className="report__list">
+                  {report.flown.map((r, n) => (
+                    <li key={`f${n}`} className={r.days > 0 ? 'is-won' : ''}>
+                      <span className="report__where">{r.works.join(', ') || r.where}</span>
+                      <span className="report__what">
+                        {r.bombers} sent, {r.through} through —{' '}
+                        <strong>
+                          {r.days > 0 ? `out for ${r.days} day${r.days === 1 ? '' : 's'}` : 'no lasting damage'}
+                        </strong>
+                      </span>
+                      <span className="report__cost">
+                        lost {Math.round(r.share * 100)}% · {r.fighters} fighters, {r.flak} guns
+                      </span>
+                    </li>
+                  ))}
+                  {report.bombed.map((r, n) => (
+                    <li key={`x${n}`} className="is-lost">
+                      <span className="report__where">{r.works.join(', ') || r.where}</span>
+                      <span className="report__what">
+                        bombed by {r.through} aircraft —{' '}
+                        <strong>
+                          {r.days > 0 ? `out for ${r.days} day${r.days === 1 ? '' : 's'}` : 'the works held'}
+                        </strong>
+                      </span>
+                      <span className="report__cost">
+                        {r.fighters} fighters and {r.flak} guns up · {Math.round(r.share * 100)}% of
+                        them shot down
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(report.taken.length > 0 || report.lost.length > 0) && (
               <section>
                 <h3>The ground</h3>

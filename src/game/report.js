@@ -84,7 +84,10 @@ function costsOfTheDay(opening, record, day) {
       for (const id of ids ?? []) {
         const have = running.get(id);
         if (!have) continue;
-        for (const arm of ARMS) have[arm] = Math.max(0, Math.floor(have[arm] * (1 - share)));
+        for (const arm of entry.arms ?? ARMS) {
+          if (have[arm] === undefined) continue;
+          have[arm] = Math.max(0, Math.floor(have[arm] * (1 - share)));
+        }
       }
     }
   }
@@ -100,7 +103,8 @@ function costsOfTheDay(opening, record, day) {
         const have = running.get(id);
         if (!have) continue;
         const mine = {};
-        for (const arm of ARMS) {
+        for (const arm of entry.arms ?? ARMS) {
+          if (have[arm] === undefined) continue;
           const after = Math.max(0, Math.floor(have[arm] * (1 - share)));
           const gone = have[arm] - after;
           have[arm] = after;
@@ -212,6 +216,26 @@ export function reportFor({ world, game, seat, day }) {
     }
   }
 
+  // ---- the bombing ---------------------------------------------------------
+  const flown = [];
+  const bombed = [];
+  for (const raid of game.raids ?? []) {
+    if (raid.day !== day) continue;
+    const entry = {
+      cell: raid.cell,
+      where: placeOf(world, raid.cell),
+      works: raid.works,
+      bombers: raid.bombers,
+      through: raid.through,
+      share: raid.share,
+      days: raid.days,
+      fighters: raid.fighters,
+      flak: raid.flak,
+    };
+    if (raid.power === seat) flown.push(entry);
+    else if (raid.against === seat) bombed.push(entry);
+  }
+
   // ---- the depots ----------------------------------------------------------
   const sent = [];
   for (const entry of game.replacements ?? []) {
@@ -239,6 +263,8 @@ export function reportFor({ world, game, seat, day }) {
 
   return {
     day,
+    flown,
+    bombed,
     battles,
     taken,
     lost,
@@ -249,6 +275,8 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      flown.length === 0 &&
+      bombed.length === 0 &&
       taken.length === 0 &&
       lost.length === 0 &&
       starving.length === 0 &&

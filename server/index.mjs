@@ -7,6 +7,7 @@ import * as G from '../src/game/state.js';
 import { buildWorld } from '../src/world/earth.js';
 import { TILE_COUNT } from '../src/world/sphere.js';
 import { arrivalsAt, mayMarch, positionsAt } from '../src/game/movement.js';
+import { mayRaid } from '../src/game/bombing.js';
 
 // The one game.
 //
@@ -73,6 +74,7 @@ function load() {
       // A game saved before the clock existed reopens its day now rather than
       // finding itself a year overdue and turning eight hundred times.
       saved.opened ||= Date.now();
+      saved.raiding ??= {};
       saved.rebuilding ??= {};
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
@@ -180,7 +182,7 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding } = await readBody(req);
+    const { orders, rebuilding, raiding } = await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
     if (rebuilding !== undefined && !Array.isArray(rebuilding)) {
@@ -188,6 +190,12 @@ async function api(req, res, url) {
     }
     if ((rebuilding?.length ?? 0) > 400) {
       return json(res, 400, { error: 'too many columns to rebuild in one day' });
+    }
+    if (raiding !== undefined && !Array.isArray(raiding)) {
+      return json(res, 400, { error: 'raiding must be a list of missions' });
+    }
+    if ((raiding?.length ?? 0) > 100) {
+      return json(res, 400, { error: 'too many raids for one night' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -222,7 +230,28 @@ async function api(req, res, url) {
       const column = columns.get(id);
       return column && column.formation.nation === seat;
     });
-    G.setOrders(game, seat, accepted, rebuild);
+    // Raids are checked here, because whether a target is in range and at war
+    // is a fact about the board and the browser is not where a rule is kept.
+    const flights = [];
+    const flying = new Set();
+    for (const mission of raiding ?? []) {
+      const column = columns.get(mission?.column);
+      const why = mayRaid({
+        world,
+        column,
+        target: mission?.target,
+        power: seat,
+        day: game.day,
+        positions,
+        raids: game.raids,
+        ordered: flying,
+      });
+      if (why) return json(res, 409, { error: why, column: mission?.column });
+      flying.add(column.id);
+      flights.push({ column: column.id, target: mission.target });
+    }
+
+    G.setOrders(game, seat, accepted, rebuild, flights);
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
