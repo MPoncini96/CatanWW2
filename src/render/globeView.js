@@ -12,6 +12,7 @@ import { drawCountryLabels } from './labels.js';
 import { drawCityMarkers } from './cities.js';
 import { drawFleetMarkers } from './fleets.js';
 import { drawUnitIcons } from './units.js';
+import { drawOrders } from './orders.js';
 
 // Input, the frame loop, and the writing on top of it.
 //
@@ -359,6 +360,19 @@ export class GlobeView {
     this.needsDraw = true;
   }
 
+  /**
+   * The orders this seat has given for tomorrow, to be drawn on the ground.
+   *
+   * Held on the view rather than passed through the draw call because they
+   * change when a player ticks a box and not when the camera moves.
+   */
+  setOrders(orders, rebuilding, positions) {
+    this.orders = orders ?? [];
+    this.rebuilding = rebuilding ?? [];
+    this.positions = positions ?? null;
+    this.needsDraw = true;
+  }
+
   setViewer(viewer) {
     if (this.viewer === viewer) return;
     this.viewer = viewer;
@@ -436,5 +450,17 @@ export class GlobeView {
     }
     // Fleets last, so a battle fleet is never hidden under a city dot.
     drawFleetMarkers(ctx, this.world, this.camera, this.width, this.height, this.viewer, taken);
+    // And your own orders over everything, because they are the one thing on
+    // the board that is about tomorrow rather than today.
+    drawOrders(
+      ctx,
+      this.world,
+      this.camera,
+      this.width,
+      this.height,
+      this.orders,
+      this.rebuilding,
+      this.positions,
+    );
   }
 }

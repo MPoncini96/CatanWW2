@@ -86,6 +86,7 @@ import {
 } from '../src/game/supply.js';
 import { DEPOTS_1939, PORTS_1939 } from '../src/world/depots.js';
 import { placeOf, reportFor } from '../src/game/report.js';
+import { drawOrders } from '../src/render/orders.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -2100,6 +2101,105 @@ section('what the day brought');
     world.ownership.set(capture.cell, capture.from, { reason: 'test' });
   }
   world.march([], 0, [], []);
+}
+
+
+// -------------------------------------------------------------- and the clock
+section('the day closes itself');
+{
+  // Eight seats across as many time zones, and a day that only ends when all of
+  // them have said so, ends when the slowest player wakes up. There was no way
+  // at all to proceed without them, which is the difference between a demo and
+  // something people can play.
+  const HOUR = 3600000;
+  const game = G.newGame();
+  game.opened = 1_000_000;
+
+  ok(!G.overdue(game, 1_000_000 + G.DAY_LENGTH_MS + 1), 'an empty table never turns on its own');
+  G.claim(game, 'germany', 'de', 'A');
+  ok(!G.overdue(game, 1_000_000 + HOUR), 'an hour in, the day is still open');
+  ok(!G.overdue(game, 1_000_000 + G.DAY_LENGTH_MS - 1), 'and it is open to the last minute');
+  ok(G.overdue(game, 1_000_000 + G.DAY_LENGTH_MS), 'and then it is not');
+  ok(G.overdue(game, 1_000_000 + G.DAY_LENGTH_MS * 3), 'nor later');
+  eq(G.closesAt(game), 1_000_000 + G.DAY_LENGTH_MS, 'and it says when it will');
+
+  // Turning the day restarts the clock.
+  G.advance(game, null, 5_000_000);
+  eq(game.opened, 5_000_000, 'a new day opens when it begins');
+  eq(G.closesAt(game), 5_000_000 + G.DAY_LENGTH_MS, 'and closes a day after that');
+  ok(!G.overdue(game, 5_000_000 + HOUR), 'with the whole of it to play');
+
+  // A seat that is ready still ends the day early, which is the normal case.
+  G.setReady(game, 'germany', true);
+  ok(G.readyToAdvance(game), 'everybody finishing is still what usually turns it');
+
+  // And the clock reaches the client, so nobody has to guess.
+  const view = G.publicState(game, 'germany');
+  eq(view.closesAt, G.closesAt(game), 'the client is told when the day closes');
+  ok(G.DAY_LENGTH_MS >= 6 * HOUR, 'and a day is long enough to be worth waiting for');
+}
+
+// -------------------------------------------------- and orders on the ground
+section('orders drawn on the map');
+{
+  // You ticked columns in a panel, pressed send, and the globe showed nothing —
+  // so there was no way to look at your own plan. This checks the drawing does
+  // not throw and that it respects the two things it is allowed to refuse:
+  // ground round the back of the globe, and a zoom too far out to draw an
+  // arrow at all.
+  const calls = { moveTo: 0, lineTo: 0, fill: 0, stroke: 0 };
+  const ctx = new Proxy(
+    {},
+    {
+      get(_, key) {
+        if (key === 'setLineDash' || key in calls || typeof key === 'string') {
+          return (...args) => {
+            if (key in calls) calls[key] += 1;
+            void args;
+          };
+        }
+        return () => {};
+      },
+      set: () => true,
+    },
+  );
+
+  const world = board();
+  const opening = world.garrisons.opening;
+  const from = opening[0].cell;
+  const to = [...neighbours(from)][0];
+  const orders = [{ column: opening[0].id, from, to }];
+  const positions = new Map(opening.map((c) => [c.id, c.cell]));
+
+  const camera = {
+    distance: 1.05,
+    pixelsPerCell: () => 60,
+    project: (lat, lon, w, h, out) => {
+      out.x = 100;
+      out.y = 100;
+      out.visible = true;
+      return out;
+    },
+  };
+  drawOrders(ctx, world, camera, 1200, 800, orders, [opening[0].id], positions);
+  ok(calls.stroke > 0, 'an arrow is drawn for an order');
+  ok(calls.fill > 0, 'with a head on it');
+
+  const before = { ...calls };
+  drawOrders(ctx, world, { ...camera, pixelsPerCell: () => 4 }, 1200, 800, orders, [], positions);
+  eq(calls.stroke, before.stroke, 'and nothing at all when the hexes are four pixels wide');
+
+  const hidden = { ...camera, project: (lat, lon, w, h, out) => {
+    out.x = 0;
+    out.y = 0;
+    out.visible = false;
+    return out;
+  } };
+  drawOrders(ctx, world, hidden, 1200, 800, orders, [], positions);
+  eq(calls.stroke, before.stroke, 'nor for ground round the back of the globe');
+
+  drawOrders(ctx, world, camera, 1200, 800, [], [], positions);
+  eq(calls.stroke, before.stroke, 'and a seat with no orders is drawn nothing');
 }
 
 console.log(

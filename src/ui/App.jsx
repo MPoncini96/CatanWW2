@@ -438,10 +438,17 @@ export default function App() {
   // seat may see moves with the seat.
   useEffect(() => {
     viewRef.current?.setViewer(seat);
-    viewRef.current?.setDay(game?.day ?? 0);
     setSelected(null);
     setHover(null);
   }, [power, world]);
+
+  // The date, on its own, because it changes without the seat changing — and
+  // the supply shading is drawn from it. It used to ride along with the viewer
+  // and so never moved once a game was under way.
+  useEffect(() => {
+    viewRef.current?.setDay(game?.day ?? 0);
+  }, [game?.day, world]);
+
 
   // These three run after the view is built, and again whenever it is rebuilt —
   // which is what changing nation does. Leave `power` out of the lists and the
@@ -542,6 +549,12 @@ export default function App() {
     setMarchTo(null);
     setRebuildAt(null);
   }, [game?.day, game?.you]);
+
+// And the orders, which change when a player ticks a box. Kept apart from
+  // the two above so that ticking one does not throw away the selected hex.
+  useEffect(() => {
+    viewRef.current?.setOrders(orders, rebuilding, positions);
+  }, [orders, rebuilding, positions, world]);
 
   const toggleRebuild = useCallback((id) => {
     setOrderError(null);

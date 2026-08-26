@@ -14,6 +14,16 @@ const BY_ID = Object.fromEntries(PLAYERS.map((p) => [p.id, p]));
  * let in yet gets no button: it is watching, it is not holding anybody up, and
  * saying so plainly is better than showing a control that would be refused.
  */
+/** How long this day has left, in words a player can act on. */
+function untilClose(at) {
+  const left = at - Date.now();
+  if (left <= 0) return 'The day is closing on its own.';
+  const hours = Math.floor(left / 3600000);
+  const minutes = Math.floor((left % 3600000) / 60000);
+  if (hours >= 1) return `Turns on its own in ${hours}h ${minutes}m, ready or not.`;
+  return `Turns on its own in ${minutes}m, ready or not.`;
+}
+
 export function WarRoom({ power, state, onReady, onClaim, onLeave, onLedger, busy, error }) {
   const [name, setName] = useState('');
   const player = BY_ID[power];
@@ -138,6 +148,10 @@ export function WarRoom({ power, state, onReady, onClaim, onLeave, onLedger, bus
                 : 'Turning the day…'
               : `${voting.length - waiting.length} of ${voting.length} ready`}
           </p>
+          {/* And when it turns anyway. A day that only ends when everybody has
+              said so ends when the slowest player wakes up; this is the hour
+              at which the war stops waiting. */}
+          {state?.closesAt && <p className="war__clock">{untilClose(state.closesAt)}</p>}
           {!seat.inTheWar && (
             <p className="war__note">
               Nobody at this table is in the war yet, so the pace is yours until somebody is.

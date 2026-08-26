@@ -1304,6 +1304,43 @@ from the same place name is not telling anybody where anything happened; Poland
 is seventy hexes. A place is now the city if there is one and the region *with
 its coordinates* if there is not.
 
+## Orders on the ground
+
+You ticked columns in a panel, pressed send, and the globe showed nothing — so
+there was no way to look at your own plan, and none at all to remember it an
+hour later. A day's orders were the one thing on this board that existed only
+in the player's head.
+
+An **arrow** from where each column stands to where it is going, and a **dashed
+ring** on any hex expecting men from the depots. Several columns commonly march
+into one hex from the same neighbour, so the arrows are counted rather than
+stacked: six down one lane is one arrow with a 6 on it. They are drawn only for
+the seat that gave them, and only past nine pixels a cell, below which an arrow
+is wider than it is long.
+
+Four of them converging on one hex is what a concentric attack looks like, and
+it needs no legend.
+
+## The clock
+
+**A day that only ends when all eight seats have said so ends when the slowest
+player wakes up.** There was no way to proceed without them at all, which is
+the difference between a demo and something people can play across time zones.
+
+A day now closes on its own after twenty-four hours, whoever has not finished.
+Anyone who gave no orders simply gave no orders — a real cost, and the point:
+the war does not wait, and neither did any of the actual staffs. The war room
+says when it will turn.
+
+Two things it will not do. It never turns an **unattended** board — a game
+nobody is sitting at stays where it was left rather than running through the
+war overnight. And a game **saved before the clock existed** reopens its day on
+load rather than finding itself a year overdue and turning eight hundred times.
+
+Set `HEXWW2_DAY_HOURS` to play faster, which is also how the clock was tested:
+a five-second day, one seat that gave no orders, and the log saying *the day ran
+out; germany gave no orders*.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1501,6 +1538,7 @@ src/
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
            labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
+           orders.js                             — the arrows of tomorrow
            units.js                              — what is standing on a hex
   ui/      App.jsx  NationIndex.jsx  Survey.jsx  — the pages
            routes.js routes.jsx                  — what a path means, and

@@ -24,6 +24,12 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SAVE = path.join(HERE, 'game.json');
 const DIST = path.join(HERE, '..', 'dist');
 const PORT = Number(process.env.PORT) || 5170;
+// How long a day stays open before it turns without everybody. A day by
+// default; set HEXWW2_DAY_HOURS to something small to play a fast game, or to
+// watch the clock work without waiting until tomorrow.
+const DAY_MS = process.env.HEXWW2_DAY_HOURS
+  ? Number(process.env.HEXWW2_DAY_HOURS) * 3600000
+  : G.DAY_LENGTH_MS;
 
 // --------------------------------------------------------------- the board
 //
@@ -64,6 +70,9 @@ function load() {
       saved.replacements ??= [];
       saved.raids ??= [];
       saved.refused ??= [];
+      // A game saved before the clock existed reopens its day now rather than
+      // finding itself a year overdue and turning eight hundred times.
+      saved.opened ||= Date.now();
       saved.rebuilding ??= {};
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
@@ -72,6 +81,7 @@ function load() {
     }
   }
   const fresh = G.newGame();
+  fresh.opened = Date.now();
   G.openingEvents(fresh);
   console.log('started a new game on 1 September 1939');
   return fresh;
@@ -89,7 +99,7 @@ const listeners = new Set();
 function broadcast() {
   save();
   for (const listener of listeners) {
-    const view = G.publicState(game, G.seatOf(game, listener.token));
+    const view = G.publicState(game, G.seatOf(game, listener.token), DAY_MS);
     listener.res.write(`data: ${JSON.stringify(view)}\n\n`);
   }
 }
@@ -132,7 +142,7 @@ async function api(req, res, url) {
   const seat = G.seatOf(game, token);
 
   if (url.pathname === '/api/state' && req.method === 'GET') {
-    return json(res, 200, G.publicState(game, seat));
+    return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
 
   if (url.pathname === '/api/claim' && req.method === 'POST') {
@@ -165,7 +175,7 @@ async function api(req, res, url) {
     if (result.error) return json(res, 409, result);
     maybeAdvance();
     broadcast();
-    return json(res, 200, G.publicState(game, seat));
+    return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
@@ -214,7 +224,7 @@ async function api(req, res, url) {
     });
     G.setOrders(game, seat, accepted, rebuild);
     broadcast();
-    return json(res, 200, G.publicState(game, seat));
+    return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
 
   if (url.pathname === '/api/stream' && req.method === 'GET') {
@@ -225,7 +235,7 @@ async function api(req, res, url) {
     });
     const listener = { res, token };
     listeners.add(listener);
-    res.write(`data: ${JSON.stringify(G.publicState(game, seat))}\n\n`);
+    res.write(`data: ${JSON.stringify(G.publicState(game, seat, DAY_MS))}\n\n`);
     // Keep proxies from closing an idle stream.
     const beat = setInterval(() => res.write(': beat\n\n'), 25000);
     req.on('close', () => {
@@ -245,15 +255,22 @@ async function api(req, res, url) {
  * to. That was a deliberate choice — the waiting is part of the game.
  */
 function maybeAdvance() {
-  if (!G.readyToAdvance(game)) return;
+  // Either everybody has finished, or the day has run out of hours. The second
+  // is what makes eight seats across as many time zones playable at all.
+  const forced = G.overdue(game, Date.now(), DAY_MS);
+  if (!G.readyToAdvance(game) && !forced) return;
+  if (forced) {
+    const waiting = G.publicState(game, null, DAY_MS).waitingOn;
+    if (waiting.length) console.log(`    the day ran out; ${waiting.join(', ')} gave no orders`);
+  }
   const before = { moves: game.moves.length, battles: game.battles.length };
   // The world goes in, because the day is not only a date: the marches happen
   // on it, the fights happen on it, and the ground changes hands on it.
-  const fired = G.advance(game, world);
+  const fired = G.advance(game, world, Date.now());
   world.march(game.moves, game.day, game.battles, game.replacements);
   const marched = game.moves.length - before.moves;
   const fought = game.battles.length - before.battles;
-  const when = G.publicState(game, null).date;
+  const when = G.publicState(game, null, DAY_MS).date;
   if (marched) console.log(`    ${marched} column${marched === 1 ? '' : 's'} on the move`);
   for (const battle of game.battles.slice(before.battles)) {
     console.log(
@@ -303,6 +320,15 @@ function sendFile(res, file) {
 
 // ------------------------------------------------------------------ serve
 
+// Nothing else would notice the day running out: every other call into
+// maybeAdvance is somebody pressing a button, and the whole point of a clock is
+// the case where nobody does.
+setInterval(() => {
+  const before = game.day;
+  maybeAdvance();
+  if (game.day !== before) broadcast();
+}, 20_000).unref?.();
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   try {
@@ -315,6 +341,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  const view = G.publicState(game, null);
+  const view = G.publicState(game, null, DAY_MS);
   console.log(`HexWW2.world on http://localhost:${PORT}  —  ${view.date}, day ${view.day}`);
 });

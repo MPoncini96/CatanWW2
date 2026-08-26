@@ -62,6 +62,10 @@ export function newGame() {
     refused: [],
     // Bumped on every change so clients can tell whether they are current.
     revision: 0,
+    // When the current day opened, so it can close on its own. Eight seats and
+    // no clock means one person going to bed stops the war, and there was no
+    // way at all to proceed without them.
+    opened: 0,
   };
 }
 
@@ -153,7 +157,31 @@ export function readyToAdvance(game) {
  * the new date is written into the log for the clients to put in front of
  * their players.
  */
-export function advance(game, world = null) {
+/**
+ * How long a day may stay open before it turns without everybody.
+ *
+ * A day that only ends when all eight seats have said so is a day that ends
+ * when the slowest player wakes up. Anyone who has not finished simply does not
+ * get to give orders — which is a real cost, and is the point: the war does not
+ * wait, and neither did any of the actual staffs.
+ */
+export const DAY_LENGTH_MS = 24 * 60 * 60 * 1000;
+
+/** Has this day been open long enough to close itself? */
+export function overdue(game, now, limit = DAY_LENGTH_MS) {
+  // Never on an unattended game. A board nobody is sitting at should stay where
+  // it was left, not run through the war on its own overnight.
+  if (!occupied(game).length) return false;
+  if (!game.opened) return false;
+  return now - game.opened >= limit;
+}
+
+/** When the current day will close of its own accord, if nobody closes it. */
+export function closesAt(game, limit = DAY_LENGTH_MS) {
+  return game.opened ? game.opened + limit : null;
+}
+
+export function advance(game, world = null, now = 0) {
   // The order of a day, and it matters: the marches happen, then whoever ends
   // up sharing a hex with somebody they are at war with fights over it, then
   // the beaten fall back — which is itself a march, stamped with the same day,
@@ -194,6 +222,7 @@ export function advance(game, world = null) {
     text: e.text,
   }));
   game.log.push(...fired);
+  game.opened = now;
   game.revision += 1;
   return fired;
 }
@@ -306,7 +335,7 @@ export function openingEvents(game) {
  * exist, this is the function that has to keep them from leaking, so it is
  * built from the start as a deliberate projection rather than the state itself.
  */
-export function publicState(game, viewer) {
+export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
   const voting = voters(game);
   return {
     revision: game.revision,
@@ -329,6 +358,9 @@ export function publicState(game, viewer) {
     })),
     war: warSummary(game.day, PLAYER_IDS),
     log: game.log,
+    // When this day closes on its own, so a client can show the clock and
+    // nobody has to guess how long they have.
+    closesAt: closesAt(game, limit),
     // Where every army has marched, for the client to replay. This is not a
     // secret and could not be one: the board is deterministic and every client
     // already builds every garrison from the same tables. What *is* secret is
