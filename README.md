@@ -1072,6 +1072,88 @@ behind, which is what relief in place is, and it holds an advance to roughly one
 hex every two days. That was not designed; it falls out of the movement rule and
 the combat rule meeting.
 
+## Supply
+
+Nothing in the model stopped a German column marching to Vladivostok. It would
+arrive tired, and then fight exactly as well as it had at home, which is the one
+thing every campaign of this war says is impossible. The Wehrmacht did not stop
+outside Moscow because it ran out of Germans.
+
+**Two stages, because that is how it worked: the railways carry it a long way,
+and then it goes on lorries a short way.**
+
+1. From every **depot**, out along the rail network as far as **22 hexes**.
+2. From every hex the railways reached, out over any ground at all as far as
+   **5 hexes**. This is the tail, it is about three hundred kilometres, and it
+   is why an advance stops.
+
+A depot is a **city**, a **railhead** or a **port**. Cities because that is what
+a city was for and why they were the objectives — taking one extends your reach
+rather than merely adding to your score.
+
+**Enemy ground conducts nothing**, and that is the whole point of it. A column
+encircled on a captured railhead is standing on a railway that goes nowhere. So
+is a besieged city: a depot ringed entirely by people you are fighting is a
+depot under siege, and Berlin surrounded is Berlin cut off. Neutral ground does
+conduct, because the 14th Army spent the last week of August in Slovakia and was
+not living off the land.
+
+### What it costs to be without it
+
+An army out of supply fights at **three fifths**, loses **4% of itself a day**,
+and is sent no replacements. The starvation goes into the same record as the
+battle casualties, flagged `starved`, because it is the same thing: men coming
+off a column. Nothing needs a second shape to say so.
+
+### How the data got there
+
+The rule was written first and then held against one question — **is every army
+on the board fed on the first morning?** Every one of them was deployed where it
+could be maintained; that is what a deployment is. So an army starving on 1
+September means the rule is wrong, not the order of battle.
+
+It found four things, in this order:
+
+- **No sea supply at all**, which starved East Prussia across the Corridor and
+  Libya across the Mediterranean.
+- **Depots only where the 189-city table had a city**, which is nowhere between
+  the Urals and the Pacific — so the Transbaikal Front, fed in reality by the
+  Trans-Siberian, starved on its own frontier.
+- **Trackless ground refusing to conduct at all**, which starved the Leningrad
+  district on the Finnish border.
+- And then, once every coast fed an army: **a column that had walked to the
+  Arctic shore of Siberia was in supply.** The population data cannot tell a
+  port from a beach — the cells under Benghazi and Aden both read zero people
+  while the Ob estuary reads four thousand — so the ports are named, like the
+  railheads and like the colonial garrisons before them.
+
+`world/depots.js` holds both lists. They are not cities and were never meant to
+be; several were sidings. For the purpose of getting shells forward that is what
+they were.
+
+The check is now a test, and it is the strongest one in the suite: **every army
+on the board can be fed on the first morning.** The only exceptions are
+formations the order of battle deliberately puts on somebody else's ground — the
+8th Route Army in the Shanxi hills inside the Japanese occupation, and the
+Gibraltar, Malta and Aden garrisons, all three of which are smaller than a 67 km
+hex and so are placed on the nearest land the board has, which for Malta is
+Sicily.
+
+### On the map
+
+Ground of yours that nothing can reach is drained towards a dead grey. It keeps
+its colour, because a hex has to go on saying whose it is, but a salient that
+has outrun its railheads reads as a pale finger before anybody has to be told.
+On the Soviet page the Trans-Siberian is visible as a thread of live colour
+through a continent of it.
+
+Only your own ground is drawn that way. What the other side can feed is not
+something you would know.
+
+**One simplification worth naming:** sea supply asks nothing about who commands
+the sea. A port you hold feeds you whether or not a convoy could reach it.
+Blockade is a naval matter, and the navies do not do anything yet.
+
 ## Replacements
 
 A column that has been fought over comes out at sixty per cent, and seven days
@@ -1328,6 +1410,7 @@ src/
            resourceSites.js  resources.js         — output, 1939
            nations.js  territories.js             — control, 1939
            capitals.js                           — the twenty-six governments
+           depots.js                             — railheads and ports, 1939
            oob1939.js deploy.js  forces.js    — the order of battle, and
                                                  where each formation stands
            navies.js                            — the fleets of 1939
@@ -1352,6 +1435,7 @@ src/
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
            production.js                         — putting the men back
+           supply.js                             — and getting it forward
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
@@ -1366,11 +1450,10 @@ verified.
 
 Air missions: fighters 3 hexes, bombers 10, returning to the airfield they left
 — specified and not built, so aircraft presently fight only for the hex they are
-parked on. Supply, which is the thing that should stop an advance outrunning its
-railheads, and which the access layer already knows enough to model. Raising new
-formations, as against rebuilding the ones in the order of battle. And a way to
-win or lose, which the game does not yet have: a nation reduced to nothing
-simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
+parked on. Blockade, so that sea supply has to be earned. Raising new formations,
+as against rebuilding the ones in the order of battle. And a way to win or lose,
+which the game does not yet have: a nation reduced to nothing simply holds no
+hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

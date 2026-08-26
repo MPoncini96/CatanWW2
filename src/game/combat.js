@@ -3,6 +3,7 @@ import { NATIONS, NATION_INDEX, SEA } from '../world/nations.js';
 import { TERRAIN } from '../world/terrain.js';
 import { CAPITAL_CELLS } from '../world/capitals.js';
 import { applyReplacements } from './production.js';
+import { UNSUPPLIED_STRENGTH, starvation, supplyMap } from './supply.js';
 import { atWar, positionsAt } from './movement.js';
 
 // Fighting for a hex.
@@ -88,14 +89,23 @@ export function luckAt(day, cell) {
   return [1 + (mix(seed) - 0.5) * 2 * LUCK, 1 + (mix(seed ^ 0x5bf03635) - 0.5) * 2 * LUCK];
 }
 
-/** What a set of columns is worth, attacking or defending. */
-export function strengthOf(columns, mode, strengths) {
+/**
+ * What a set of columns is worth, attacking or defending.
+ *
+ * An army that cannot be got shells is worth three fifths of one that can, and
+ * that multiplier is the whole of what supply does to a fight. It is not
+ * subtle and it is not meant to be: the difference between an army in supply
+ * and an army out of it is the difference between the Wehrmacht in June 1941
+ * and the same army in December.
+ */
+export function strengthOf(columns, mode, strengths, supplied = null) {
   let total = 0;
   for (const column of columns) {
     const have = strengths?.get(column.id) ?? column.strength;
     const quality = column.formation.quality ?? 0.5;
+    const fed = supplied === null || supplied.has(column.id) ? 1 : UNSUPPLIED_STRENGTH;
     for (const [arm, rating] of Object.entries(RATINGS)) {
-      total += (have[arm] ?? 0) * rating[mode] * quality;
+      total += (have[arm] ?? 0) * rating[mode] * quality * fed;
     }
   }
   return total;
@@ -159,10 +169,11 @@ export function isCapital(cell) {
  *
  * @returns {{winner, attack, defence, losses, retreat, pocket}}
  */
-export function fight({ world, cell, day, attackers, defenders, strengths, fromCell }) {
+export function fight({ world, cell, day, attackers, defenders, strengths, fromCell, supplied }) {
   const [luckA, luckD] = luckAt(day, cell);
-  const attack = strengthOf(attackers, 'attack', strengths) * luckA;
-  const defence = strengthOf(defenders, 'defend', strengths) * groundBonus(world, cell, fromCell) * luckD;
+  const attack = strengthOf(attackers, 'attack', strengths, supplied) * luckA;
+  const defence =
+    strengthOf(defenders, 'defend', strengths, supplied) * groundBonus(world, cell, fromCell) * luckD;
 
   const attackerWins = attack > defence;
   const ratio = attackerWins ? attack / Math.max(1, defence) : defence / Math.max(1, attack);
@@ -249,6 +260,18 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
   const positions = positionsAt(world.garrisons.opening, moves, day);
   const strengths = strengthsAt(world.garrisons.opening, past, day - 1, replacements);
 
+  // Who can be got anything, worked out once for the whole day and before a
+  // shot is fired — so a column that took a hex this morning fights the
+  // afternoon's battle on whatever it could carry, not on what the hex it just
+  // captured will bring it tomorrow.
+  const supplied = new Set();
+  const maps = new Map();
+  for (const column of world.garrisons.opening) {
+    const nation = column.formation.nation;
+    if (!maps.has(nation)) maps.set(nation, supplyMap(world, nation, day));
+    if (maps.get(nation)[positions.get(column.id) ?? column.cell]) supplied.add(column.id);
+  }
+
   // Who is standing where, and who got there today.
   const onCell = new Map();
   const arrivedToday = new Map();
@@ -302,7 +325,7 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
     const defenders = sides.get(defendNation);
     const fromCell = attackers.map((c) => arrivedToday.get(c.id)).find((c) => c !== undefined) ?? null;
 
-    const result = fight({ world, cell, day, attackers, defenders, strengths, fromCell });
+    const result = fight({ world, cell, day, attackers, defenders, strengths, fromCell, supplied });
     const record = {
       day,
       cell,
@@ -408,6 +431,11 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
     captures.push({ day, cell, from: NATIONS[owner].id, to: taker, cutOff: true });
     alreadyTaken.add(cell);
   }
+
+  // What the hunger took. Recorded with the rest of the casualties, because
+  // that is what it is — a column out of supply is losing men every day to
+  // nothing at all, and the record does not need a second shape to say so.
+  fought.push(...starvation({ world, day, positions, strengths }));
 
   return { battles: fought, retreats, captures };
 }

@@ -233,6 +233,15 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
           )}
 
           <Column title="What holds it" wide>
+            {/* Shown whether or not anybody is standing here, because the
+                question a player asks before sending troops somewhere is
+                whether they could be kept there. */}
+            {tile.supplied === false && (
+              <p className="dossier__starving">
+                Out of supply — nothing can be got to this hex. Anything of yours standing on it
+                fights at three fifths and loses men every day.
+              </p>
+            )}
             {tile.forcesUnknown ? (
               <p className="dossier__none">
                 Not known — this ground is held by the other side and nobody on yours is looking at
@@ -258,6 +267,7 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                     : `${formatUnits(tile.fieldInfantry)} of them are field troops.`}
                   {tile.airbase ? ' There is an airfield here.' : ''}
                 </p>
+
                 <ul className="dossier__units">
                   {tile.garrison.map((unit) => (
                     <li key={unit.id} title={unit.source}>

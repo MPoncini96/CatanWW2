@@ -3,6 +3,7 @@ import { TERRAIN } from '../world/terrain.js';
 import { RESOURCES } from '../world/resources.js';
 import { UNITS } from '../world/forces.js';
 import { formationName } from '../world/deploy.js';
+import { supplyFor } from '../game/supply.js';
 import { NATION_INDEX, SEA } from '../world/nations.js';
 import { seesCell, seesFleet } from '../world/intel.js';
 import { Globe } from './globe.js';
@@ -178,6 +179,13 @@ export class GlobeView {
             }))
           : [],
       fieldInfantry: known && this.world.garrisons ? this.world.garrisons.fieldInfantry[index] : 0,
+      // Whether this seat could get anything to this hex today. Its own
+      // question, and only about itself: what the other side can feed is not
+      // something you would know.
+      supplied:
+        this.viewer && this.world.garrisons
+          ? supplyFor(this.world, this.viewer, this.day ?? 0)[index] === 1
+          : null,
       airbase: this.world.garrisons ? this.world.garrisons.airbases.has(index) : false,
       // A fleet is at a station rather than spread over the water, so it is
       // looked up by cell rather than read off a per-cell array. What may be
@@ -333,6 +341,20 @@ export class GlobeView {
   }
 
   /** Whose seat is looking at the board. */
+  /**
+   * The date.
+   *
+   * Supply needs it, because who is at war changes with the calendar and enemy
+   * ground carries nothing: on the second of September French soil will pass a
+   * German convoy and on the third it will not.
+   */
+  setDay(day) {
+    if (this.day === day) return;
+    this.day = day;
+    this.globe.setDay(day);
+    this.needsDraw = true;
+  }
+
   setViewer(viewer) {
     if (this.viewer === viewer) return;
     this.viewer = viewer;

@@ -1679,6 +1679,12 @@ export const FORMATIONS = [
   {
     id: 'uk-fortress-garrisons',
     name: 'Fortress garrisons',
+    // Gibraltar, Malta and Aden are all smaller than a 67 km hex, so each of
+    // these garrisons is placed on the nearest land the board has — which for
+    // Malta is Sicily and for Gibraltar is Spain. They are fed by sea from
+    // ground the map cannot give them, so they are marked as standing on
+    // somebody else's soil, which is exactly what they are doing.
+    foreign: true,
     nation: 'uk',
     type: 'fortress',
     echelon: 'command',

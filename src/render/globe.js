@@ -231,6 +231,13 @@ export class Globe {
   }
 
   /** Whose eyes the board is drawn for. Changes what the Forces layer shows. */
+  /** The date, which decides who is at war and so what supply can cross. */
+  setDay(day) {
+    if (this.day === day) return;
+    this.day = day;
+    this.refresh();
+  }
+
   setViewer(viewer) {
     this.viewer = viewer;
     this.refresh();
@@ -244,7 +251,7 @@ export class Globe {
 
   /** Re-read the world's colours — after territory changes hands, say. */
   refresh() {
-    colorsFor(this.world, this.layer, this.colorBytes, this.viewer);
+    colorsFor(this.world, this.layer, this.colorBytes, this.viewer, this.day ?? 0);
     const { gl } = this;
     gl.bindTexture(gl.TEXTURE_2D, this.colorTexture);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, COLOR_TEX_W, COLOR_TEX_H, gl.RGBA,

@@ -66,7 +66,10 @@ const STORE_INDEX = Object.fromEntries(RESOURCES.map((r, i) => [r.id, i]));
  *
  * @returns {{added: object, cost: object, men: number, share: number}|null}
  */
-export function replacementFor({ world, column, have, day }) {
+export function replacementFor({ world, column, have, day, supplied = true }) {
+  // Replacements come up the same road the shells do. A column out of supply
+  // is not going to be sent men it cannot feed.
+  if (!supplied) return null;
   const rate = REBUILD_RATE[world.garrisons.access[column.cell]] ?? 0;
   if (!rate) return null;
 

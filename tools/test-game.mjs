@@ -72,6 +72,15 @@ import {
   replacementFor,
   spentBy,
 } from '../src/game/production.js';
+import {
+  RAIL_REACH,
+  ROAD_REACH,
+  STARVATION,
+  UNSUPPLIED_STRENGTH,
+  starvation,
+  supplyMap,
+} from '../src/game/supply.js';
+import { DEPOTS_1939, PORTS_1939 } from '../src/world/depots.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1543,8 +1552,12 @@ section('fighting for a hex');
   const poles = (world.garrisons.byCell.get(polish) ?? []).map((c) => c.id);
   G.advance(game, world);
 
-  eq(game.battles.length, 1, 'a hex two armies are standing on is a battle');
-  const battle = game.battles[0];
+  // The record holds fights and starvation in one list, because both are
+  // things that took men off a column and `strengthsAt` reads them the same
+  // way. `starved` is what tells them apart.
+  const fights = game.battles.filter((b) => !b.starved);
+  eq(fights.length, 1, 'a hex two armies are standing on is a battle');
+  const battle = fights[0];
   eq(battle.cell, polish, 'fought where they met');
   eq(battle.attacker, 'germany', 'the side that arrived is the attacker');
   eq(battle.winner, 'attacker', 'and six columns against one garrison carry it');
@@ -1626,7 +1639,7 @@ section('ground changes hands');
   G.setReady(game, 'germany', true);
   G.advance(game, world);
 
-  eq(game.battles.length, 0, 'walking into an empty hex is not a battle');
+  eq(game.battles.filter((b) => !b.starved).length, 0, 'walking into an empty hex is not a battle');
   ok(
     game.captures.some((c) => c.cell === empty && c.walkedIn),
     'but it is a capture, and the record says it was walked into',
@@ -1809,6 +1822,114 @@ section('replacements');
   G.setReady(quiet, 'france', true);
   G.advance(quiet, world);
   eq(quiet.replacements.length, 0, 'a seat that asks for nothing is sent nothing');
+
+  world.march([], 0, [], []);
+}
+
+
+// ---------------------------------------------------------------- and supply
+section('getting the shells forward');
+{
+  const world = board();
+  const opening = world.garrisons.opening;
+
+  ok(RAIL_REACH > ROAD_REACH * 3, 'a railway carries it much further than a lorry');
+  ok(UNSUPPLIED_STRENGTH < 1, 'and an army without it fights worse');
+  ok(STARVATION > 0 && STARVATION < 0.1, 'and wastes away slowly rather than vanishing');
+  eq(
+    DEPOTS_1939.length,
+    new Set(DEPOTS_1939.map((d) => d[0])).size,
+    'no railhead is listed twice',
+  );
+  eq(PORTS_1939.length, new Set(PORTS_1939.map((d) => d[0])).size, 'nor any port');
+
+  // ---- everybody starts fed ----------------------------------------------
+  //
+  // The strongest check there is on the whole model. Every army on the board
+  // was deployed where it could be maintained — that is what a deployment is —
+  // so if the supply rule starves anybody on the first morning, the rule is
+  // wrong and not the order of battle. It found four things that way: no sea
+  // supply at all, depots only where the 189-city table had a city, trackless
+  // ground refusing to conduct, and nothing east of the Urals.
+  const hungry = [];
+  const maps = new Map();
+  for (const column of opening) {
+    const nation = column.formation.nation;
+    // Formations the order of battle puts on somebody else's ground never had
+    // a line to lose: the 8th Route Army in Shanxi, the Malta garrison on
+    // Sicily because Malta is smaller than a hex.
+    if (column.formation.foreign) continue;
+    if (!maps.has(nation)) maps.set(nation, supplyMap(world, nation, 0));
+    if (!maps.get(nation)[column.cell]) hungry.push(`${column.id} at ${column.cell}`);
+  }
+  for (const line of hungry.slice(0, 6)) console.error(`        ${line}`);
+  eq(hungry.length, 0, 'every army on the board can be fed on the first morning');
+
+  // ---- and the famous ones by name ---------------------------------------
+  const fed = (nation, lat, lon) => supplyMap(world, nation, 0)[cellFor(lat, lon)] === 1;
+  ok(fed('germany', 54.7, 20.5), 'East Prussia is fed — across the Corridor, by sea');
+  ok(fed('italy', 32.9, 13.19), 'and Libya across the Mediterranean');
+  ok(fed('ussr', 52.03, 113.5), 'the Transbaikal down the Trans-Siberian');
+  ok(fed('ussr', 55.75, 37.62), 'Moscow, which would be a poor showing otherwise');
+  ok(fed('uk', 28.6, 77.2), 'and India');
+  ok(!fed('ussr', 62.0, 129.7), 'Yakutsk is not — there is no railway to it');
+  ok(!fed('italy', 23.0, 12.0), 'nor the deep Sahara');
+
+  // ---- a siege ------------------------------------------------------------
+  // The point of the whole thing. A column encircled on its own railhead is
+  // standing on a railway that goes nowhere.
+  const berlin = cellFor(52.52, 13.4);
+  ok(supplyMap(world, 'germany', 3)[berlin], 'Berlin is fed while Germany holds the ground round it');
+  const ring = [...neighbours(berlin)].filter((j) => world.ownership.owner[j] !== SEA);
+  const held = ring.map((j) => world.ownership.owner[j]);
+  world.ownership.transfer(ring, 'france', { reason: 'test' });
+  ok(!supplyMap(world, 'germany', 3)[berlin], 'and cut off the moment somebody holds all of it');
+  ok(
+    !supplyMap(world, 'france', 3)[berlin],
+    'and not fed by the besiegers either, who do not hold the hex',
+  );
+  ring.forEach((cell, n) => world.ownership.set(cell, held[n], { reason: 'test' }));
+  ok(supplyMap(world, 'germany', 3)[berlin], 'and fed again when the ring is lifted');
+
+  // ---- what it does to a fight -------------------------------------------
+  const columns = [{ id: 'a', formation: { quality: 1 }, strength: { infantry: 1000 } }];
+  eq(strengthOf(columns, 'attack'), 1000, 'a column nobody asked about is at full weight');
+  eq(strengthOf(columns, 'attack', null, new Set(['a'])), 1000, 'a fed one likewise');
+  eq(
+    strengthOf(columns, 'attack', null, new Set()),
+    1000 * UNSUPPLIED_STRENGTH,
+    'and a hungry one at three fifths',
+  );
+
+  // ---- and what it costs to stay there ------------------------------------
+  const strengths = new Map(opening.map((c) => [c.id, { ...c.strength }]));
+  const positions = new Map(opening.map((c) => [c.id, c.cell]));
+  eq(starvation({ world, day: 0, positions, strengths }).length, 0, 'nobody starves on day one');
+
+  // Put a French column in the middle of Siberia and it will.
+  const nowhere = cellFor(62.0, 129.7);
+  const stray = opening.find((c) => c.formation.nation === 'france');
+  const moved = new Map(positions);
+  moved.set(stray.id, nowhere);
+  const starving = starvation({ world, day: 3, positions: moved, strengths });
+  eq(starving.length, 1, 'an army in the middle of Siberia does');
+  eq(starving[0].losers[0], stray.id, 'and it is the one that walked there');
+  ok(starving[0].starved, 'the record says it was hunger and not a battle');
+  eq(starving[0].loserShare, STARVATION, 'and how much of it that cost');
+  eq(starving[0].winners.length, 0, 'nobody wins a famine');
+
+  // Replacements do not come up a road that does not exist.
+  eq(
+    replacementFor({
+      world,
+      column: stray,
+      have: { infantry: 1 },
+      day: 3,
+      supplied: false,
+    }),
+    null,
+    'and nothing is sent up to a column that cannot be reached',
+  );
 
   world.march([], 0, [], []);
 }

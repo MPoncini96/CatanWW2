@@ -1,6 +1,7 @@
 import { TILE_COUNT } from '../world/sphere.js';
 import { PALETTE_RGB, SHADES, TERRAIN, rgbOf } from '../world/terrain.js';
-import { NATIONS, NEUTRAL, SEA } from '../world/nations.js';
+import { NATIONS, NATION_INDEX, NEUTRAL, SEA } from '../world/nations.js';
+import { supplyFor } from '../game/supply.js';
 import { RESOURCES } from '../world/resources.js';
 import { visibilityFor } from '../world/intel.js';
 
@@ -75,9 +76,23 @@ export function terrainColors(world, out) {
 const FLOOR = 0.42;
 const FOG_MIX = 0.66;
 
-export function politicalColors(world, out, viewer = null) {
+/**
+ * The look of ground nothing can reach.
+ *
+ * Not a colour of its own — a hex has to go on saying whose it is — but drained
+ * towards a dead grey, so a salient that has outrun its railheads reads as a
+ * pale finger on the map before anybody has to be told about it. Only your own
+ * ground is drawn this way: what the other side can feed is not something you
+ * would know.
+ */
+const DRY = [96, 88, 74];
+const DRY_MIX = 0.55;
+
+export function politicalColors(world, out, viewer = null, day = 0) {
   const owner = world.ownership.owner;
   const visible = viewer ? visibilityFor(world, viewer) : null;
+  const supplied = viewer && world.garrisons ? supplyFor(world, viewer, day) : null;
+  const seat = viewer ? NATION_INDEX[viewer] : -1;
   const strength = world.forceStrength;
   const logMax = Math.log1p(world.maxForceStrength || 1);
   const cache = new Map();
@@ -103,6 +118,11 @@ export function politicalColors(world, out, viewer = null) {
       write(out, i, mix(rgb, UNKNOWN, FOG_MIX));
       continue;
     }
+
+    // Ground of ours that cannot be fed. Drawn before the strength ramp, so a
+    // hex heavy with troops it cannot supply looks worse than an empty one
+    // rather than brighter.
+    if (supplied && nation === seat && !supplied[i]) rgb = mix(rgb, DRY, DRY_MIX);
 
     // Log scale: a garrison of ten thousand and one of a million are both worth
     // seeing, and a linear ramp would show only the second.
@@ -164,8 +184,8 @@ export function outputColors(world, out) {
  * `viewer` is the seat looking at it. Only the Nations layer cares: who holds
  * what is public, how much of it is under arms is not.
  */
-export function colorsFor(world, layer, out, viewer = null) {
-  if (layer === 'nations') return politicalColors(world, out, viewer);
+export function colorsFor(world, layer, out, viewer, day = 0) {
+  if (layer === 'nations') return politicalColors(world, out, viewer, day);
   if (layer === 'output') return outputColors(world, out);
   return terrainColors(world, out);
 }

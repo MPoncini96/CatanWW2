@@ -430,6 +430,7 @@ export default function App() {
   // seat may see moves with the seat.
   useEffect(() => {
     viewRef.current?.setViewer(seat);
+    viewRef.current?.setDay(game?.day ?? 0);
     setSelected(null);
     setHover(null);
   }, [power, world]);

@@ -2187,3 +2187,17 @@ button:disabled {
   font-size: 10px;
   color: #7f93ab;
 }
+
+/* A hex nothing can be got to. The one piece of bad news the dossier gives in
+   a colour of its own, because it is the one a player will otherwise not
+   notice until the men have gone. */
+.dossier__starving {
+  margin: 4px 0 5px;
+  padding: 4px 7px;
+  border-left: 2px solid rgba(214, 138, 106, 0.7);
+  background: rgba(214, 138, 106, 0.1);
+  border-radius: 0 3px 3px 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: #e0a894;
+}

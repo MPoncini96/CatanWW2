@@ -5,6 +5,7 @@ import { entersOn, isActive, warSummary } from './belligerence.js';
 import { executeOrders, positionsAt } from './movement.js';
 import { resolveDay, strengthsAt } from './combat.js';
 import { canAfford, replacementFor, spentBy } from './production.js';
+import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
@@ -227,11 +228,13 @@ function sendReplacements(game, world) {
       if (!column || column.formation.nation !== power) continue;
       const have = left.get(id);
       if (!have) continue;
+      const where = positions.get(id) ?? column.cell;
       const want = replacementFor({
         world,
-        column: { ...column, cell: positions.get(id) ?? column.cell },
+        column: { ...column, cell: where },
         have,
         day: game.day,
+        supplied: supplyFor(world, power, game.day)[where] === 1,
       });
       if (!want) continue;
       if (canAfford(economy, want.cost, running)) continue;
