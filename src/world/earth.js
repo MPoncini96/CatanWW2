@@ -245,6 +245,18 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
   // and food is gone — but the order is kept because forces read both.
   const output = buildResources(world);
   world.resources = output.amounts;
+  // The factories, pulled out of the industrial sites: the places that *make*
+  // things rather than dig them up. Steel is the one that matters — it was how
+  // everyone measured war potential in 1939, and it is why the Ruhr had more
+  // anti-aircraft guns over it than anywhere else on earth.
+  world.works = [];
+  for (const [cell, sites] of output.sitesByTile) {
+    for (const site of sites) {
+      if (site.resource !== 'steel') continue;
+      world.works.push({ cell, name: site.name, output: site.output });
+    }
+  }
+  world.works.sort((a, b) => b.output - a.output || a.cell - b.cell);
   world.resourceTotals = output.totals;
   world.resourceStats = output.stats;
   world.sitesByTile = output.sitesByTile;

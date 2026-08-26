@@ -27,7 +27,7 @@ import { Survey } from './Survey.jsx';
 import { March } from './March.jsx';
 import { Replacements } from './Replacements.jsx';
 import { strengthsAt } from '../game/combat.js';
-import { spentBy } from '../game/production.js';
+import { capacityFor, spentBy } from '../game/production.js';
 import {
   claimSeat,
   fetchState,
@@ -622,6 +622,18 @@ export default function App() {
   }, [world, power, game?.day, ownershipVersion, marchVersion, spent]);
 
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
+  // What this nation's factories can turn out today, and how much of it is
+  // down. Follows the ground, because a works you have lost makes nothing for
+  // you and a works you have taken makes it for you tomorrow.
+  const capacity = useMemo(() => {
+    if (!world?.works || !economy || master) return null;
+    const raids = game?.raids ?? [];
+    const built = capacityFor(world, power, game?.day ?? 0, raids, economy.people);
+    const down = raids.filter((r) => r.until > (game?.day ?? 0)).length;
+    return { ...built, down };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, power, master, economy, game?.day, game?.raids?.length, ownershipVersion]);
+
   const player = master ? MASTER_SEAT : power ? BY_ID[power] : null;
 
   // The index: eight nations and nothing else to decide.
@@ -725,6 +737,7 @@ export default function App() {
                 economy={economy}
                 open={storesOpen}
                 onToggle={setStoresOpen}
+                capacity={capacity}
               />
             </>
           )}
@@ -840,6 +853,7 @@ export default function App() {
                   strengths={strengths}
                   wanted={rebuilding}
                   economy={economy}
+                  capacity={capacity}
                   onToggle={toggleRebuild}
                   onSend={sendOrders}
                   onCancel={() => setRebuildAt(null)}

@@ -155,6 +155,10 @@ export class GlobeView {
           )
         : [],
       sites: this.world.sitesByTile?.get(index) ?? [],
+      // A factory, as against a mine or a field. It is worth telling apart:
+      // this is the thing that makes replacements, that can be taken, and that
+      // a bomber would come for.
+      works: (this.world.works ?? []).filter((w) => w.cell === index),
       forces:
         this.world.forces && known
           ? UNITS.map((u, n) => ({ ...u, count: this.world.forces[n][index] })).filter(

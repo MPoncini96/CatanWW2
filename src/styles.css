@@ -2201,3 +2201,10 @@ button:disabled {
   line-height: 1.45;
   color: #e0a894;
 }
+
+/* A works that has been bombed. The one number in the books that is somebody
+   else's doing. */
+.economy__down {
+  font-style: normal;
+  color: #e0a894;
+}

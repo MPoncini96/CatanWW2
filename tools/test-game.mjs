@@ -65,10 +65,14 @@ import {
 } from '../src/game/combat.js';
 import { CAPITALS_1939, capitalAt } from '../src/world/capitals.js';
 import {
+  COLUMN_RATE,
   COSTS,
   CREW,
-  REBUILD_RATE,
+  EFFORT,
+  PLANT_DAYS_PER_KT,
   canAfford,
+  capacityFor,
+  effortOf,
   replacementFor,
   spentBy,
 } from '../src/game/production.js';
@@ -1721,13 +1725,10 @@ section('replacements');
   ok(CREW.bombers > CREW.fighters, 'and a bomber wants a crew where a fighter wants a pilot');
 
   // ---- how fast, and where ------------------------------------------------
-  ok(REBUILD_RATE[ACCESS.RAIL] > REBUILD_RATE[ACCESS.ROAD], 'a railhead turns replacements round faster');
-  eq(REBUILD_RATE[ACCESS.NONE], 0, 'and ground nothing can reach gets none at all');
+  ok(COLUMN_RATE > 0 && COLUMN_RATE < 0.2, 'a formation can only absorb so much of itself a day');
 
-  const sample = opening.find(
-    (c) => c.strength.infantry > 20000 && world.garrisons.access[c.cell] === ACCESS.RAIL,
-  );
-  ok(sample, 'there is a big column on a railhead to test with');
+  const sample = opening.find((c) => c.strength.infantry > 20000);
+  ok(sample, 'there is a big column to test with');
   eq(
     replacementFor({ world, column: sample, have: sample.strength, day: 0 }),
     null,
@@ -1739,23 +1740,51 @@ section('replacements');
   const want = replacementFor({ world, column: sample, have: half, day: 0 });
   ok(want !== null, 'a column at half strength asks for something');
   ok(
-    want.added.infantry <= Math.ceil(sample.strength.infantry * REBUILD_RATE[ACCESS.RAIL]),
+    want.added.infantry <= Math.ceil(sample.strength.infantry * COLUMN_RATE),
     'and never more than a day of it',
   );
   ok(want.men >= want.added.infantry, 'the draft covers the riflemen and the crews');
   ok(want.cost.steel > 0, 'and it costs steel');
 
-  // Trackless ground gets nothing, wherever the column came from.
-  let wild = -1;
-  for (let i = 0; i < TILE_COUNT && wild < 0; i += 1) {
-    if (world.ownership.owner[i] !== SEA && world.garrisons.access[i] === ACCESS.NONE) wild = i;
-  }
-  ok(wild >= 0, 'there is trackless ground on the board');
   eq(
-    replacementFor({ world, column: { ...sample, cell: wild }, have: half, day: 0 }),
+    replacementFor({ world, column: sample, have: half, day: 0, supplied: false }),
     null,
-    'and a column standing on it is not rebuilt at all',
+    'and a column nothing can reach is not rebuilt at all',
   );
+
+  // ---- and what the factories can turn out --------------------------------
+  ok(world.works.length > 40, `${world.works.length} steelworks on the board`);
+  ok(
+    world.works[0].output >= world.works[world.works.length - 1].output,
+    'listed heaviest first',
+  );
+  eq(EFFORT.infantry, 1, 'a man is the unit the factories are measured in');
+  ok(EFFORT.tanks > EFFORT.artillery, 'a tank is more work than a gun');
+  ok(EFFORT.bombers > EFFORT.tanks, 'and a bomber more than a tank');
+  eq(effortOf({ infantry: 10, tanks: 2 }), 10 + 2 * EFFORT.tanks, 'and a day of it adds up');
+
+  const german = capacityFor(world, 'germany', 0, [], economyFor(world, 'germany', 0).people);
+  ok(german.steel > 15000, `Germany holds ${german.steel.toLocaleString()} kt a year of steel`);
+  ok(german.plantDays > 100_000, 'which is a hundred thousand plant-days and more');
+  const ruhr = world.works.find((w) => w.name.startsWith('Ruhr'));
+  ok(ruhr, 'the Ruhr is one of them');
+  ok(
+    ruhr.output / german.steel > 0.5,
+    `and is ${Math.round((ruhr.output / german.steel) * 100)}% of German steel on its own`,
+  );
+
+  // A works that has been bombed makes nothing until it is back — the whole
+  // reason a bomber is worth flying.
+  const bombed = capacityFor(world, 'germany', 5, [{ cell: ruhr.cell, until: 12 }], 0);
+  ok(bombed.steel < german.steel * 0.5, 'with the Ruhr down, half the steel is gone');
+  const mended = capacityFor(world, 'germany', 12, [{ cell: ruhr.cell, until: 12 }], 0);
+  eq(mended.steel, german.steel, 'and back the day the repairs are finished');
+
+  // A nation with no heavy industry still rebuilds, slowly, out of its people.
+  const chinese = capacityFor(world, 'china', 0, [], economyFor(world, 'china', 0).people);
+  ok(chinese.plantDays > 0, 'China can rebuild something');
+  ok(chinese.plantDays < german.plantDays / 20, 'and very much less than Germany');
+  eq(PLANT_DAYS_PER_KT > 0, true, 'steel is what war potential was measured in');
 
   // ---- paying for it ------------------------------------------------------
   const books = economyFor(world, 'germany', 0);
@@ -1793,8 +1822,36 @@ section('replacements');
     const have = strengthsAt(opening, game.battles, day, game.replacements).get(sample.id).infantry;
     if (have >= sample.strength.infantry) full = day;
   }
-  ok(full > 8, `a shattered formation takes ${full} days to rebuild, not one`);
+  ok(full >= 7, `a shattered formation takes ${full} days to rebuild, not one`);
   ok(full < 25, 'but it does come back');
+
+  // And the limit that matters is not that one. A formation rebuilds in a
+  // week; a nation cannot rebuild its formations in a week, because the
+  // factories are what ration it. Ask for everything Germany has and see how
+  // much of it a day's plant can actually cover.
+  const whole = G.newGame();
+  G.claim(whole, 'germany', 'de2', 'C');
+  const all = opening.filter((c) => c.formation.nation === 'germany');
+  for (const c of all) {
+    whole.battles.push({ day: 0, cell: c.cell, losers: [c.id], winners: [], loserShare: 0.3, winnerShare: 0 });
+  }
+  G.setOrders(whole, 'germany', [], all.map((c) => c.id));
+  G.setReady(whole, 'germany', true);
+  G.advance(whole, world);
+  const askedFor = all.length;
+  const sentUp = whole.replacements.filter((r) => r.day === whole.day).length;
+  ok(sentUp > 0, 'some of them are rebuilt');
+  ok(sentUp < askedFor, `and not all — ${sentUp} of ${askedFor} columns, because the plant is finite`);
+  const spentEffort = whole.replacements.reduce((n, r) => n + r.effort, 0);
+  const plant = capacityFor(
+    world,
+    'germany',
+    whole.day,
+    [],
+    economyFor(world, 'germany', whole.day).people,
+  ).plantDays;
+  ok(spentEffort <= plant + 1, 'and never more than a day of the factories');
+  ok(spentEffort > plant * 0.9, 'and it uses very nearly all of them');
   eq(
     strengthsAt(opening, game.battles, full + 5, game.replacements).get(sample.id).infantry,
     sample.strength.infantry,

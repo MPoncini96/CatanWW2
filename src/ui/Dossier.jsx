@@ -202,7 +202,14 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
               <p className="dossier__none">Nothing worth counting.</p>
             )}
             {tile.sites?.length > 0 && (
-              <Row label="Works" value={tile.sites.map((s) => s.name).join(', ')} />
+              <Row label="Sites" value={tile.sites.map((s) => s.name).join(', ')} />
+            )}
+            {tile.works?.length > 0 && (
+              <p className="dossier__field">
+                {tile.works.map((w) => `${w.name} — ${w.output.toLocaleString()} kt of steel a year`)
+                  .join('; ')}
+                . A works makes replacements for whoever holds the hex.
+              </p>
             )}
           </Column>
 

@@ -1185,23 +1185,72 @@ carried.
 
 ### How fast, and where
 
-Up to **4% of a formation a day on a railhead**, 1.5% on a road, and **nothing
-at all on ground that neither reaches** — the same access layer that decided
-where the armies could deploy in the first place. This is the lever the whole
-thing turns on: rebuild to full every day and defending costs nothing and no
-battle is ever decided.
+**Three things ration it, and they are three different questions.**
 
-What that produces, measured rather than guessed:
+**Can anything get there?** That is supply, and it is asked first. A column out
+of supply is sent nothing at all.
 
-- A formation smashed to two fifths of itself takes **fifteen days** on a
-  railhead to come back. Losing a battle badly is a fortnight of consequence.
-- Germany rebuilding **its entire army** at once drafts about **1.07 million
-  men** and costs very nearly its whole steel output for a fortnight — 53 kt a
-  day against an income of 51.5. A nation can rebuild an army or build
-  something else, and not both.
-- A column that won its battle lost 2% and is back at full the next morning,
-  which is the intended asymmetry: the side that held the field recovers, the
-  side that lost it does not.
+**How much can one formation absorb?** Up to **8% of itself a day**. A division
+cannot double overnight however many rifles are waiting: the men have to be
+found, moved and put in the right companies.
+
+**How much can the country make?** That is the factories, and it is the limit
+that actually binds.
+
+### The factories
+
+A **works** is one of the **53 steelworks** in `resourceSites.js` — Pittsburgh,
+the Ruhr, Magnitogorsk, Le Creusot, Yawata — each with its real 1938–39 output.
+They were already on the board as sources of income. They now do a second job:
+they are what turns steel into rifles, and they belong to whoever holds the hex.
+
+Capacity is measured in **plant-days**, where one plant-day is one man's kit —
+the smallest thing a war economy makes. Everything else is measured against him:
+
+| | plant-days |
+| --- | --- |
+| A man | 1 |
+| A field gun | 8 |
+| A fighter | 20 |
+| A tank | 30 |
+| A bomber | 60 |
+
+Ratios of *industrial effort*, which is why a fighter costs more than a gun that
+outweighs it several times over. A thousand tonnes of annual steel is worth
+seven plant-days, set so that Germany's 18,800 kt comes out at about 130,000 —
+which is what the old flat rate gave it, so the balance measured then still
+holds. A nation with no heavy industry still rebuilds a little out of its own
+people, which is negligible beside a working Ruhr and is the whole of what China
+has.
+
+That produces the industrial geography of the war as a single column of figures:
+
+| | works held | steel, kt/yr | plant-days a day |
+| --- | --- | --- | --- |
+| United States | 9 | 48,000 | 338,000 |
+| Soviet Union | 6 | 18,600 | 135,000 |
+| Germany | 6 | 18,800 | 133,000 |
+| United Kingdom | 11 | 16,200 | 128,000 |
+| France | 6 | 13,700 | 99,000 |
+| Japan | 4 | 6,700 | 52,000 |
+| Italy | 3 | 1,900 | 15,000 |
+| China | 0 | 0 | 1,700 |
+
+Italy at a ninth of Germany and China at nothing at all are not adjustments;
+they are what the steel tables said.
+
+### What it produces
+
+- Ask for Germany's whole army to be rebuilt and **81 of 167 columns** are sent
+  men. The day spends **133,306 plant-days of 133,336** — the factories fill and
+  stop. Which formations get the men is the decision, and it is the player's.
+- A formation smashed to two fifths comes back in about **a week and a half**.
+- **The Ruhr alone is 64% of German steel**, and three hexes are 86% of it. Its
+  hex holds the heaviest anti-aircraft concentration on the board and no field
+  troops whatever — which is a target described from two directions at once.
+- A works that has been bombed contributes nothing until it is repaired.
+  `capacityFor` already takes the raids and reads them; there is simply nothing
+  yet that fills the list.
 
 ### Where the answer lives
 
@@ -1434,7 +1483,8 @@ src/
            movement.js                           — marching, resting and replay
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
-           production.js                         — putting the men back
+           production.js                         — the factories, and putting
+                                                   the men back
            supply.js                             — and getting it forward
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
@@ -1448,12 +1498,16 @@ verified.
 
 ## Not built yet
 
-Air missions: fighters 3 hexes, bombers 10, returning to the airfield they left
-— specified and not built, so aircraft presently fight only for the hex they are
-parked on. Blockade, so that sea supply has to be earned. Raising new formations,
-as against rebuilding the ones in the order of battle. And a way to win or lose,
-which the game does not yet have: a nation reduced to nothing simply holds no
-hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
+Bombing, which is the next thing and the one most of this is now waiting for:
+fighters 3 hexes, bombers 10, returning to the airfield they left, contested by
+enemy fighters within their own radius of the target and by the flak on it.
+`capacityFor` already takes a list of raids, so the day a raid lands the
+factories stop on their own. Shipyards, which want naval operations first — a
+shipyard would presently build hulls that cannot move to replace losses that
+cannot happen. Blockade, so that sea supply has to be earned. Raising new
+formations, as against rebuilding the ones in the order of battle. And a way to
+win or lose, which the game does not yet have: a nation reduced to nothing
+simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

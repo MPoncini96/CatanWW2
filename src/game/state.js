@@ -4,7 +4,7 @@ import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
 import { executeOrders, positionsAt } from './movement.js';
 import { resolveDay, strengthsAt } from './combat.js';
-import { canAfford, replacementFor, spentBy } from './production.js';
+import { canAfford, capacityFor, replacementFor, spentBy } from './production.js';
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 
@@ -49,6 +49,10 @@ export function newGame() {
     // record has to say about a column: where it is, what the fighting took,
     // and what came up from the depots.
     replacements: [],
+    // Works that have been bombed and the day each is expected back. Empty
+    // until there is bombing; `capacityFor` already reads it, so the day a
+    // raid lands the factories stop on their own.
+    raids: [],
     // Which columns each seat wants replacements sent to tomorrow.
     rebuilding: {},
     // Bumped on every change so clients can tell whether they are current.
@@ -222,6 +226,12 @@ function sendReplacements(game, world) {
   for (const [power, wanted] of Object.entries(game.rebuilding ?? {})) {
     if (!wanted?.length) continue;
     const economy = economyFor(world, power, game.day, spentBy(game.replacements, power, game.day).stores);
+    // Two things ration a day's replacements, and they are different things.
+    // The stores say whether the metal exists; the factories say whether
+    // anybody can turn it into rifles. A nation can be rich in steel and unable
+    // to use it, which is most of what strategic bombing was for.
+    const capacity = capacityFor(world, power, game.day, game.raids, economy.people);
+    let plantDays = capacity.plantDays;
     const running = {};
     for (const id of wanted) {
       const column = columns.get(id);
@@ -237,7 +247,9 @@ function sendReplacements(game, world) {
         supplied: supplyFor(world, power, game.day)[where] === 1,
       });
       if (!want) continue;
+      if (want.effort > plantDays) continue;
       if (canAfford(economy, want.cost, running)) continue;
+      plantDays -= want.effort;
       for (const [store, amount] of Object.entries(want.cost)) {
         running[store] = (running[store] ?? 0) + amount;
       }
@@ -299,6 +311,7 @@ export function publicState(game, viewer) {
     battles: game.battles,
     captures: game.captures,
     replacements: game.replacements,
+    raids: game.raids,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     next: nextEventAfter(game.day),

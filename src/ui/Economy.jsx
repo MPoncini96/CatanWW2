@@ -1,6 +1,7 @@
 import { formatAmount } from '../world/resources.js';
 import { formatPerDay } from '../world/economy.js';
 import { formatPopulation } from '../world/population.js';
+import { formatUnits } from '../world/forces.js';
 
 /**
  * What this nation has, takes in, and burns standing still.
@@ -11,7 +12,7 @@ import { formatPopulation } from '../world/population.js';
  * hand, Italy 206, China twelve — which is the whole of why the map looks the
  * way it does by 1941.
  */
-export function Economy({ economy, open, onToggle }) {
+export function Economy({ economy, open, onToggle, capacity }) {
   if (!economy) return null;
 
   return (
@@ -72,6 +73,38 @@ export function Economy({ economy, open, onToggle }) {
         {economy.machines.aircraft.toLocaleString()} aircraft ·{' '}
         {economy.machines.hulls.toLocaleString()} hulls
       </p>
+
+      {/* What the works can turn out. Not a store — you cannot save it up —
+          but the ceiling on how much of an army can be rebuilt in a day, and
+          the reason a steelworks is worth taking and worth bombing. */}
+      {capacity && (
+        <>
+          <h3>Industry</h3>
+          <dl className="economy__people">
+            <div>
+              <dt>Steelworks</dt>
+              <dd>
+                {capacity.works.length}
+                {capacity.down > 0 && <em className="economy__down"> · {capacity.down} out</em>}
+              </dd>
+            </div>
+            <div>
+              <dt>A day's plant</dt>
+              <dd>{formatUnits(Math.round(capacity.plantDays))}</dd>
+            </div>
+          </dl>
+          <p className="economy__note">
+            {capacity.steel.toLocaleString()} kt of steel a year, and a day of it rebuilds that
+            many men — or a thirtieth as many tanks. It cannot be saved up.
+          </p>
+          {capacity.works.length > 0 && (
+            <p className="economy__note">
+              Heaviest: {capacity.works[0].name} ({capacity.works[0].output.toLocaleString()} kt),{' '}
+              {Math.round((capacity.works[0].output / Math.max(1, capacity.steel)) * 100)}% of it.
+            </p>
+          )}
+        </>
+      )}
 
     </div>
   );

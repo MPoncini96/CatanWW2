@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { formatUnits } from '../world/forces.js';
 import { formationName } from '../world/deploy.js';
-import { REBUILD_RATE, replacementFor } from '../game/production.js';
+import { COLUMN_RATE, replacementFor } from '../game/production.js';
+import { supplyFor } from '../game/supply.js';
 import { formatAmount } from '../world/resources.js';
 import { RESOURCES } from '../world/resources.js';
 
@@ -26,6 +27,7 @@ export function Replacements({
   strengths,
   wanted,
   economy,
+  capacity,
   onToggle,
   onSend,
   onCancel,
@@ -45,12 +47,12 @@ export function Replacements({
       out.push({
         column,
         share: paper ? now / paper : 1,
-        want: replacementFor({ world, column: { ...column, strength: full }, have, day }),
+        want: replacementFor({ world, column: { ...column, strength: full }, have, day, supplied }),
       });
     }
     return out.sort((a, b) => a.share - b.share);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, cell, day, strengths]);
+  }, [world, power, cell, day, strengths, supplied]);
 
   // What a day of it would take out of the stores, if everything ticked here
   // were sent. The stores are the seat's whole stock, not this hex's share of
@@ -58,17 +60,22 @@ export function Replacements({
   const bill = useMemo(() => {
     const total = {};
     let men = 0;
+    let effort = 0;
     for (const row of rows) {
       if (!asked.has(row.column.id) || !row.want) continue;
       men += row.want.men;
+      effort += row.want.effort;
       for (const [store, amount] of Object.entries(row.want.cost)) {
         total[store] = (total[store] ?? 0) + amount;
       }
     }
-    return { total, men };
+    return { total, men, effort };
   }, [rows, asked]);
 
-  const rate = REBUILD_RATE[world.garrisons.access[cell]] ?? 0;
+  // Whether anything can be got here at all is supply's question, and it is
+  // asked before the factories are.
+  const supplied = supplyFor(world, power, day)[cell] === 1;
+  const rate = supplied ? COLUMN_RATE : 0;
 
   return (
     <div className="march">
@@ -77,7 +84,7 @@ export function Replacements({
           Replacements
           <em>
             {rate
-              ? `up to ${Math.round(rate * 100)}% of a formation a day here`
+              ? `up to ${Math.round(rate * 100)}% of a formation a day`
               : 'nothing can reach this hex'}
           </em>
         </h4>
@@ -136,12 +143,19 @@ export function Replacements({
       )}
       {economy && (
         <p className="march__none" style={{ marginTop: '6px' }}>
+          {capacity && (
+            <>
+              The factories can do {formatUnits(Math.round(capacity.plantDays))} a day across the
+              whole army; this hex is asking for {formatUnits(Math.round(bill.effort))} of it
+              {bill.effort > capacity.plantDays && ', which is more than there is'}.{' '}
+            </>
+          )}
           In hand:{' '}
           {economy.stores
             .filter((s) => bill.total[s.id])
             .map((s) => `${s.name} ${formatAmount(s.stock, s.unit)}`)
             .join(' · ') || 'nothing is being asked for yet'}
-          . What cannot be paid for when the day turns is simply not sent.
+          . What the day cannot cover is simply not sent.
         </p>
       )}
     </div>

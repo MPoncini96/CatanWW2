@@ -1,4 +1,4 @@
-import { ACCESS } from '../world/deploy.js';
+import { NATION_INDEX } from '../world/nations.js';
 import { RESOURCES } from '../world/resources.js';
 
 // Replacements.
@@ -44,14 +44,46 @@ export const COSTS = {
 };
 
 /**
- * How much of itself a column can get back in a day, by what can reach it.
+ * The most of itself one formation can absorb in a day.
  *
- * A depot on a railhead turns replacements round in a week; a column at the end
- * of a track does not. This is the lever that decides whether the model works
- * at all: rebuild to full every day and defending costs nothing and nothing is
- * ever decided.
+ * Not a limit on the nation — that comes out of the factories below — but on
+ * the formation: a division cannot double overnight however many rifles are
+ * waiting, because the men have to be found, moved and put in the right
+ * companies. Whether replacements can get there at all is supply's question
+ * and it is asked first.
  */
-export const REBUILD_RATE = { [ACCESS.RAIL]: 0.04, [ACCESS.ROAD]: 0.015, [ACCESS.NONE]: 0 };
+export const COLUMN_RATE = 0.08;
+
+/**
+ * What one of each costs the factories, in plant-days.
+ *
+ * A man is the unit, because a man's kit is the smallest thing a war economy
+ * makes. Everything else is measured against him: a field gun is eight of him,
+ * a tank thirty, a bomber sixty. These are ratios of industrial effort and not
+ * of price or of weight, which is why a fighter costs more than a gun that
+ * outweighs it several times over.
+ */
+export const EFFORT = { infantry: 1, artillery: 8, tanks: 30, fighters: 20, bombers: 60 };
+
+/**
+ * Plant-days a thousand tonnes of annual steel is worth.
+ *
+ * Steel output was how everybody measured war potential in 1939 and it is how
+ * it is measured here. The constant is set so that Germany's 18,800 kt a year
+ * comes out at about 130,000 plant-days — which is what the old flat rate gave
+ * it, so the balance that was measured at the time still holds.
+ */
+export const PLANT_DAYS_PER_KT = 7;
+
+/**
+ * And what a nation with no heavy industry at all can still do.
+ *
+ * China has almost no steel and a very great many people, and rebuilt its
+ * armies out of workshops and conscription for eight years. A nation's
+ * civilians are worth a little of this on their own, which is negligible
+ * beside a working Ruhr and is the whole of what some powers have.
+ */
+export const CIVILIAN_PLANT_DAYS = 1 / 50000;
 
 /** Men are drawn from the civilians of the ground a nation holds. */
 export const CREW = { infantry: 1, tanks: 4, artillery: 6, fighters: 2, bombers: 5 };
@@ -70,13 +102,13 @@ export function replacementFor({ world, column, have, day, supplied = true }) {
   // Replacements come up the same road the shells do. A column out of supply
   // is not going to be sent men it cannot feed.
   if (!supplied) return null;
-  const rate = REBUILD_RATE[world.garrisons.access[column.cell]] ?? 0;
-  if (!rate) return null;
+  const rate = COLUMN_RATE;
 
   const full = column.strength;
   const added = {};
   const cost = {};
   let men = 0;
+  let effort = 0;
   let anything = 0;
 
   for (const arm of ARMS) {
@@ -92,13 +124,49 @@ export function replacementFor({ world, column, have, day, supplied = true }) {
     added[arm] = n;
     anything += n;
     men += n * (CREW[arm] ?? 1);
+    effort += n * (EFFORT[arm] ?? 1);
     for (const [store, each] of Object.entries(COSTS[arm] ?? {})) {
       cost[store] = (cost[store] ?? 0) + n * each;
     }
   }
   if (!anything) return null;
   void day;
-  return { added, cost, men, share: rate };
+  return { added, cost, men, share: rate, effort };
+}
+
+/**
+ * What a nation's factories can turn out in a day, in plant-days.
+ *
+ * The works it holds and that are working, plus a little from its people. A
+ * plant that has been bombed contributes nothing until it is back, which is
+ * what makes bombing worth doing and is why this takes the raids.
+ */
+export function capacityFor(world, nation, day, raids = [], people = 0) {
+  const seat = NATION_INDEX[nation];
+  const down = new Set();
+  for (const raid of raids) {
+    if (raid.until > day) down.add(raid.cell);
+  }
+  let output = 0;
+  const working = [];
+  for (const plant of world.works ?? []) {
+    if (world.ownership.owner[plant.cell] !== seat) continue;
+    if (down.has(plant.cell)) continue;
+    output += plant.output;
+    working.push(plant);
+  }
+  return {
+    plantDays: output * PLANT_DAYS_PER_KT + people * CIVILIAN_PLANT_DAYS,
+    steel: output,
+    works: working,
+  };
+}
+
+/** What a day of rebuilding this column would ask of the factories. */
+export function effortOf(added) {
+  let total = 0;
+  for (const [arm, n] of Object.entries(added ?? {})) total += n * (EFFORT[arm] ?? 1);
+  return total;
 }
 
 /** Everything a nation has spent on replacements up to and including a day. */
