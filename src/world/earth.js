@@ -304,9 +304,9 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
    * is a few hundred entries and the tally is 1,682 columns, so doing the
    * whole thing again costs less than a frame.
    */
-  world.march = (moves, day, battles = []) => {
+  world.march = (moves, day, battles = [], replacements = []) => {
     const at = positionsAt(world.garrisons.opening, moves, day);
-    const left = strengthsAt(world.garrisons.opening, battles, day);
+    const left = strengthsAt(world.garrisons.opening, battles, day, replacements);
     const placements = [];
     for (const placement of world.garrisons.opening) {
       const cell = at.get(placement.id);

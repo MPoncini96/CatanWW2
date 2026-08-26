@@ -25,9 +25,9 @@ export const ORDERS = [
     hint: 'Go forward against the ground in front of you.',
   },
   {
-    id: 'hold',
-    name: 'Retreat / Fortify',
-    hint: 'Dig in where you stand, or fall back to ground you can hold.',
+    id: 'replacements',
+    name: 'Replacements',
+    hint: 'Spend the stores to bring the formations here back up to strength.',
   },
 ];
 
@@ -90,11 +90,17 @@ export function ordersFor({ power, day = 0, tile = null }) {
       return war ? null : `You are not at war with ${held}.`;
     }
 
-    // Retreat or fortify: both are things you do with troops you already have
-    // standing somewhere, so both want the same two facts.
-    if (!mine) return 'This is not your ground.';
+    // Replacements go to troops you already have standing somewhere. Retreat
+    // used to be the third option and is not offered any more, because it is
+    // not a decision: a beaten army falls back on its own, and asking eight
+    // seats to choose each time would stall the day for the sake of an order
+    // the men on the ground were carrying out without one.
     const men = tile.forces?.reduce((sum, arm) => sum + arm.count, 0) ?? 0;
-    return men > 0 ? null : 'Nothing of yours is standing here.';
+    if (!men) return 'Nothing of yours is standing here.';
+    if (!mine && !tile.garrison?.some((unit) => unit.nation === power)) {
+      return 'This is not your ground.';
+    }
+    return null;
   };
 
   return ORDERS.map((order) => {

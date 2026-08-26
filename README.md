@@ -1072,6 +1072,74 @@ behind, which is what relief in place is, and it holds an advance to roughly one
 hex every two days. That was not designed; it falls out of the movement rule and
 the combat rule meeting.
 
+## Replacements
+
+A column that has been fought over comes out at sixty per cent, and seven days
+of losing badly leaves five. Without a way to put men back, a war here ends in
+mutual exhaustion rather than a decision — which is not how any of the armies of
+1939 worked. They rebuilt divisions endlessly out of the draft and the
+factories, and the side that could do it faster won.
+
+**You rebuild what you have and never invent anything new.** A column is
+restored towards the strength its formation deployed with and not one man past
+it. That keeps the order of battle meaning something — 178 formations stays 178
+— and it is what happened: the 4th Army was rebuilt several times and was the
+4th Army each time. Raising new formations is a different feature.
+
+### What it costs
+
+| | |
+| --- | --- |
+| A man | 0.8 t steel, 2 kg rubber, and one civilian |
+| A tank | 25 t steel, 2 t rubber, four crew |
+| A gun | 6 t steel, six crew |
+| A fighter | 2.5 t aluminium, a pilot |
+| A bomber | 8 t aluminium, five crew |
+
+Mind the units, which are not the same for every store: oil, iron and steel are
+kept in **kilotonnes** and aluminium and rubber in **tonnes**, because that is
+how the outputs of 1939 were published and it is what the economy already
+carried.
+
+### How fast, and where
+
+Up to **4% of a formation a day on a railhead**, 1.5% on a road, and **nothing
+at all on ground that neither reaches** — the same access layer that decided
+where the armies could deploy in the first place. This is the lever the whole
+thing turns on: rebuild to full every day and defending costs nothing and no
+battle is ever decided.
+
+What that produces, measured rather than guessed:
+
+- A formation smashed to two fifths of itself takes **fifteen days** on a
+  railhead to come back. Losing a battle badly is a fortnight of consequence.
+- Germany rebuilding **its entire army** at once drafts about **1.07 million
+  men** and costs very nearly its whole steel output for a fortnight — 53 kt a
+  day against an income of 51.5. A nation can rebuild an army or build
+  something else, and not both.
+- A column that won its battle lost 2% and is back at full the next morning,
+  which is the intended asymmetry: the side that held the field recovers, the
+  side that lost it does not.
+
+### Where the answer lives
+
+The same place as everything else. A column is what it deployed with, **less
+what the battles took, plus what the factories put back** — worked out again
+from the record every time it is asked for. The stores are the opening stock
+plus every day's net since, **less everything already spent**; still derived
+from the calendar, with a second term rather than a balance that gets edited.
+
+Replacements arrive **after** the day's fighting, so a column cannot be topped
+up into the middle of the battle it is losing. And a seat that asks for six
+columns and can pay for four gets the first four, in the order it ticked them —
+a decision the player has already made, and better than a rule that spreads the
+shortfall evenly and rebuilds nothing properly.
+
+**Retreat is not on the Actions menu any more.** It was, and it should not have
+been: a beaten army falls back on its own, and offering it as an order implied a
+choice that does not exist. The three things a seat can do to a hex are march
+in, march onto somebody, and send up replacements.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1283,6 +1351,7 @@ src/
            movement.js                           — marching, resting and replay
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
+           production.js                         — putting the men back
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
@@ -1298,10 +1367,10 @@ verified.
 Air missions: fighters 3 hexes, bombers 10, returning to the airfield they left
 — specified and not built, so aircraft presently fight only for the hex they are
 parked on. Supply, which is the thing that should stop an advance outrunning its
-railheads, and which the access layer built for deployment already knows enough
-to model. Production, so that the stores mean something and Germany's 165 days
-of oil have a consequence. And a way to win or lose, which the game does not yet
-have: a nation reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
+railheads, and which the access layer already knows enough to model. Raising new
+formations, as against rebuilding the ones in the order of battle. And a way to
+win or lose, which the game does not yet have: a nation reduced to nothing
+simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

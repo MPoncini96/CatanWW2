@@ -73,8 +73,8 @@ export function setReady(token, ready) {
  * against its own copy of the board and refuses the lot if any is impossible,
  * so a client that has drifted cannot half-commit a day.
  */
-export function setOrders(token, orders) {
-  return call('/api/orders', { method: 'POST', body: { orders }, token });
+export function setOrders(token, orders, rebuilding = []) {
+  return call('/api/orders', { method: 'POST', body: { orders, rebuilding }, token });
 }
 
 /**

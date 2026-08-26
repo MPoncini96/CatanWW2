@@ -64,6 +64,14 @@ import {
   strengthsAt,
 } from '../src/game/combat.js';
 import { CAPITALS_1939, capitalAt } from '../src/world/capitals.js';
+import {
+  COSTS,
+  CREW,
+  REBUILD_RATE,
+  canAfford,
+  replacementFor,
+  spentBy,
+} from '../src/game/production.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1059,8 +1067,16 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 3, 'three orders: reinforce, attack, hold');
-  eq(ORDERS.map((o) => o.id).join(' '), 'reinforce attack hold', 'and they are those three');
+  eq(ORDERS.length, 3, 'three orders a seat may give on a hex');
+  eq(
+    ORDERS.map((o) => o.id).join(' '),
+    'reinforce attack replacements',
+    'march in, march onto somebody, or send men up from the depots',
+  );
+  ok(
+    !ORDERS.some((o) => /retreat/i.test(o.name)),
+    'retreating is not among them — a beaten army falls back on its own',
+  );
 
   const world = board();
   const view = (lat, lon) => {
@@ -1107,8 +1123,11 @@ section('what a seat may order on a hex');
   ok(may('germany', paris, 2).attack, 'and on the third of September it is');
   ok(!may('germany', silesia).attack, 'nobody attacks their own ground');
   ok(may('germany', silesia).reinforce, 'which they may reinforce instead');
-  ok(may('germany', silesia).hold, 'and dig into, having troops on it');
-  ok(may('germany', berlin).hold, 'Berlin too — depot troops are still troops standing there');
+  ok(may('germany', silesia).replacements, 'and send replacements to, having troops on it');
+  ok(
+    may('germany', berlin).replacements,
+    'Berlin too — the replacement army is exactly what depots are for',
+  );
   ok(!may('germany', baltic).reinforce, 'there is no ground in the Baltic to reinforce');
   ok(!may('germany', baltic).attack, 'and nobody there to attack');
 
@@ -1668,6 +1687,130 @@ section('ground changes hands');
 
   world.march([], 0, []);
   void opening;
+}
+
+
+// ------------------------------------------------------------ and rebuilding
+section('replacements');
+{
+  const world = board();
+  const opening = world.garrisons.opening;
+
+  // ---- what it costs -------------------------------------------------------
+  // Mind the units: oil, iron and steel are kept in kilotonnes and aluminium
+  // and rubber in tonnes, because that is how the outputs of 1939 were
+  // published. A tank is 0.025 of the first and a fighter 2.5 of the second.
+  eq(COSTS.tanks.steel * 1000, 25, 'a tank is twenty-five tonnes of steel');
+  eq(COSTS.fighters.aluminium, 2.5, 'and a fighter two and a half tonnes of alloy');
+  ok(COSTS.bombers.aluminium > COSTS.fighters.aluminium * 2, 'a bomber is a much bigger aeroplane');
+  ok(COSTS.tanks.steel > COSTS.artillery.steel, 'and a tank more metal than a gun');
+  eq(CREW.infantry, 1, 'an infantryman is one man');
+  ok(CREW.bombers > CREW.fighters, 'and a bomber wants a crew where a fighter wants a pilot');
+
+  // ---- how fast, and where ------------------------------------------------
+  ok(REBUILD_RATE[ACCESS.RAIL] > REBUILD_RATE[ACCESS.ROAD], 'a railhead turns replacements round faster');
+  eq(REBUILD_RATE[ACCESS.NONE], 0, 'and ground nothing can reach gets none at all');
+
+  const sample = opening.find(
+    (c) => c.strength.infantry > 20000 && world.garrisons.access[c.cell] === ACCESS.RAIL,
+  );
+  ok(sample, 'there is a big column on a railhead to test with');
+  eq(
+    replacementFor({ world, column: sample, have: sample.strength, day: 0 }),
+    null,
+    'a column at full strength asks for nothing',
+  );
+  const half = Object.fromEntries(
+    Object.entries(sample.strength).map(([arm, n]) => [arm, Math.floor(n / 2)]),
+  );
+  const want = replacementFor({ world, column: sample, have: half, day: 0 });
+  ok(want !== null, 'a column at half strength asks for something');
+  ok(
+    want.added.infantry <= Math.ceil(sample.strength.infantry * REBUILD_RATE[ACCESS.RAIL]),
+    'and never more than a day of it',
+  );
+  ok(want.men >= want.added.infantry, 'the draft covers the riflemen and the crews');
+  ok(want.cost.steel > 0, 'and it costs steel');
+
+  // Trackless ground gets nothing, wherever the column came from.
+  let wild = -1;
+  for (let i = 0; i < TILE_COUNT && wild < 0; i += 1) {
+    if (world.ownership.owner[i] !== SEA && world.garrisons.access[i] === ACCESS.NONE) wild = i;
+  }
+  ok(wild >= 0, 'there is trackless ground on the board');
+  eq(
+    replacementFor({ world, column: { ...sample, cell: wild }, have: half, day: 0 }),
+    null,
+    'and a column standing on it is not rebuilt at all',
+  );
+
+  // ---- paying for it ------------------------------------------------------
+  const books = economyFor(world, 'germany', 0);
+  eq(canAfford(books, { steel: 1 }), null, 'Germany can find a tonne of steel');
+  ok(canAfford(books, { steel: 1e9 })?.includes('not enough steel'), 'and not a billion of them');
+  ok(
+    canAfford(books, { steel: 100 }, { steel: 1e9 })?.includes('not enough'),
+    'what is already spoken for this day counts against it',
+  );
+
+  // ---- a fortnight of rebuilding ------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'de', 'A');
+  // Two bad days, and it is down to two fifths of itself.
+  for (let n = 0; n < 2; n += 1) {
+    game.battles.push({
+      day: 0,
+      cell: sample.cell,
+      losers: [sample.id],
+      winners: [],
+      loserShare: 0.35,
+      winnerShare: 0,
+    });
+  }
+  const beaten = strengthsAt(opening, game.battles, 0, []).get(sample.id).infantry;
+  ok(beaten < sample.strength.infantry * 0.45, 'two bad days leave under half of it');
+
+  let day = 0;
+  let full = 0;
+  for (let n = 0; n < 30 && !full; n += 1) {
+    G.setOrders(game, 'germany', [], [sample.id]);
+    G.setReady(game, 'germany', true);
+    G.advance(game, world);
+    day = game.day;
+    const have = strengthsAt(opening, game.battles, day, game.replacements).get(sample.id).infantry;
+    if (have >= sample.strength.infantry) full = day;
+  }
+  ok(full > 8, `a shattered formation takes ${full} days to rebuild, not one`);
+  ok(full < 25, 'but it does come back');
+  eq(
+    strengthsAt(opening, game.battles, full + 5, game.replacements).get(sample.id).infantry,
+    sample.strength.infantry,
+    'and never rebuilds past what the formation is',
+  );
+  ok(game.replacements.every((r) => r.power === 'germany'), 'every replacement is somebody’s');
+  ok(game.replacements.every((r) => r.day <= day), 'and dated no later than today');
+
+  // ---- and the books notice ------------------------------------------------
+  const spend = spentBy(game.replacements, 'germany', day);
+  ok(spend.stores.steel > 0, 'the steel was spent');
+  ok(spend.men > 0, `${spend.men.toLocaleString()} men were drafted for it`);
+  const after = economyFor(world, 'germany', day, spend.stores);
+  const before = economyFor(world, 'germany', day);
+  ok(
+    after.stores.find((x) => x.id === 'steel').stock < before.stores.find((x) => x.id === 'steel').stock,
+    'and the stores are lighter for it than they would have been',
+  );
+  eq(spentBy(game.replacements, 'france', day).men, 0, 'France paid for none of it');
+  eq(spentBy(game.replacements, 'germany', 0).men, 0, 'and none of it was spent before it happened');
+
+  // Nothing was ordered by anybody who did not ask.
+  const quiet = G.newGame();
+  G.claim(quiet, 'france', 'fr', 'B');
+  G.setReady(quiet, 'france', true);
+  G.advance(quiet, world);
+  eq(quiet.replacements.length, 0, 'a seat that asks for nothing is sent nothing');
+
+  world.march([], 0, [], []);
 }
 
 console.log(

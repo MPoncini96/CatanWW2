@@ -2,8 +2,10 @@ import { PLAYER_IDS, isPlayer } from './players.js';
 import { eventsOn, nextEventAfter } from './events.js';
 import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
-import { executeOrders } from './movement.js';
-import { resolveDay } from './combat.js';
+import { executeOrders, positionsAt } from './movement.js';
+import { resolveDay, strengthsAt } from './combat.js';
+import { canAfford, replacementFor, spentBy } from './production.js';
+import { economyFor } from '../world/economy.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -42,6 +44,12 @@ export function newGame() {
     // Ground that has changed hands, so a client can replay the map as well as
     // the armies.
     captures: [],
+    // And what the factories put back, which is the third and last thing the
+    // record has to say about a column: where it is, what the fighting took,
+    // and what came up from the depots.
+    replacements: [],
+    // Which columns each seat wants replacements sent to tomorrow.
+    rebuilding: {},
     // Bumped on every change so clients can tell whether they are current.
     revision: 0,
   };
@@ -150,6 +158,7 @@ export function advance(game, world = null) {
       day: game.day,
       moves: game.moves,
       battles: game.battles,
+      replacements: game.replacements,
     });
     game.battles.push(...battles);
     game.moves.push(...retreats);
@@ -157,6 +166,10 @@ export function advance(game, world = null) {
       world.ownership.set(capture.cell, capture.to, { day: game.day, reason: 'taken' });
       game.captures.push(capture);
     }
+    // And last, the replacements — after the fighting, so that a column cannot
+    // be rebuilt into the middle of the battle it is losing.
+    game.replacements.push(...sendReplacements(game, world));
+    game.rebuilding = {};
   }
   for (const id of PLAYER_IDS) {
     if (game.seats[id]) game.seats[id].ready = false;
@@ -179,11 +192,56 @@ export function advance(game, world = null) {
  * day's orders again, not a second set of them, and cancelling one column is
  * simply sending a shorter list.
  */
-export function setOrders(game, power, orders) {
+export function setOrders(game, power, orders, rebuilding = null) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   game.orders[power] = orders;
+  if (rebuilding !== null) game.rebuilding[power] = rebuilding;
   game.revision += 1;
-  return { orders };
+  return { orders, rebuilding: game.rebuilding[power] ?? [] };
+}
+
+/**
+ * Send up whatever each seat asked for and can pay for.
+ *
+ * Asked for, in the order it asked: a nation that wants six columns rebuilt and
+ * can afford four gets the first four. That is a decision the player has
+ * already made by the order they ticked them in, and it is better than a rule
+ * that spreads the shortfall evenly and rebuilds nothing properly.
+ *
+ * The check is against the stores in hand — the opening stock, plus every day's
+ * net since, less everything already spent — so the books stay derived from the
+ * calendar and the record rather than being a balance that gets edited.
+ */
+function sendReplacements(game, world) {
+  const sent = [];
+  const columns = new Map(world.garrisons.opening.map((p) => [p.id, p]));
+  const positions = positionsAt(world.garrisons.opening, game.moves, game.day);
+  const left = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
+
+  for (const [power, wanted] of Object.entries(game.rebuilding ?? {})) {
+    if (!wanted?.length) continue;
+    const economy = economyFor(world, power, game.day, spentBy(game.replacements, power, game.day).stores);
+    const running = {};
+    for (const id of wanted) {
+      const column = columns.get(id);
+      if (!column || column.formation.nation !== power) continue;
+      const have = left.get(id);
+      if (!have) continue;
+      const want = replacementFor({
+        world,
+        column: { ...column, cell: positions.get(id) ?? column.cell },
+        have,
+        day: game.day,
+      });
+      if (!want) continue;
+      if (canAfford(economy, want.cost, running)) continue;
+      for (const [store, amount] of Object.entries(want.cost)) {
+        running[store] = (running[store] ?? 0) + amount;
+      }
+      sent.push({ day: game.day, power, column: id, ...want });
+    }
+  }
+  return sent;
 }
 
 /** Fire whatever the opening date has to say, once, when a game is created. */
@@ -237,7 +295,9 @@ export function publicState(game, viewer) {
     moves: game.moves,
     battles: game.battles,
     captures: game.captures,
+    replacements: game.replacements,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
+    rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

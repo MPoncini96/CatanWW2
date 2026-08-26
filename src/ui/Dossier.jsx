@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, march, battles }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, march, battles, rebuilding }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -79,6 +79,11 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                 {orders.length} column{orders.length === 1 ? '' : 's'} marching tomorrow
               </span>
             )}
+            {rebuilding?.length > 0 && (
+              <span className="dossier__given">
+                {rebuilding.length} being brought back up
+              </span>
+            )}
             {given && <span className="dossier__given">{given} — not yet sent</span>}
             <button
               type="button"
@@ -107,6 +112,7 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                       // decided by who is standing there when you arrive, not
                       // by which button was pressed.
                       if (order.id === 'reinforce' || order.id === 'attack') onMarch?.();
+                      else if (order.id === 'replacements') onRebuild?.();
                       else setGiven(order.name);
                     }}
                   >

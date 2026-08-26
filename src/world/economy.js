@@ -91,7 +91,7 @@ export function formatPerDay(value, unit) {
 }
 
 /** Everything a nation holds, earns and burns, on a given day. */
-export function economyFor(world, power, day = 0) {
+export function economyFor(world, power, day, spent = {}) {
   const nation = NATION_INDEX[power];
   const owner = world.ownership.owner;
 
@@ -133,7 +133,7 @@ export function economyFor(world, power, day = 0) {
     const income = output[r] / DAYS_IN_YEAR;
     const spend = upkeep[r];
     const net = income - spend;
-    const stock = Math.max(0, (opening[resource.id] ?? 0) + net * day);
+    const stock = Math.max(0, (opening[resource.id] ?? 0) + net * day - (spent[resource.id] ?? 0));
     return {
       id: resource.id,
       name: resource.name,

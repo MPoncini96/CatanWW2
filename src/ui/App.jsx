@@ -25,6 +25,9 @@ import { Dossier } from './Dossier.jsx';
 import { arrivalsAt, positionsAt } from '../game/movement.js';
 import { Survey } from './Survey.jsx';
 import { March } from './March.jsx';
+import { Replacements } from './Replacements.jsx';
+import { strengthsAt } from '../game/combat.js';
+import { spentBy } from '../game/production.js';
 import {
   claimSeat,
   fetchState,
@@ -295,6 +298,8 @@ export default function App() {
   // from the server on every frame, so this is a working copy that is replaced
   // whenever the server has something to say about them.
   const [marchTo, setMarchTo] = useState(null);
+  const [rebuildAt, setRebuildAt] = useState(null);
+  const [rebuilding, setRebuilding] = useState([]);
   const [orders, setOrders] = useState([]);
   const [orderError, setOrderError] = useState(null);
   const [sending, setSending] = useState(false);
@@ -460,6 +465,7 @@ export default function App() {
   const moveCount = game?.moves?.length ?? 0;
   const battleCount = game?.battles?.length ?? 0;
   const captureCount = game?.captures?.length ?? 0;
+  const rebuiltCount = game?.replacements?.length ?? 0;
   useEffect(() => {
     if (!world?.march || !game) return;
     // Ground first, then the armies: a column that took a hex has to find the
@@ -467,10 +473,10 @@ export default function App() {
     for (const capture of game.captures ?? []) {
       world.ownership.set(capture.cell, capture.to, { day: capture.day, reason: 'taken' });
     }
-    world.march(game.moves ?? [], game.day, game.battles ?? []);
+    world.march(game.moves ?? [], game.day, game.battles ?? [], game.replacements ?? []);
     setMarchVersion((v) => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, moveCount, battleCount, captureCount, game?.day]);
+  }, [world, moveCount, battleCount, captureCount, rebuiltCount, game?.day]);
 
   // Where every column stands today, and when it got there. Both are replayed
   // from the same log the server replays, so the two agree without either
@@ -484,6 +490,27 @@ export default function App() {
     () => arrivalsAt(game?.moves ?? [], game?.day ?? 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [moveCount, game?.day],
+  );
+
+  // What is left of every column, and what this seat has already spent putting
+  // men back. Both replayed from the record, like everything else.
+  const strengths = useMemo(
+    () =>
+      world
+        ? strengthsAt(
+            world.garrisons.opening,
+            game?.battles ?? [],
+            game?.day ?? 0,
+            game?.replacements ?? [],
+          )
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [world, battleCount, rebuiltCount, game?.day],
+  );
+  const spent = useMemo(
+    () => (seat ? spentBy(game?.replacements ?? [], seat, game?.day ?? 0) : { stores: {}, men: 0 }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [seat, rebuiltCount, game?.day],
   );
 
   // What happened when the day turned, newest first, and only the fights this
@@ -501,9 +528,18 @@ export default function App() {
   // The server's copy of this seat's orders is the truth; a new day clears it.
   useEffect(() => {
     setOrders(game?.orders ?? []);
+    setRebuilding(game?.rebuilding ?? []);
     setOrderError(null);
     setMarchTo(null);
+    setRebuildAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleRebuild = useCallback((id) => {
+    setOrderError(null);
+    setRebuilding((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : [...current, id],
+    );
+  }, []);
 
   const toggleColumn = useCallback((column, from) => {
     setOrderError(null);
@@ -519,15 +555,17 @@ export default function App() {
     setSending(true);
     setOrderError(null);
     try {
-      const state = await setOrdersOnServer(session.token, orders);
+      const state = await setOrdersOnServer(session.token, orders, rebuilding);
       setOrders(state.orders ?? []);
+      setRebuilding(state.rebuilding ?? []);
       setMarchTo(null);
+      setRebuildAt(null);
     } catch (err) {
       setOrderError(err.message);
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders]);
+  }, [session?.token, orders, rebuilding]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -578,9 +616,9 @@ export default function App() {
   const economy = useMemo(() => {
     // The overseer has no stores to spend, because the overseer is not playing.
     if (!world?.ownership || !power || master) return null;
-    return economyFor(world, power, game?.day ?? 0);
+    return economyFor(world, power, game?.day ?? 0, spent.stores);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, game?.day, ownershipVersion, marchVersion]);
+  }, [world, power, game?.day, ownershipVersion, marchVersion, spent]);
 
   const zoomLabel = cam ? `${cam.pixelsPerCell.toFixed(1)} px/cell` : '';
   const player = master ? MASTER_SEAT : power ? BY_ID[power] : null;
@@ -788,9 +826,26 @@ export default function App() {
             orders={orders}
             marchTo={marchTo}
             onMarch={() => setMarchTo(selected?.index ?? null)}
+            onRebuild={() => setRebuildAt(selected?.index ?? null)}
             battles={dispatches}
+            rebuilding={rebuilding}
             march={
-              marchTo !== null && world && positions ? (
+              rebuildAt !== null && world ? (
+                <Replacements
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={rebuildAt}
+                  strengths={strengths}
+                  wanted={rebuilding}
+                  economy={economy}
+                  onToggle={toggleRebuild}
+                  onSend={sendOrders}
+                  onCancel={() => setRebuildAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : marchTo !== null && world && positions ? (
                 <March
                   world={world}
                   power={seat}

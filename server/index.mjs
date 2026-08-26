@@ -48,7 +48,7 @@ let game = load();
 // Put the armies where the record says they are and the ground where it says
 // it went, in case this is a resumed game.
 for (const capture of game.captures ?? []) world.ownership.set(capture.cell, capture.to, capture);
-world.march(game.moves ?? [], game.day, game.battles ?? []);
+world.march(game.moves ?? [], game.day, game.battles ?? [], game.replacements ?? []);
 
 function load() {
   if (fs.existsSync(SAVE)) {
@@ -61,6 +61,8 @@ function load() {
       saved.moves ??= [];
       saved.battles ??= [];
       saved.captures ??= [];
+      saved.replacements ??= [];
+      saved.rebuilding ??= {};
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {
@@ -166,9 +168,15 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders } = await readBody(req);
+    const { orders, rebuilding } = await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
+    if (rebuilding !== undefined && !Array.isArray(rebuilding)) {
+      return json(res, 400, { error: 'rebuilding must be a list of columns' });
+    }
+    if ((rebuilding?.length ?? 0) > 400) {
+      return json(res, 400, { error: 'too many columns to rebuild in one day' });
+    }
 
     // Checked here and not only in the browser. Each order is checked against
     // the board as it stands *and* against the ones already accepted in the
@@ -195,7 +203,14 @@ async function api(req, res, url) {
       accepted.push({ column: column.id, from: positions.get(column.id), to: order.to });
     }
 
-    G.setOrders(game, seat, accepted);
+    // Which columns want replacements is not checked here beyond being this
+    // seat's own: whether they can be paid for depends on what the day does to
+    // the stores, so it is settled when the day turns and not before.
+    const rebuild = (rebuilding ?? []).filter((id) => {
+      const column = columns.get(id);
+      return column && column.formation.nation === seat;
+    });
+    G.setOrders(game, seat, accepted, rebuild);
     broadcast();
     return json(res, 200, G.publicState(game, seat));
   }
@@ -233,7 +248,7 @@ function maybeAdvance() {
   // The world goes in, because the day is not only a date: the marches happen
   // on it, the fights happen on it, and the ground changes hands on it.
   const fired = G.advance(game, world);
-  world.march(game.moves, game.day, game.battles);
+  world.march(game.moves, game.day, game.battles, game.replacements);
   const marched = game.moves.length - before.moves;
   const fought = game.battles.length - before.battles;
   const when = G.publicState(game, null).date;
@@ -244,6 +259,11 @@ function maybeAdvance() {
         `${battle.defender} ${battle.defence} — ${battle.winner} holds it` +
         (battle.pocket ? ', the beaten side destroyed where it stood' : ''),
     );
+  }
+  const rebuilt = game.replacements.filter((r) => r.day === game.day);
+  if (rebuilt.length) {
+    const men = rebuilt.reduce((n, r) => n + r.men, 0);
+    console.log(`    ${rebuilt.length} columns brought back up — ${men.toLocaleString()} men`);
   }
   void fought;
   if (fired.length) {

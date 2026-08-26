@@ -2,6 +2,7 @@ import { neighbours } from '../world/sphere.js';
 import { NATIONS, NATION_INDEX, SEA } from '../world/nations.js';
 import { TERRAIN } from '../world/terrain.js';
 import { CAPITAL_CELLS } from '../world/capitals.js';
+import { applyReplacements } from './production.js';
 import { atWar, positionsAt } from './movement.js';
 
 // Fighting for a hex.
@@ -213,7 +214,7 @@ export function fight({ world, cell, day, attackers, defenders, strengths, fromC
  * that has been through four fights is four multiplications, and the answer is
  * the same on every machine that asks.
  */
-export function strengthsAt(placements, battles, day) {
+export function strengthsAt(placements, battles, day, replacements = []) {
   const left = new Map();
   for (const placement of placements) left.set(placement.id, { ...placement.strength });
   for (const battle of battles) {
@@ -230,7 +231,8 @@ export function strengthsAt(placements, battles, day) {
     take(battle.losers, battle.loserShare);
     take(battle.winners, battle.winnerShare);
   }
-  return left;
+  // And what the factories put back, capped at what the formation was.
+  return applyReplacements(left, placements, replacements, day);
 }
 
 /**
@@ -243,9 +245,9 @@ export function strengthsAt(placements, battles, day) {
  *
  * @returns {{battles: Array, retreats: Array, captures: Array}}
  */
-export function resolveDay({ world, day, moves, battles: past }) {
+export function resolveDay({ world, day, moves, battles: past, replacements = [] }) {
   const positions = positionsAt(world.garrisons.opening, moves, day);
-  const strengths = strengthsAt(world.garrisons.opening, past, day - 1);
+  const strengths = strengthsAt(world.garrisons.opening, past, day - 1, replacements);
 
   // Who is standing where, and who got there today.
   const onCell = new Map();
