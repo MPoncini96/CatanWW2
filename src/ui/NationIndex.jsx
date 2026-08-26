@@ -16,9 +16,12 @@ export function NationIndex({ state }) {
     <div className="index">
       <div className="index__inner">
         <header className="index__head">
-          <span className="brand__mark" aria-hidden="true" />
           <div>
-            <h1>HexWW2.world</h1>
+            {/* The wordmark carries the name, so the heading is here for a
+                screen reader and for the day the image does not load. */}
+            <h1 className="index__wordmark">
+              <img src="/logo1.webp" alt="HexWW2.world" width="2048" height="768" />
+            </h1>
             <p>Earth on a hex globe · one game, eight seats</p>
           </div>
           {state && (

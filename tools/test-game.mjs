@@ -96,6 +96,18 @@ import {
   hexesApart,
   mayRaid,
 } from '../src/game/bombing.js';
+import {
+  BOMBARDMENT,
+  CONVOY_SPEED,
+  FLEET_SPEED,
+  bombardmentFor,
+  fleetStrength,
+  fleetsAt,
+  fleetsOf,
+  mayShip,
+  resolveNavalDay,
+} from '../src/game/naval.js';
+import { RELIEF_DAYS, ROUTES_1939, convoyCell, deliveredBy } from '../src/world/convoys.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -637,7 +649,13 @@ section('the books balance');
     china.stores.find((s) => s.id === 'oil').daysLeft < 30,
     'China has weeks of oil, not months',
   );
-  ok(japan.stores.find((s) => s.id === 'oil').net < 0, 'Japan cannot fuel its own fleet');
+  // Japan cannot fuel its fleet out of the ground it holds — which is the
+  // whole of its strategic position in 1939, and the reason it spent 1941
+  // deciding whether to take the Indies or give up China. It runs on oil that
+  // crosses water, and that is now two numbers rather than one.
+  const japanOil = japan.stores.find((s) => s.id === 'oil');
+  ok(japanOil.home < japanOil.upkeep, 'Japan cannot fuel its own fleet from its own ground');
+  ok(japanOil.sea > japanOil.home, 'and buys more of it abroad than it pumps');
   ok(
     usa.stores.filter((s) => s.id !== 'rubber').every((s) => s.net > 0),
     'and the United States runs a surplus in everything it digs up',
@@ -646,8 +664,12 @@ section('the books balance');
   // ton of it came from Malaya and the Indies — the reason synthetic rubber
   // became a war programme in Washington as well as in Berlin.
   ok(
-    usa.stores.find((s) => s.id === 'rubber').net < 0,
+    usa.stores.find((s) => s.id === 'rubber').home === 0,
     'though not one ton of rubber, which is a tropical crop',
+  );
+  ok(
+    usa.stores.find((s) => s.id === 'rubber').sea > 0,
+    'and every ton of it lands from a ship',
   );
 }
 
@@ -1091,11 +1113,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 4, 'four orders a seat may give on a hex');
+  eq(ORDERS.length, 5, 'five orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements bomb',
-    'march in, march onto somebody, send men up from the depots, or fly',
+    'reinforce attack replacements bomb sail',
+    'march in, march onto somebody, send men up from the depots, fly, or sail',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -2349,6 +2371,268 @@ section('strategic bombing');
   ok(theirs.bombed[0].works.some((w) => w.startsWith('Ruhr')), 'by name');
   const nobody = reportFor({ world, game, seat: 'japan', day: game.day });
   eq(nobody.flown.length + nobody.bombed.length, 0, 'and Japan hears nothing about it');
+}
+
+
+// ---------------------------------------------------------------- and the sea
+section('the war at sea');
+{
+  const world = board();
+  const fleets = fleetsAt(world, {}, 0);
+  const warships = fleets.filter((f) => !f.cargo);
+  const lanes = fleets.filter((f) => f.cargo);
+
+  // ---- how far, and how often ----------------------------------------------
+  ok(FLEET_SPEED > 1, 'a fleet goes further in a day than an army');
+  ok(CONVOY_SPEED < FLEET_SPEED, 'and a convoy slower than a fleet, being merchantmen');
+  eq(FLEET_SPEED, 6, 'six hexes, which is eighteen knots held for a day and a night');
+
+  // ---- every hull accounted for -------------------------------------------
+  // The submarines were pulled into their own flotillas so they could be sent
+  // somewhere without the battleships going too. That must not have created or
+  // destroyed a single boat.
+  let conserved = true;
+  for (const [power, navy] of Object.entries(NAVIES_1939)) {
+    for (const ship of SHIPS) {
+      const afloat = warships
+        .filter((f) => f.power === power)
+        .reduce((n, f) => n + (f.ships[ship.id] ?? 0), 0);
+      if (afloat !== (navy[ship.id] ?? 0)) {
+        conserved = false;
+        console.log(`      ${power} ${ship.id}: ${afloat} afloat, ${navy[ship.id]} in the tables`);
+      }
+    }
+  }
+  ok(conserved, 'every hull in the 1939 tables is afloat exactly once');
+
+  const boats = warships.filter((f) => f.ships.submarines > 0);
+  ok(
+    boats.every((f) => SHIPS.every((s) => s.id === 'submarines' || f.ships[s.id] === 0)),
+    'and no fleet holds submarines and surface ships together',
+  );
+  ok(
+    warships.some((f) => f.power === 'germany' && /U-boat/.test(f.name)),
+    'the German boats are a command of their own, as they were',
+  );
+
+  // ---- the matrix the brief asked for --------------------------------------
+  const none = Object.fromEntries(SHIPS.map((s) => [s.id, 0]));
+  const F = (o) => ({ ...none, ...o });
+  const duel = (a, d) => [fleetStrength(a, 'attack', d), fleetStrength(d, 'defend', a)];
+
+  let [atk, def] = duel(F({ submarines: 20 }), F({ battleships: 4 }));
+  ok(atk > def * 5, 'an attacking submarine has a huge advantage over a capital ship');
+
+  [atk, def] = duel(F({ submarines: 20 }), F({ destroyers: 20 }));
+  ok(def > atk, 'and none at all over a destroyer, which is what was built to kill it');
+
+  [atk, def] = duel(F({ destroyers: 20 }), F({ submarines: 20 }));
+  ok(atk > def * 5, 'a destroyer hunting a submarine has every advantage');
+
+  [atk, def] = duel(F({ submarines: 20 }), F({ submarines: 20 }));
+  ok(def > atk, 'and a submarine lying quiet beats a submarine under way');
+
+  // A wolfpack has to be a pack. Ten boats do not break an escort and twenty do,
+  // which is the whole of the tonnage war in two lines.
+  const escort = F({ destroyers: 6, cruisers: 1 });
+  [atk, def] = duel(F({ submarines: 10 }), escort);
+  ok(def > atk, 'ten boats do not get through a convoy escort');
+  [atk, def] = duel(F({ submarines: 20 }), escort);
+  ok(atk > def, 'and twenty do');
+
+  // ---- the lanes -----------------------------------------------------------
+  eq(lanes.length, ROUTES_1939.length, `${lanes.length} trade routes are on the water`);
+  let dry = 0;
+  for (const lane of lanes) for (const cell of lane.path) if (!TERRAIN[world.biome[cell]].water) dry += 1;
+  eq(dry, 0, 'and not one hex of any of them is on land');
+  ok(
+    lanes.every((lane) => {
+      for (let d = 0; d < 40; d += 1) if (lane.path.indexOf(convoyCell(lane, d)) < 0) return false;
+      return true;
+    }),
+    'a convoy is always somewhere on its own track',
+  );
+  ok(
+    lanes.some((lane) => convoyCell(lane, 0) !== convoyCell(lane, 3)),
+    'and it moves, without anybody ordering it to',
+  );
+
+  // ---- and what they are worth ---------------------------------------------
+  // The point of the whole mechanic: Britain's oil crosses water, so Britain's
+  // oil can be stopped.
+  const dryBooks = economyFor(world, 'uk', 30, {}, []);
+  const oil = dryBooks.stores.find((r) => r.id === 'oil');
+  ok(oil.sea > oil.home, 'most British oil comes in over the side of a ship');
+
+  const cut = (world.convoys ?? []).map((c) => ({ convoy: c.id, day: 1, until: 9999 }));
+  const blockaded = economyFor(world, 'uk', 30, {}, cut);
+  const cutOil = blockaded.stores.find((r) => r.id === 'oil');
+  eq(cutOil.sea, 0, 'cut every lane and nothing lands');
+  ok(cutOil.stock < oil.stock, 'the stores are lower for it');
+  ok(cutOil.net < 0, 'and Britain is burning oil faster than it can get any');
+
+  // The books have to be replayable: the same day asked twice is the same day.
+  eq(
+    economyFor(world, 'uk', 30, {}, cut).stores.find((r) => r.id === 'oil').stock,
+    cutOil.stock,
+    'and the answer does not change between two askings',
+  );
+
+  // A lane comes back when the relief convoy sails.
+  const once = [{ convoy: lanes[0].id, day: 5, until: 5 + RELIEF_DAYS }];
+  const during = deliveredBy(lanes, lanes[0].power, 8, once);
+  const after = deliveredBy(lanes, lanes[0].power, 5 + RELIEF_DAYS + 1, once);
+  const store = Object.keys(lanes[0].cargo)[0];
+  ok(!during.perDay[store] || during.perDay[store] < after.perDay[store], 'a cut lane pays nothing');
+  ok(after.perDay[store] > 0, 'and is running again once a new convoy is made up');
+
+  // ---- what may sail -------------------------------------------------------
+  const home = warships.find((f) => f.power === 'uk' && f.name.startsWith('Scapa'));
+  const positions = new Map(fleets.map((f) => [f.id, f.cell]));
+  const ask = (opts) =>
+    mayShip({ world, power: 'uk', day: 3, positions, ordered: new Set(), ...opts });
+
+  const near = (() => {
+    for (const j of neighbours(home.cell)) if (TERRAIN[world.biome[j]].water) return j;
+    return null;
+  })();
+  eq(ask({ fleet: home, to: near }), null, 'the Home Fleet may put to sea');
+  ok(ask({ fleet: home, to: home.cell })?.includes('already'), 'and may not sail to where it is');
+  ok(
+    ask({ fleet: home, to: cellFor(52.52, 13.4) })?.includes('no water'),
+    'nor steam to Berlin',
+  );
+  ok(
+    ask({ fleet: home, to: cellFor(-33.9, 18.4) })?.includes(`${FLEET_SPEED} in a day`),
+    'nor reach Cape Town by Tuesday',
+  );
+  const german = warships.find((f) => f.power === 'germany');
+  ok(ask({ fleet: german, to: near })?.includes('not yours'), 'and not somebody else’s fleet');
+  const lane = lanes[0];
+  ok(ask({ fleet: lane, to: near })?.includes('schedule'), 'a convoy takes no orders at all');
+
+  // ---- the guns offshore ---------------------------------------------------
+  // A battleship one hex off a beach is worth about two thousand men to the
+  // fight on it, and one that is busy fighting another battleship is worth
+  // nothing to anybody ashore.
+  ok(BOMBARDMENT.battleships > BOMBARDMENT.cruisers, 'a battleship outshoots a cruiser');
+  // Not Scapa: the anchorage falls on a hex of open water with no dry
+  // neighbour at 67 km to the cell, which is a fact about the grid rather than
+  // about the Royal Navy. Any British fleet lying against a coast will do.
+  const inshore = warships.find(
+    (f) => f.power === 'uk' && [...neighbours(f.cell)].some((j) => !TERRAIN[world.biome[j]].water),
+  );
+  ok(inshore, 'some British fleet lies within gun range of a shore');
+  const beach = [...neighbours(inshore.cell)].find((j) => !TERRAIN[world.biome[j]].water);
+  const guns = bombardmentFor({
+    world,
+    cell: beach,
+    nation: 'uk',
+    fleets: warships,
+    positions,
+    engaged: new Set(),
+    day: 3,
+  });
+  ok(guns.guns > 0, `the fleet can put ${Math.round(guns.guns)} men’s worth of shell on the shore`);
+  ok(guns.ships.length > 0, 'and the report can say which ships fired');
+  const busy = bombardmentFor({
+    world,
+    cell: beach,
+    nation: 'uk',
+    fleets: warships,
+    positions,
+    engaged: new Set([inshore.cell]),
+    day: 3,
+  });
+  ok(busy.guns < guns.guns, 'a fleet in action of its own fires at nothing ashore');
+  const inland = bombardmentFor({
+    world,
+    cell: cellFor(52.52, 13.4),
+    nation: 'uk',
+    fleets: warships,
+    positions,
+    engaged: new Set(),
+    day: 3,
+  });
+  eq(inland.guns, 0, 'and no ship shells Berlin from the sea');
+
+  // ---- a day of it ---------------------------------------------------------
+  // Put the U-boats on the convoy and see what it takes to cut the lane.
+  const day = 8;
+  const packs = warships.filter((f) => f.power === 'germany' && /U-boat/.test(f.name));
+  const send = (lane, n) =>
+    resolveNavalDay({
+      world,
+      day,
+      sailing: {},
+      sailings: packs.slice(0, n).map((p) => ({
+        day,
+        fleet: p.id,
+        power: 'germany',
+        from: p.cell,
+        to: convoyCell(lane, day, CONVOY_SPEED),
+      })),
+      seaBattles: [],
+      sinkings: [],
+    });
+
+  // A lane with the ordinary escort goes to one flotilla; the Halifax run, which
+  // was worth twelve destroyers, does not. That is the whole shape of the
+  // tonnage war: the answer to the U-boat was never a better ship, it was more
+  // escorts on the convoy that mattered.
+  const trinidad = lanes.find((l) => l.route === 'tm-trinidad');
+  const hx = lanes.find((l) => l.route === 'hx-halifax');
+  const onePack = send(trinidad, 1);
+  eq(onePack.battles.length, 1, 'a pack that finds a convoy fights it');
+  eq(onePack.sinkings.length, 1, 'and a convoy that loses is not damaged but gone');
+  eq(onePack.sinkings[0].convoy, trinidad.id, 'the Trinidad tanker route');
+  eq(onePack.sinkings[0].until, day + RELIEF_DAYS, `which runs again on day ${day + RELIEF_DAYS}`);
+
+  eq(send(hx, 1).sinkings.length, 0, 'one flotilla does not cut the Halifax run');
+  eq(send(hx, 2).sinkings.length, 1, 'and two do — a heavy escort has to be swarmed');
+
+  // The boats do not come through it untouched.
+  const out = onePack;
+  const pack = packs[0];
+  const spent = fleetsAt(world, { seaBattles: out.battles }, day);
+  const before = pack.ships.submarines;
+  const left = spent.find((f) => f.id === pack.id).ships.submarines;
+  ok(left < before, `the pack loses boats doing it — ${before} down to ${Math.round(left)}`);
+  ok(left > before * 0.5, 'and is not wiped out for one convoy');
+
+  // And the lane is off the board while it is out, then back.
+  const shut = fleetsAt(world, { sinkings: out.sinkings }, day + 1).find((f) => f.id === trinidad.id);
+  ok(!shut.afloat, 'the lane is not on the water while it is being made up again');
+  const again = fleetsAt(world, { sinkings: out.sinkings }, day + RELIEF_DAYS).find(
+    (f) => f.id === trinidad.id,
+  );
+  ok(again.afloat, 'and is sailing again afterwards');
+
+  // ---- and the whole day, through the game ---------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  const startHulls = fleetsOf(world).reduce((n, f) => n + f.hulls, 0);
+  ok(startHulls > 1000, `${startHulls} hulls are on the board on the first morning`);
+  const first = fleetsAt(world, game, 0).find((f) => f.id === pack.id);
+  const step = (() => {
+    for (const j of neighbours(first.cell)) if (TERRAIN[world.biome[j]].water) return j;
+    return null;
+  })();
+  G.setOrders(game, 'germany', [], [], [], [{ fleet: pack.id, to: step }]);
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+  eq(game.sailings.length, 1, 'the day carries the sailing out');
+  eq(
+    fleetsAt(world, game, game.day).find((f) => f.id === pack.id).cell,
+    step,
+    'and the fleet is where it was sent',
+  );
+  eq(game.sailing.germany, undefined, 'orders are for one day and are cleared with it');
+
+  // What a seat is told about it.
+  const told = reportFor({ world, game, seat: 'germany', day: game.day });
+  ok(Array.isArray(told.actions), 'the report has a place for actions at sea');
+  ok(Array.isArray(told.sunk) && Array.isArray(told.raided), 'and for the lanes, both ways round');
 }
 
 console.log(

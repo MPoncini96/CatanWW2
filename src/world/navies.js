@@ -190,7 +190,7 @@ function apportion(total, shares) {
 }
 
 /** The cell a station sits on: the nearest water to the port itself. */
-function seaCellFor(lat, lon, isWater) {
+export function seaCellFor(lat, lon, isWater) {
   const start = cellAt(grid(), lat, lon);
   if (isWater[start]) return start;
   const seen = new Set([start]);
@@ -278,6 +278,10 @@ export function buildNavies(world) {
         return;
       }
       const station = {
+        // A fleet needs a name the record can hold on to, because from now on
+        // it moves: its position on any day is replayed from the opening
+        // anchorage plus every sailing since, exactly as a column's is.
+        id: `${power}:${port.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
         power,
         name: port.name,
         secret: Boolean(port.secret),
@@ -294,6 +298,31 @@ export function buildNavies(world) {
         aircraft: aircraft[k],
         hulls: total,
       };
+      // Submarines go into their own flotilla at the same anchorage.
+      //
+      // Same reason the armour was pulled out of the field formations when the
+      // armies were deployed: if the only orderable thing at Wilhelmshaven is
+      // "Wilhelmshaven", then sending the U-boats into the Atlantic sends the
+      // battleships with them, and no navy in the world worked that way. The
+      // boats were a separate command answering to a separate admiral, and
+      // making them a separate fleet is what lets them be used as one.
+      if (station.ships.submarines > 0 && station.hulls > station.ships.submarines) {
+        const boats = station.ships.submarines;
+        station.ships = { ...station.ships, submarines: 0 };
+        station.hulls -= boats;
+        stations.push({
+          ...station,
+          id: `${station.id}-flotilla`,
+          name:
+            power === 'germany'
+              ? `${station.name} U-boat flotilla`
+              : `${station.name} submarine flotilla`,
+          ships: Object.fromEntries(SHIPS.map((s) => [s.id, s.id === 'submarines' ? boats : 0])),
+          aircraft: 0,
+          hulls: boats,
+        });
+      }
+
       stations.push(station);
       if (!already) byCell.set(cell, station);
     });

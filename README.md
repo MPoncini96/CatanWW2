@@ -1517,6 +1517,130 @@ them — and close in, becomes the ships: a battleship, a carrier with its islan
 and an aeroplane on the deck, a submarine with its conning tower. A strength you
 are not allowed to know never becomes a silhouette; it stays a diamond.
 
+## The war at sea
+
+For a long time the fleets were furniture. They sat at sixty-five anchorages,
+could not move, could not fight and could not be lost, while everything else
+grew around them. This is the rest of it.
+
+### Moving
+
+Like a column, in that an order names a destination and the day carries it out.
+Unlike a column in the one way that matters: **a ship steams through the night.**
+An army marches eight hours and sleeps; a fleet does not, which is why it makes
+six hexes a day and a division makes half of one. Six hexes is four hundred
+kilometres — eighteen knots held for a day and a night, a fleet passage rather
+than a dash. There is no rest day for the same reason.
+
+A fleet's position is replayed like everything else here: the opening anchorage
+plus every sailing since. Nothing is stored twice.
+
+**The submarines are their own command.** At Wilhelmshaven the U-boats were
+pulled into a separate flotilla, and the same everywhere else. This is the same
+decision the armour got when the armies were deployed, for the same reason: if
+the only orderable thing at Wilhelmshaven is "Wilhelmshaven", then sending the
+boats into the Atlantic sends the battleships with them, and no navy worked that
+way.
+
+### What each ship is worth
+
+| | Attacking | Defending |
+| --- | --- | --- |
+| Battleship | 100 | 100 |
+| Carrier | 120 | 30 |
+| Cruiser | 45 | 45 |
+| Destroyer | 25 | 32 |
+| Submarine | 85 | 15 |
+
+The spread between the columns is the character of the type. A carrier strikes
+from beyond the horizon and is a floating hangar if anything reaches it. A
+submarine is the same bargain drawn harder — the most dangerous thing in the
+water while it is unseen and nearly helpless once it is not. A battleship is the
+only type as good at one as the other, which is what people meant by a capital
+ship.
+
+Then a counter matrix, and every entry in it is something that happened:
+
+- **A submarine against a capital ship** is *Royal Oak* at Scapa and *Courageous*
+  in the Western Approaches, both inside the first month. Twenty boats against
+  four battleships is about nineteen to one.
+- **A destroyer against a submarine** is the answer to it, and the reason a
+  convoy escort was destroyers and nothing else.
+- **A submarine against a destroyer** is a bad afternoon for the submarine.
+- **A submarine against another submarine** goes to whichever moved second. The
+  boat lying quiet hears the boat under way, so a defending submarine is worth
+  eight times its own defence against an attacking one — large, because it has to
+  overcome the hunting boat's own bonus to come out the right way round.
+
+There is no holding a hex of water. Nobody captures the sea, so the beaten side
+is simply the one that loses ships and the winner is left with the sea room,
+which is all anybody ever won at sea.
+
+### The guns offshore
+
+A battleship one hex from a land battle adds about two thousand men to it, a
+cruiser six hundred. Enough to decide a close fight on a coast and never enough
+to take an inland one, which is what shore bombardment was for and the limit of
+what it did.
+
+**Only from a fleet that is not itself in action.** A battleship engaged with
+another battleship is not shelling anybody's trenches — which is why the sea is
+resolved before the land each day, so that what is free to fire is already
+known.
+
+### The convoys
+
+Every other rule here is about who is standing on a hex. This one is not. A
+trade route is something a country *needs* rather than something it holds:
+Britain in 1939 imported two thirds of its food, all of its oil and most of its
+iron ore, and the entire German naval effort for six years was the proposition
+that if you cut enough of those lanes the island stops.
+
+So a lane is modelled as a stream, not a ship. The token on the water is one
+convoy standing for the whole trade — it sails its track, out and back, on a
+schedule nobody orders it to keep — and while it is at sea the lane pays its
+cargo into the stores every day. It cannot be ordered anywhere, which is the
+point of a convoy: an admiral who could reroute the whole Atlantic trade every
+morning would never lose a ship.
+
+Twelve lanes: Halifax and Trinidad and the Cape and Abadan to Britain, New York
+and Algiers to France, Narvik and Luleå to Germany, the Levant to Italy, the
+Indies and the Pacific to Japan, and the Guianas to a neutral America. Each is
+built by interpolating great circles between waypoints, snapping every sample to
+water, and stitching what is left over a water-only search — so a convoy is
+somewhere every day and can be met there. Two hops survive that: Suez and the
+Bosphorus, both genuinely dry at 67 km to the hex, and a ship crosses them the
+way a ship did without the water being drawn.
+
+**Beat the escort and the convoy is not damaged, it is gone.** There is no such
+thing as a merchant ship that lost the action and steamed on. The lane pays
+nothing for twelve days while a new convoy is made up, and the stores feel it
+the same morning — `economyFor` reads the sinking record directly, so the whole
+effect of six years of commerce raiding is a function of that one list.
+
+It takes a pack to do it. One flotilla of twenty boats breaks an ordinary
+escort; the Halifax run, which was worth twelve destroyers, needs two. That is
+the shape of the tonnage war: the answer to the U-boat was never a better ship,
+it was more escorts on the convoy that mattered.
+
+### What the cargo figures are, and are not
+
+They are not the historical tonnages divided by 365, and trying to make them so
+was the first thing that failed — Britain landed about 44 million tons in 1939,
+which at this scale would swamp every other number on the panel and make home
+production irrelevant.
+
+They are the *share of the war effort that came by sea*, which is what the
+mechanic is about. Against the opening incomes the lanes carry 76% of British
+oil, all of France's, 93% of Italy's and 95% of Japan's; 46% of German iron ore,
+which is why Narvik mattered so much; and every ton of American and Japanese
+rubber, none of which grew north of the tropics. The stores panel says so under
+each figure — *76% by sea* — because that is the number a submarine is aimed at.
+
+Cut them all and the stores start falling in weeks rather than years, which is
+the pressure the real blockade applied, arriving at the right answer by a route
+the tonnage tables do not take.
+
 ## Rendering
 
 The globe is WebGL 2; the names and city dots on top of it are a plain 2D canvas
@@ -1634,13 +1758,16 @@ verified.
 
 ## Not built yet
 
-Naval operations, which are the last large thing: ships cannot move, cannot
-fight, and cannot be lost, so a shipyard would build hulls with nothing to do to
-replace losses that cannot happen. Blockade belongs with them, so that sea
-supply has to be earned rather than assumed. Fighter sweeps and escorts — a
-fighter presently defends and never flies. Raising new formations, as against
-rebuilding the ones in the order of battle. And a way to win or lose, which the
-game still does not have: a nation reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
+Shipyards, which now have something to do: hulls can be lost, so they can be
+replaced, and the yards are the obvious next thing the factories should learn to
+build. Blockade of the coasts, as against of the trade routes — sea supply is
+still assumed rather than earned, so East Prussia and Libya feed themselves
+across water nobody controls. Fighter sweeps and escorts: a fighter presently
+defends and never flies. Fuel, which is the one thing a fleet needs that this
+does not model — a ship steams six hexes a day for ever and never puts into
+port. Raising new formations, as against rebuilding the ones in the order of
+battle. And a way to win or lose, which the game still does not have: a nation
+reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
 population, six resource outputs and an owner per hex, exposes `neighbours()`
 for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
 territory — but nothing drives them yet.

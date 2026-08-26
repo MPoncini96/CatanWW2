@@ -1,4 +1,5 @@
 import { TILE_COUNT } from './sphere.js';
+import { deliveredBy } from './convoys.js';
 import { NATION_INDEX, SEA } from './nations.js';
 import { RESOURCES, RESOURCE_INDEX } from './resources.js';
 import { UNITS } from './forces.js';
@@ -90,8 +91,16 @@ export function formatPerDay(value, unit) {
   return `${value.toFixed(1)} t`;
 }
 
-/** Everything a nation holds, earns and burns, on a given day. */
-export function economyFor(world, power, day, spent = {}) {
+/**
+ * Everything a nation holds, earns and burns, on a given day.
+ *
+ * `sinkings` is the record of convoys lost, and it belongs here rather than in
+ * the naval code because this is where it does its work: a lane that is shut
+ * stops paying into the stores the morning it is shut, and the stores are
+ * replayed from the calendar rather than kept as a balance, so the whole effect
+ * of six years of commerce raiding has to be a function of that list.
+ */
+export function economyFor(world, power, day, spent = {}, sinkings = []) {
   const nation = NATION_INDEX[power];
   const owner = world.ownership.owner;
 
@@ -127,13 +136,27 @@ export function economyFor(world, power, day, spent = {}) {
   charge('bombers', armed.bombers);
   for (const ship of SHIPS) charge(ship.id, fleet[ship.id] ?? 0);
 
+  // ---- what came in over the water ---------------------------------------
+  // Two figures, and they are not the same one twice: what is landing today,
+  // which is nothing at all on a lane that was cut this morning, and what has
+  // landed altogether, which is the whole run less the days each lane was out.
+  const trade = deliveredBy(world.convoys ?? [], power, day, sinkings);
+
   // ---- and where that leaves the stores today ----------------------------
   const opening = STOCKPILES_1939[power] ?? {};
   const stores = RESOURCES.map((resource, r) => {
-    const income = output[r] / DAYS_IN_YEAR;
+    const home = output[r] / DAYS_IN_YEAR;
+    const sea = trade.perDay[resource.id] ?? 0;
+    const income = home + sea;
     const spend = upkeep[r];
     const net = income - spend;
-    const stock = Math.max(0, (opening[resource.id] ?? 0) + net * day - (spent[resource.id] ?? 0));
+    const stock = Math.max(
+      0,
+      (opening[resource.id] ?? 0) +
+        (home - spend) * day +
+        (trade.delivered[resource.id] ?? 0) -
+        (spent[resource.id] ?? 0),
+    );
     return {
       id: resource.id,
       name: resource.name,
@@ -141,6 +164,10 @@ export function economyFor(world, power, day, spent = {}) {
       color: resource.color,
       stock,
       income,
+      // What of that income crosses water to get here, which is the number a
+      // submarine is aimed at.
+      home,
+      sea,
       upkeep: spend,
       net,
       // How long the stores last at today's rate — the only number on this

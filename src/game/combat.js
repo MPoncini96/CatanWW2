@@ -1,4 +1,5 @@
 import { neighbours } from '../world/sphere.js';
+import { bombardmentFor } from './naval.js';
 import { NATIONS, NATION_INDEX, SEA } from '../world/nations.js';
 import { TERRAIN } from '../world/terrain.js';
 import { CAPITAL_CELLS } from '../world/capitals.js';
@@ -169,11 +170,27 @@ export function isCapital(cell) {
  *
  * @returns {{winner, attack, defence, losses, retreat, pocket}}
  */
-export function fight({ world, cell, day, attackers, defenders, strengths, fromCell, supplied }) {
+export function fight({
+  world,
+  cell,
+  day,
+  attackers,
+  defenders,
+  strengths,
+  fromCell,
+  supplied,
+  support = null,
+}) {
   const [luckA, luckD] = luckAt(day, cell);
-  const attack = strengthOf(attackers, 'attack', strengths, supplied) * luckA;
+  // Guns offshore are added before the dice and before the ground bonus: a
+  // battleship's broadside is worth what it is worth whether the hex it lands
+  // on is a marsh or a ridge, which is the one thing about naval gunfire that
+  // is simpler than everything else in this function.
+  const attack = (strengthOf(attackers, 'attack', strengths, supplied) + (support?.attack ?? 0)) * luckA;
   const defence =
-    strengthOf(defenders, 'defend', strengths, supplied) * groundBonus(world, cell, fromCell) * luckD;
+    (strengthOf(defenders, 'defend', strengths, supplied) + (support?.defence ?? 0)) *
+    groundBonus(world, cell, fromCell) *
+    luckD;
 
   const attackerWins = attack > defence;
   const ratio = attackerWins ? attack / Math.max(1, defence) : defence / Math.max(1, attack);
@@ -212,6 +229,9 @@ export function fight({ world, cell, day, attackers, defenders, strengths, fromC
     retreat,
     pocket,
     fromCell: fromCell ?? null,
+    // Which fleets fired, if any, so the report can say so. A land battle that
+    // was decided from the sea should read as one.
+    support: support?.attack || support?.defence ? support : null,
   };
 }
 
@@ -261,7 +281,7 @@ export function strengthsAt(placements, battles, day, replacements = []) {
  *
  * @returns {{battles: Array, retreats: Array, captures: Array}}
  */
-export function resolveDay({ world, day, moves, battles: past, replacements = [] }) {
+export function resolveDay({ world, day, moves, battles: past, replacements = [], navy = null }) {
   const positions = positionsAt(world.garrisons.opening, moves, day);
   const strengths = strengthsAt(world.garrisons.opening, past, day - 1, replacements);
 
@@ -330,7 +350,34 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
     const defenders = sides.get(defendNation);
     const fromCell = attackers.map((c) => arrivedToday.get(c.id)).find((c) => c !== undefined) ?? null;
 
-    const result = fight({ world, cell, day, attackers, defenders, strengths, fromCell, supplied });
+    // What either side has in gun range and not otherwise occupied. Worked
+    // out per battle rather than per day, because a battleship that is one hex
+    // from two beaches can fire on both of them.
+    let support = null;
+    if (navy) {
+      const ours = bombardmentFor({ ...navy, world, cell, nation: attackNation, day });
+      const theirs = bombardmentFor({ ...navy, world, cell, nation: defendNation, day });
+      if (ours.guns || theirs.guns) {
+        support = {
+          attack: ours.guns,
+          defence: theirs.guns,
+          attackerShips: ours.ships,
+          defenderShips: theirs.ships,
+        };
+      }
+    }
+
+    const result = fight({
+      world,
+      cell,
+      day,
+      attackers,
+      defenders,
+      strengths,
+      fromCell,
+      supplied,
+      support,
+    });
     const record = {
       day,
       cell,

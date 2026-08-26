@@ -98,6 +98,51 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {(report.actions?.length > 0 ||
+              report.sunk?.length > 0 ||
+              report.raided?.length > 0) && (
+              <section>
+                <h3>The sea</h3>
+                <ul className="report__list">
+                  {(report.actions ?? []).map((a, n) => (
+                    <li key={`s${n}`} className={a.won ? 'is-won' : 'is-lost'}>
+                      <span className="report__where">{a.where}</span>
+                      <span className="report__what">
+                        {a.attacking ? 'engaged' : 'was engaged by'} {a.against} —{' '}
+                        <strong>{a.won ? 'held the water' : 'broke off'}</strong>
+                      </span>
+                      <span className="report__cost">
+                        {a.fleets.join(', ')} · {a.strength} against {a.theirs} · lost{' '}
+                        {Math.round(a.share * 100)}% of the hulls engaged
+                      </span>
+                    </li>
+                  ))}
+                  {(report.raided ?? []).map((c, n) => (
+                    <li key={`r${n}`} className="is-won">
+                      <span className="report__where">{c.where}</span>
+                      <span className="report__what">
+                        convoy destroyed — <strong>{c.lane}</strong>
+                      </span>
+                      <span className="report__cost">
+                        {c.from} loses that cargo for {c.days} days
+                      </span>
+                    </li>
+                  ))}
+                  {(report.sunk ?? []).map((c, n) => (
+                    <li key={`c${n}`} className="is-lost">
+                      <span className="report__where">{c.where}</span>
+                      <span className="report__what">
+                        convoy lost — <strong>{c.lane}</strong>
+                      </span>
+                      <span className="report__cost">
+                        nothing lands on this route until day {c.until}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(report.taken.length > 0 || report.lost.length > 0) && (
               <section>
                 <h3>The ground</h3>

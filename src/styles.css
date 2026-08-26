@@ -1225,6 +1225,21 @@ button:disabled {
   letter-spacing: 0.02em;
 }
 
+/* The wordmark is 2048x768 and is never wanted anywhere near that size. It is
+   given a height and left to work out its own width, so the intrinsic size in
+   the markup still reserves the right space while the image loads and the
+   header does not jump when it arrives. */
+.index__wordmark {
+  line-height: 0;
+}
+
+.index__wordmark img {
+  height: 84px;
+  width: auto;
+  max-width: 100%;
+  display: block;
+}
+
 .index__head p {
   margin: 2px 0 0;
   font-size: 12px;
@@ -2444,4 +2459,15 @@ button:disabled {
 
 .drawers__body .rail__stats {
   margin-top: 8px;
+}
+
+/* The share of an income that arrives on a ship. Set under the figure rather
+   than beside it: it qualifies the income, and a reader scanning the column of
+   numbers should be able to ignore it until it matters. */
+.economy__in em {
+  display: block;
+  font-style: normal;
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.02em;
 }

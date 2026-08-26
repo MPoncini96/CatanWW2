@@ -36,9 +36,21 @@ function diamond(ctx, x, y, r) {
   ctx.closePath();
 }
 
-export function drawFleetMarkers(ctx, world, camera, width, height, viewer, taken = []) {
-  const navies = world.navies;
-  if (!navies || !navies.stations.length) return;
+export function drawFleetMarkers(
+  ctx,
+  world,
+  camera,
+  width,
+  height,
+  viewer,
+  taken = [],
+  fleets = null,
+) {
+  // The live list if there is one, and the opening anchorages if there is not:
+  // the board is drawn before the first day is fetched, and an empty ocean for
+  // that half second would look like a bug.
+  const stations = fleets ?? world.navies?.stations;
+  if (!stations?.length) return;
 
   const pixelsPerCell = camera.pixelsPerCell(width, height);
   const showLabels = pixelsPerCell > 4;
@@ -52,7 +64,7 @@ export function drawFleetMarkers(ctx, world, camera, width, height, viewer, take
   ctx.font = `600 ${fontSize}px 'Inter', 'Segoe UI', system-ui, sans-serif`;
 
   // Biggest first, so a crowded sea keeps the fleet that matters.
-  const order = navies.stations.slice().sort((a, b) => b.hulls - a.hulls);
+  const order = stations.slice().sort((a, b) => b.hulls - a.hulls);
   const out = {};
   const placed = taken.slice();
 

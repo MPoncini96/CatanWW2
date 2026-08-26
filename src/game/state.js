@@ -8,6 +8,7 @@ import { resolveRaids } from './bombing.js';
 import { canAfford, capacityFor, replacementFor, spentBy } from './production.js';
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
+import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -58,6 +59,17 @@ export function newGame() {
     rebuilding: {},
     // And which bomber groups are to fly, and against what.
     raiding: {},
+    // Which fleets are to weigh anchor tomorrow, and for where.
+    sailing: {},
+    // Where they have actually gone, which is to a fleet what `moves` is to a
+    // column: the only record of where it is.
+    sailings: [],
+    // And the actions, which say what is left of it.
+    seaBattles: [],
+    // Convoys that did not get through, and the day the lane runs again. The
+    // economy reads this directly, so a lane cut this morning stops paying
+    // into the stores this morning.
+    sinkings: [],
     // And the ones that were asked for and not sent, with the reason. The day
     // used to swallow these, which meant a player could ask for fifteen
     // columns, be given four, and never find out why — the most annoying kind
@@ -194,12 +206,37 @@ export function advance(game, world = null, now = 0) {
   game.orders = {};
 
   if (world) {
+    // The sea goes first. Not for its own sake — nothing on land depends on
+    // who won an action in the Atlantic — but because a battleship's guns
+    // count towards a fight on the coast only if the battleship is not itself
+    // in one, and this is where that is settled.
+    const sea = resolveNavalDay({
+      world,
+      day: game.day,
+      sailing: game.sailing,
+      sailings: game.sailings,
+      seaBattles: game.seaBattles,
+      sinkings: game.sinkings,
+    });
+    game.sailings.push(...sea.sailings);
+    game.seaBattles.push(...sea.battles);
+    game.sinkings.push(...sea.sinkings);
+    game.sailing = {};
+
+    const afloat = fleetsAt(world, game, game.day).filter((f) => f.afloat);
+    const navy = {
+      fleets: afloat,
+      positions: new Map(afloat.map((f) => [f.id, f.cell])),
+      engaged: engagedCells(sea.battles),
+    };
+
     const { battles, retreats, captures } = resolveDay({
       world,
       day: game.day,
       moves: game.moves,
       battles: game.battles,
       replacements: game.replacements,
+      navy,
     });
     game.battles.push(...battles);
     game.moves.push(...retreats);
@@ -253,16 +290,25 @@ export function advance(game, world = null, now = 0) {
  * day's orders again, not a second set of them, and cancelling one column is
  * simply sending a shorter list.
  */
-export function setOrders(game, power, orders, rebuilding = null, raiding = null) {
+export function setOrders(
+  game,
+  power,
+  orders,
+  rebuilding = null,
+  raiding = null,
+  sailing = null,
+) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   game.orders[power] = orders;
   if (rebuilding !== null) game.rebuilding[power] = rebuilding;
   if (raiding !== null) game.raiding[power] = raiding;
+  if (sailing !== null) game.sailing[power] = sailing;
   game.revision += 1;
   return {
     orders,
     rebuilding: game.rebuilding[power] ?? [],
     raiding: game.raiding[power] ?? [],
+    sailing: game.sailing[power] ?? [],
   };
 }
 
@@ -287,7 +333,13 @@ function sendReplacements(game, world) {
 
   for (const [power, wanted] of Object.entries(game.rebuilding ?? {})) {
     if (!wanted?.length) continue;
-    const economy = economyFor(world, power, game.day, spentBy(game.replacements, power, game.day).stores);
+    const economy = economyFor(
+      world,
+      power,
+      game.day,
+      spentBy(game.replacements, power, game.day).stores,
+      game.sinkings,
+    );
     // Two things ration a day's replacements, and they are different things.
     // The stores say whether the metal exists; the factories say whether
     // anybody can turn it into rifles. A nation can be rich in steel and unable
@@ -396,9 +448,16 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     replacements: game.replacements,
     refused: viewer ? (game.refused ?? []).filter((r) => r.power === viewer) : [],
     raids: game.raids,
+    // The sea is as public as the land, and for the same reason: a fleet at
+    // sea is a thing anybody with a coastguard can see. Where it is *going* is
+    // the viewer's own business, and is below with the rest of tomorrow.
+    sailings: game.sailings,
+    seaBattles: game.seaBattles,
+    sinkings: game.sinkings,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     raiding: viewer ? (game.raiding[viewer] ?? []) : [],
+    sailing: viewer ? (game.sailing[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

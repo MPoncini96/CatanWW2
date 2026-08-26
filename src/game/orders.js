@@ -34,6 +34,11 @@ export const ORDERS = [
     name: 'Bomb the works',
     hint: 'Send the bombers, and put the factory here out of action for days.',
   },
+  {
+    id: 'sail',
+    name: 'Sail here',
+    hint: 'Send a fleet to this water, and fight whatever it finds on it.',
+  },
 ];
 
 /**
@@ -81,6 +86,14 @@ export function ordersFor({ power, day = 0, tile = null }) {
     // is true and useless: the pooled neutral is thirty armies, and the one
     // standing here is Poland’s.
     const held = tile.country?.name ?? tile.nation?.name;
+
+    // Sailing is the only order given about water, and the only one that asks
+    // nothing at all about who holds the hex — because nobody holds it. The sea
+    // is not owned, is not captured, and is not defended; it is only ever
+    // occupied by whoever is currently floating on it.
+    if (order.id === 'sail') {
+      return tile.terrain?.water ? null : 'A ship cannot go inland.';
+    }
 
     if (order.id === 'reinforce') {
       if (!tile.nation) return 'There is no ground here to reinforce.';

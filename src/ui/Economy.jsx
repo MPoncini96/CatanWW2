@@ -29,7 +29,17 @@ export function Stores({ economy }) {
             <strong>{formatAmount(store.stock, store.unit)}</strong>
           </span>
           <span className={`economy__flow${store.net < 0 ? ' is-falling' : ''}`}>
-            <span className="economy__in">+{formatPerDay(store.income, store.unit)}</span>
+            <span className="economy__in">
+              +{formatPerDay(store.income, store.unit)}
+              {/* What part of that income crosses water — the number a submarine
+                  is aimed at, and the only reason the convoy panel means
+                  anything. Shown only where there is trade to lose. */}
+              {store.sea > 0 && (
+                <em title={`${formatPerDay(store.sea, store.unit)} a day arrives by sea`}>
+                  {Math.round((store.sea / store.income) * 100)}% by sea
+                </em>
+              )}
+            </span>
             <span className="economy__out">
               {store.upkeep > 0 ? `−${formatPerDay(store.upkeep, store.unit)}` : 'nothing'}
             </span>

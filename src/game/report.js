@@ -1,4 +1,5 @@
 import { NATIONS, NATION_INDEX } from '../world/nations.js';
+import { fleetsOf } from './naval.js';
 import { strengthsAt } from './combat.js';
 import { formationName } from '../world/deploy.js';
 import { grid } from '../world/sphere.js';
@@ -236,6 +237,52 @@ export function reportFor({ world, game, seat, day }) {
     else if (raid.against === seat) bombed.push(entry);
   }
 
+  // ---- the sea -------------------------------------------------------------
+  // Two lists, because they are two different mornings. An action is something
+  // this seat's ships were in and can be told about in ships. A lane cut is
+  // something that happened to a merchant fleet six hundred miles away and is
+  // felt as a number on the stores panel a week later, which is why it is worth
+  // saying out loud on the day it happens.
+  const actions = [];
+  const fleetName = (id) =>
+    fleetsOf(world).find((f) => f.id === id)?.name ?? id;
+  for (const entry of game.seaBattles ?? []) {
+    if (entry.day !== day) continue;
+    const attacking = entry.attacker === seat;
+    const defending = entry.defender === seat;
+    if (!attacking && !defending) continue;
+    const won =
+      (attacking && entry.winner === 'attacker') || (defending && entry.winner === 'defender');
+    actions.push({
+      cell: entry.cell,
+      where: placeOf(world, entry.cell),
+      attacking,
+      won,
+      against: attacking ? entry.defender : entry.attacker,
+      strength: attacking ? entry.attack : entry.defence,
+      theirs: attacking ? entry.defence : entry.attack,
+      fleets: (won ? entry.winners : entry.losers).map(fleetName),
+      // What a share of a fleet means in hulls is not worth spelling out to a
+      // reader who is about to see the new count anyway. The share is.
+      share: won ? entry.winnerShare : entry.loserShare,
+    });
+  }
+
+  const sunk = [];
+  const raided = [];
+  for (const entry of game.sinkings ?? []) {
+    if (entry.day !== day) continue;
+    const line = {
+      cell: entry.cell,
+      where: placeOf(world, entry.cell),
+      lane: fleetName(entry.convoy),
+      until: entry.until,
+      days: entry.until - entry.day,
+    };
+    if (entry.power === seat) sunk.push(line);
+    else if (entry.by === seat) raided.push({ ...line, from: entry.power });
+  }
+
   // ---- the depots ----------------------------------------------------------
   const sent = [];
   for (const entry of game.replacements ?? []) {
@@ -266,6 +313,9 @@ export function reportFor({ world, game, seat, day }) {
     flown,
     bombed,
     battles,
+    actions,
+    sunk,
+    raided,
     taken,
     lost,
     starving,
@@ -275,6 +325,9 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      actions.length === 0 &&
+      sunk.length === 0 &&
+      raided.length === 0 &&
       flown.length === 0 &&
       bombed.length === 0 &&
       taken.length === 0 &&

@@ -8,6 +8,7 @@ import { buildWorld } from '../src/world/earth.js';
 import { TILE_COUNT } from '../src/world/sphere.js';
 import { arrivalsAt, mayMarch, positionsAt } from '../src/game/movement.js';
 import { mayRaid } from '../src/game/bombing.js';
+import { fleetsAt, fleetsOf, mayShip } from '../src/game/naval.js';
 
 // The one game.
 //
@@ -76,6 +77,13 @@ function load() {
       saved.opened ||= Date.now();
       saved.raiding ??= {};
       saved.rebuilding ??= {};
+      // A game saved before there was a war at sea has fleets that have never
+      // moved, been in action or lost a convoy, which is exactly what an empty
+      // record means. Nothing else has to be done to it.
+      saved.sailing ??= {};
+      saved.sailings ??= [];
+      saved.seaBattles ??= [];
+      saved.sinkings ??= [];
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {
@@ -182,7 +190,7 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding, raiding } = await readBody(req);
+    const { orders, rebuilding, raiding, sailing } = await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
     if (rebuilding !== undefined && !Array.isArray(rebuilding)) {
@@ -196,6 +204,12 @@ async function api(req, res, url) {
     }
     if ((raiding?.length ?? 0) > 100) {
       return json(res, 400, { error: 'too many raids for one night' });
+    }
+    if (sailing !== undefined && !Array.isArray(sailing)) {
+      return json(res, 400, { error: 'sailing must be a list of fleets' });
+    }
+    if ((sailing?.length ?? 0) > 100) {
+      return json(res, 400, { error: 'too many fleets to sail in one day' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -251,7 +265,30 @@ async function api(req, res, url) {
       flights.push({ column: column.id, target: mission.target });
     }
 
-    G.setOrders(game, seat, accepted, rebuild, flights);
+    // And the fleets, checked the same way and for the same reason: how far a
+    // ship goes in a day is a rule, and a rule that only the browser knows is
+    // not a rule.
+    const fleets = new Map(fleetsOf(world).map((f) => [f.id, f]));
+    const afloat = fleetsAt(world, game, game.day);
+    const anchored = new Map(afloat.map((f) => [f.id, f.cell]));
+    const weighed = new Set();
+    const sails = [];
+    for (const order of sailing ?? []) {
+      const why = mayShip({
+        world,
+        fleet: fleets.get(order?.fleet),
+        to: order?.to,
+        power: seat,
+        day: game.day,
+        positions: anchored,
+        ordered: weighed,
+      });
+      if (why) return json(res, 409, { error: why, fleet: order?.fleet });
+      weighed.add(order.fleet);
+      sails.push({ fleet: order.fleet, to: order.to });
+    }
+
+    G.setOrders(game, seat, accepted, rebuild, flights, sails);
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
@@ -327,6 +364,7 @@ const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
   '.json': 'application/json', '.bin': 'application/octet-stream',
   '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
 };
 
 function serveStatic(req, res, url) {

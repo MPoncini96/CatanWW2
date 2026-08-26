@@ -373,6 +373,16 @@ export class GlobeView {
     this.needsDraw = true;
   }
 
+  /**
+   * Where every fleet is this morning. Set from the record rather than read
+   * from the world, because the world holds the anchorages of 1 September and
+   * nothing has moved them since.
+   */
+  setFleets(fleets) {
+    this.fleets = fleets ?? null;
+    this.needsDraw = true;
+  }
+
   setViewer(viewer) {
     if (this.viewer === viewer) return;
     this.viewer = viewer;
@@ -449,7 +459,16 @@ export class GlobeView {
       drawUnitIcons(ctx, this.world, this.camera, this.width, this.height, this.viewer);
     }
     // Fleets last, so a battle fleet is never hidden under a city dot.
-    drawFleetMarkers(ctx, this.world, this.camera, this.width, this.height, this.viewer, taken);
+    drawFleetMarkers(
+      ctx,
+      this.world,
+      this.camera,
+      this.width,
+      this.height,
+      this.viewer,
+      taken,
+      this.fleets,
+    );
     // And your own orders over everything, because they are the one thing on
     // the board that is about tomorrow rather than today.
     drawOrders(

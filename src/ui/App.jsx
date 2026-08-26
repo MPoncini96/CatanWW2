@@ -30,7 +30,9 @@ import { DayReport } from './DayReport.jsx';
 import { reportFor } from '../game/report.js';
 import { Replacements } from './Replacements.jsx';
 import { Raid } from './Raid.jsx';
+import { Sail } from './Sail.jsx';
 import { strengthsAt } from '../game/combat.js';
+import { fleetsAt } from '../game/naval.js';
 import { capacityFor, spentBy } from '../game/production.js';
 import {
   claimSeat,
@@ -102,6 +104,8 @@ export default function App() {
   const [rebuilding, setRebuilding] = useState([]);
   const [bombAt, setBombAt] = useState(null);
   const [raiding, setRaiding] = useState([]);
+  const [sailAt, setSailAt] = useState(null);
+  const [sailing, setSailing] = useState([]);
   const [orders, setOrders] = useState([]);
   const [orderError, setOrderError] = useState(null);
   const [sending, setSending] = useState(false);
@@ -340,11 +344,22 @@ export default function App() {
     setOrders(game?.orders ?? []);
     setRebuilding(game?.rebuilding ?? []);
     setRaiding(game?.raiding ?? []);
+    setSailing(game?.sailing ?? []);
     setOrderError(null);
     setMarchTo(null);
     setRebuildAt(null);
     setBombAt(null);
+    setSailAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleSail = useCallback((id, to) => {
+    setOrderError(null);
+    setSailing((current) =>
+      current.some((s) => s.fleet === id)
+        ? current.filter((s) => s.fleet !== id)
+        : [...current, { fleet: id, to }],
+    );
+  }, []);
 
   const toggleRaid = useCallback((id, target) => {
     setOrderError(null);
@@ -382,19 +397,21 @@ export default function App() {
     setSending(true);
     setOrderError(null);
     try {
-      const state = await setOrdersOnServer(session.token, orders, rebuilding, raiding);
+      const state = await setOrdersOnServer(session.token, orders, rebuilding, raiding, sailing);
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
       setRaiding(state.raiding ?? []);
+      setSailing(state.sailing ?? []);
       setMarchTo(null);
       setRebuildAt(null);
       setBombAt(null);
+      setSailAt(null);
     } catch (err) {
       setOrderError(err.message);
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders, rebuilding, raiding]);
+  }, [session?.token, orders, rebuilding, raiding, sailing]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -426,18 +443,36 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, seat, ownershipVersion, marchVersion]);
 
+  // Every fleet as it stands this morning — where it is, what is left of it,
+  // and whether it is still there at all. Replayed from the record like the
+  // armies are, so a fleet that sailed on Tuesday is not still drawn at Scapa.
+  const fleets = useMemo(() => {
+    if (!world?.navies) return [];
+    return fleetsAt(world, game ?? {}, game?.day ?? 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, game?.day, game?.sailings, game?.seaBattles, game?.sinkings]);
+
   // Hulls this seat may count: its own and its side's wherever they are, and
   // anyone else's moored against a coast it can see.
   const navalTotals = useMemo(() => {
-    if (!world?.navies) return null;
+    if (!fleets.length) return null;
     const totals = Object.fromEntries(SHIPS.map((s) => [s.id, 0]));
-    for (const station of world.navies.stations) {
-      if (!seesFleet(world, seat, station)) continue;
-      for (const s of SHIPS) totals[s.id] += station.ships[s.id];
+    for (const fleet of fleets) {
+      if (fleet.cargo || !fleet.afloat) continue;
+      if (!seesFleet(world, seat, fleet)) continue;
+      for (const s of SHIPS) totals[s.id] += Math.round(fleet.ships[s.id] ?? 0);
     }
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, seat, ownershipVersion]);
+  }, [world, seat, fleets, ownershipVersion]);
+
+  // Hand the globe the fleets. Deliberately down here, below where `fleets` is
+  // worked out: an effect placed with the other view setters would read the
+  // list before the line that declares it and take the whole page down with a
+  // dead-zone error that builds perfectly cleanly. That has happened twice.
+  useEffect(() => {
+    viewRef.current?.setFleets(fleets);
+  }, [fleets]);
 
   // This nation's books: what it holds, what the ground pays it, and what a day
   // of standing still costs. Follows the calendar, so the stores fall as the
@@ -445,7 +480,7 @@ export default function App() {
   const economy = useMemo(() => {
     // The overseer has no stores to spend, because the overseer is not playing.
     if (!world?.ownership || !power || master) return null;
-    return economyFor(world, power, game?.day ?? 0, spent.stores);
+    return economyFor(world, power, game?.day ?? 0, spent.stores, game?.sinkings ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, power, game?.day, ownershipVersion, marchVersion, spent]);
 
@@ -717,11 +752,27 @@ export default function App() {
             onMarch={() => setMarchTo(selected?.index ?? null)}
             onRebuild={() => setRebuildAt(selected?.index ?? null)}
             onBomb={() => setBombAt(selected?.index ?? null)}
+            onSail={() => setSailAt(selected?.index ?? null)}
             raiding={raiding}
+            sailing={sailing}
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              bombAt !== null && world ? (
+              sailAt !== null && world ? (
+                <Sail
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={sailAt}
+                  fleets={fleets}
+                  sailing={sailing}
+                  onToggle={toggleSail}
+                  onSend={sendOrders}
+                  onCancel={() => setSailAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : bombAt !== null && world ? (
                 <Raid
                   world={world}
                   power={seat}
