@@ -36,6 +36,11 @@ export function Replacements({
 }) {
   const asked = useMemo(() => new Set(wanted), [wanted]);
 
+  // Whether anything can be got here at all is supply's question, and it is
+  // asked before the factories are.
+  const supplied = supplyFor(world, power, day)[cell] === 1;
+  const rate = supplied ? COLUMN_RATE : 0;
+
   const rows = useMemo(() => {
     const out = [];
     for (const column of world.garrisons.byCell.get(cell) ?? []) {
@@ -72,10 +77,6 @@ export function Replacements({
     return { total, men, effort };
   }, [rows, asked]);
 
-  // Whether anything can be got here at all is supply's question, and it is
-  // asked before the factories are.
-  const supplied = supplyFor(world, power, day)[cell] === 1;
-  const rate = supplied ? COLUMN_RATE : 0;
 
   return (
     <div className="march">

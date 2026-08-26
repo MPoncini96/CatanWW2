@@ -2208,3 +2208,156 @@ button:disabled {
   font-style: normal;
   color: #e0a894;
 }
+
+/* ---------- the day's returns ----------
+
+   Read once, then put away. It sits where the totals sit and behaves the same
+   way, because it is the same kind of thing: something you look at, close, and
+   go back to the map from. */
+
+.report {
+  position: fixed;
+  z-index: 40;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(78vh, 720px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  background: rgba(14, 20, 30, 0.98);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.report__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.report__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #dbe7f5;
+}
+
+.report__head button {
+  padding: 5px 14px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  background: rgba(120, 160, 210, 0.1);
+  color: #cfe0f2;
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.report__head button:hover {
+  background: rgba(120, 160, 210, 0.2);
+}
+
+.report__body {
+  padding: 4px 18px 18px;
+  overflow-y: auto;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.report__quiet {
+  margin: 0;
+  padding: 22px 18px 26px;
+  max-width: 60ch;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.report__body section h3 {
+  margin: 10px 0 5px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7f93ab;
+}
+
+.report__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.report__list li {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.1fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(120, 160, 210, 0.05);
+  border-left: 2px solid rgba(140, 170, 210, 0.25);
+  font-size: 11.5px;
+}
+
+.report__list li.is-won {
+  border-left-color: rgba(122, 186, 142, 0.75);
+}
+
+.report__list li.is-lost {
+  border-left-color: rgba(214, 138, 106, 0.75);
+}
+
+.report__where {
+  color: #dbe7f5;
+  font-weight: 500;
+}
+
+.report__what {
+  color: var(--muted);
+}
+
+.report__cost {
+  color: #8fa3bb;
+  font-size: 10.5px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report__sum {
+  border-top: 1px solid var(--panel-border);
+  padding-top: 6px;
+}
+
+.report__sum p {
+  margin: 0;
+  font-size: 12px;
+  color: #cfe0f2;
+}
+
+/* The top-bar button, when there is something new behind it. */
+.topbar__totals.is-live {
+  border-color: rgba(200, 160, 90, 0.55);
+  background: rgba(200, 160, 90, 0.16);
+  color: #e6c98a;
+}
+
+@media (max-width: 700px) {
+  .report__list li {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .report__cost {
+    text-align: left;
+  }
+}

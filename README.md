@@ -1271,6 +1271,39 @@ been: a beaten army falls back on its own, and offering it as an order implied a
 choice that does not exist. The three things a seat can do to a hex are march
 in, march onto somebody, and send up replacements.
 
+## The day's returns
+
+Everything a war does here goes into four lists — the battles, the ground, the
+starvation, and what came up from the depots — and until this existed **none of
+it was anywhere a player could see.** You ended the day, the map quietly
+changed, and the only way to find out how was to click every hex you held and
+read them one at a time. The dispatch cards that pop up are timeline events,
+not your war.
+
+So the report opens on its own when the day turns and there is something to
+say, and closes to a button in the top bar. It says, in order: who you fought
+and how it went, what changed hands, who is going hungry, what the factories
+managed — **and what they refused**, with the reason. A player who asks for
+fifteen columns and is given four should be told why, and the day used to
+swallow that silently.
+
+Nothing is stored for it. Ask again tomorrow and it works tomorrow out.
+
+### Two things it got wrong first
+
+**The parts did not add up to the whole.** A column that fights in the morning
+and goes hungry in the afternoon is in two entries of the record, and reading
+each as *how much less of it is there than yesterday* charges the whole day to
+both — so the report said the battle cost 7,900 men and the famine 8,000, out
+of 7,900 lost in all. The day is now walked in the order it happened, each entry
+taking its own share off a running strength. There is a test that the parts sum
+to the total, and it is the one that caught this.
+
+**Every hex in Poland was called "Poland".** Three separate fights all reported
+from the same place name is not telling anybody where anything happened; Poland
+is seventy hexes. A place is now the city if there is one and the region *with
+its coordinates* if there is not.
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the
@@ -1486,6 +1519,7 @@ src/
            production.js                         — the factories, and putting
                                                    the men back
            supply.js                             — and getting it forward
+           report.js                             — what the day brought
            players.js  state.js                  — the eight seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```

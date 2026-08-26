@@ -1,0 +1,258 @@
+import { NATIONS, NATION_INDEX } from '../world/nations.js';
+import { strengthsAt } from './combat.js';
+import { formationName } from '../world/deploy.js';
+import { grid } from '../world/sphere.js';
+
+// What the day brought.
+//
+// Everything below is already in the record — the battles, the ground, the
+// starvation, what came up from the depots — and until this file existed none
+// of it was anywhere a player could see. You ended the day and the map had
+// quietly changed, and the only way to find out how was to click every hex you
+// owned and read them one at a time.
+//
+// So this is not a new system. It is the one that reads the four lists back and
+// says, in order: who you fought, what it cost, what changed hands, who is
+// going hungry, and what the factories could and could not manage. Nothing is
+// stored for it. Ask again tomorrow and it works the day out again.
+
+const ARMS = ['infantry', 'tanks', 'artillery', 'fighters', 'bombers'];
+
+/** Who a reader would say was holding this hex. */
+function countryOn(world, cell, nation) {
+  const country = world.countryOf?.[cell] >= 0 ? world.countries[world.countryOf[cell]] : null;
+  const power = NATIONS[NATION_INDEX[nation]]?.name;
+  if (!country) return power ?? '—';
+  return country.name === power ? power : country.name;
+}
+
+/**
+ * A place a reader can picture, rather than a cell number.
+ *
+ * A city if there is one, and otherwise the region *with its coordinates* —
+ * because a report of three separate fights that all say "Poland" is not
+ * telling anybody where anything happened. Poland is seventy hexes.
+ */
+export function placeOf(world, cell) {
+  const city = world.cityAt?.[cell] >= 0 ? world.cities[world.cityAt[cell]] : null;
+  if (city) return city.name;
+  const sphere = grid();
+  const lat = sphere.lat[cell];
+  const lon = sphere.lon[cell];
+  const where = `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`;
+  const region = world.territoryName?.[cell];
+  return region ? `${region} · ${where}` : where;
+}
+
+/** How much came off a set of columns between two days. */
+function difference(before, after, ids) {
+  const out = {};
+  let any = 0;
+  for (const id of ids) {
+    const was = before.get(id);
+    const now = after.get(id);
+    if (!was) continue;
+    for (const arm of ARMS) {
+      const gone = (was[arm] ?? 0) - (now?.[arm] ?? 0);
+      if (gone <= 0) continue;
+      out[arm] = (out[arm] ?? 0) + gone;
+      any += gone;
+    }
+  }
+  return any ? out : null;
+}
+
+/**
+ * What one entry in the record cost, as against what the whole day cost.
+ *
+ * The difference matters and the first version of this got it wrong. A column
+ * that fought in the morning and went hungry in the afternoon appears in two
+ * entries, and asking "how much less of it is there than yesterday" for each of
+ * them attributes the whole day's loss to both — so the report said the battle
+ * cost 7,900 men and the famine cost 8,000, out of 7,900 lost.
+ *
+ * So the day is walked in the order it happened, each entry taking its own
+ * share off a running strength. The parts now add up to the whole, because they
+ * are worked out the same way the whole was.
+ */
+function costsOfTheDay(opening, record, day) {
+  const running = new Map();
+  for (const placement of opening) running.set(placement.id, { ...placement.strength });
+  for (const entry of record) {
+    if (entry.day >= day) break;
+    for (const [ids, share] of [[entry.losers, entry.loserShare], [entry.winners, entry.winnerShare]]) {
+      for (const id of ids ?? []) {
+        const have = running.get(id);
+        if (!have) continue;
+        for (const arm of ARMS) have[arm] = Math.max(0, Math.floor(have[arm] * (1 - share)));
+      }
+    }
+  }
+
+  // Kept per column rather than per entry, because a report is written for one
+  // seat and half of what a battle costs is somebody else's.
+  const cost = new Map();
+  for (const entry of record) {
+    if (entry.day !== day) continue;
+    const took = new Map();
+    for (const [ids, share] of [[entry.losers, entry.loserShare], [entry.winners, entry.winnerShare]]) {
+      for (const id of ids ?? []) {
+        const have = running.get(id);
+        if (!have) continue;
+        const mine = {};
+        for (const arm of ARMS) {
+          const after = Math.max(0, Math.floor(have[arm] * (1 - share)));
+          const gone = have[arm] - after;
+          have[arm] = after;
+          if (gone > 0) mine[arm] = gone;
+        }
+        took.set(id, mine);
+      }
+    }
+    cost.set(entry, took);
+  }
+  return cost;
+}
+
+/**
+ * Everything that happened to one seat on one day.
+ *
+ * @returns {{day, battles, taken, lost, starving, sent, refused, losses, gains, quiet}}
+ */
+export function reportFor({ world, game, seat, day }) {
+  const opening = world.garrisons.opening;
+  const mine = new Set(
+    opening.filter((c) => c.formation.nation === seat).map((c) => c.id),
+  );
+  const nameOf = (id) => {
+    const column = opening.find((c) => c.id === id);
+    return column ? formationName(column.formation) : id;
+  };
+
+  const before = strengthsAt(opening, game.battles ?? [], day - 1, game.replacements ?? []);
+  const after = strengthsAt(opening, game.battles ?? [], day, game.replacements ?? []);
+  // What each entry cost on its own, so the parts add up to the whole.
+  const cost = costsOfTheDay(opening, game.battles ?? [], day);
+  // What an entry cost *this seat*, which is half of what it cost in all.
+  const oursOnly = (entry) => {
+    const per = cost.get(entry);
+    if (!per) return null;
+    const out = {};
+    let any = 0;
+    for (const [id, took] of per) {
+      if (!mine.has(id)) continue;
+      for (const [arm, n] of Object.entries(took)) {
+        out[arm] = (out[arm] ?? 0) + n;
+        any += n;
+      }
+    }
+    return any ? out : null;
+  };
+
+  // ---- the fighting --------------------------------------------------------
+  const battles = [];
+  const starving = [];
+  for (const entry of game.battles ?? []) {
+    if (entry.day !== day) continue;
+
+    if (entry.starved) {
+      if (!entry.losers.some((id) => mine.has(id))) continue;
+      // Gathered by hex rather than by column. Six columns going hungry on one
+      // hex is one fact about one place, and listing it six times — four of
+      // them reading "14th Army", because four detachments of it marched
+      // together — tells a reader less than saying it once.
+      const seat = starving.find((x) => x.cell === entry.cell) ?? {
+        cell: entry.cell,
+        where: placeOf(world, entry.cell),
+        columns: [],
+        lost: null,
+      };
+      if (!starving.includes(seat)) starving.push(seat);
+      for (const id of entry.losers) if (mine.has(id)) seat.columns.push(nameOf(id));
+      const took = oursOnly(entry);
+      if (took) {
+        seat.lost ??= {};
+        for (const [arm, n] of Object.entries(took)) seat.lost[arm] = (seat.lost[arm] ?? 0) + n;
+      }
+      continue;
+    }
+
+    const attacking = entry.attacker === seat;
+    const defending = entry.defender === seat;
+    if (!attacking && !defending) continue;
+    const won = (attacking && entry.winner === 'attacker') || (defending && entry.winner === 'defender');
+    const ours = [...entry.losers, ...entry.winners].filter((id) => mine.has(id));
+    battles.push({
+      cell: entry.cell,
+      where: placeOf(world, entry.cell),
+      attacking,
+      won,
+      pocket: entry.pocket,
+      // Named by the country standing on the ground where there is one. The
+      // pooled neutral is thirty armies and "attacked Independent" tells a
+      // reader nothing about who was in the way.
+      against: countryOn(world, entry.cell, attacking ? entry.defender : entry.attacker),
+      strength: attacking ? entry.attack : entry.defence,
+      theirs: attacking ? entry.defence : entry.attack,
+      columns: ours.map(nameOf),
+      lost: oursOnly(entry),
+    });
+  }
+
+  // ---- the ground ----------------------------------------------------------
+  const taken = [];
+  const lost = [];
+  for (const capture of game.captures ?? []) {
+    if (capture.day !== day) continue;
+    const how = capture.cutOff ? 'cut off' : capture.walkedIn ? 'walked into' : 'stormed';
+    if (capture.to === seat) {
+      taken.push({ cell: capture.cell, where: placeOf(world, capture.cell), how, from: capture.from });
+    } else if (capture.from === seat) {
+      lost.push({ cell: capture.cell, where: placeOf(world, capture.cell), how, to: capture.to });
+    }
+  }
+
+  // ---- the depots ----------------------------------------------------------
+  const sent = [];
+  for (const entry of game.replacements ?? []) {
+    if (entry.day !== day || entry.power !== seat) continue;
+    sent.push({ column: nameOf(entry.column), added: entry.added, men: entry.men, effort: entry.effort });
+  }
+  const refused = (game.refused ?? [])
+    .filter((r) => r.day === day && r.power === seat)
+    .map((r) => ({ column: nameOf(r.column), why: r.why }));
+
+  // ---- and the arithmetic --------------------------------------------------
+  const losses = difference(before, after, mine) ?? {};
+  const gains = {};
+  for (const entry of sent) {
+    for (const [arm, n] of Object.entries(entry.added ?? {})) gains[arm] = (gains[arm] ?? 0) + n;
+  }
+
+  // "14th Army, 14th Army, 14th Army" is four detachments of one army and reads
+  // like a stutter. Say it once and count it.
+  for (const spot of starving) {
+    const seen = new Map();
+    for (const name of spot.columns) seen.set(name, (seen.get(name) ?? 0) + 1);
+    spot.columns = [...seen].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name));
+  }
+
+  return {
+    day,
+    battles,
+    taken,
+    lost,
+    starving,
+    sent,
+    refused,
+    losses,
+    gains,
+    quiet:
+      battles.length === 0 &&
+      taken.length === 0 &&
+      lost.length === 0 &&
+      starving.length === 0 &&
+      sent.length === 0 &&
+      refused.length === 0,
+  };
+}

@@ -85,6 +85,7 @@ import {
   supplyMap,
 } from '../src/game/supply.js';
 import { DEPOTS_1939, PORTS_1939 } from '../src/world/depots.js';
+import { placeOf, reportFor } from '../src/game/report.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1988,6 +1989,116 @@ section('getting the shells forward');
     'and nothing is sent up to a column that cannot be reached',
   );
 
+  world.march([], 0, [], []);
+}
+
+
+// ------------------------------------------------------------ and the returns
+section('what the day brought');
+{
+  // Everything in a report is already in the record. What this checks is that
+  // the reading of it is honest — that the parts add up to the whole, that a
+  // seat is told about its own war and not anybody else's, and that a place has
+  // a name a reader could find on the map.
+  const world = board();
+  const opening = world.garrisons.opening;
+
+  // ---- places ------------------------------------------------------------
+  ok(placeOf(world, cellFor(52.52, 13.4)).includes('Berlin'), 'a hex with a city on it is that city');
+  const rural = placeOf(world, cellFor(52.9, 12.5));
+  ok(rural.includes('°'), 'and one without carries its coordinates');
+  ok(
+    placeOf(world, cellFor(52.0, 19.9)) !== placeOf(world, cellFor(52.4, 20.6)),
+    'so that two different hexes of Poland do not both read as "Poland"',
+  );
+
+  // ---- a day with a battle in it -----------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'de', 'A');
+  const german = cellFor(50.1, 18.1);
+  const polish = [...neighbours(german)].find(
+    (j) => world.countryOf[j] >= 0 && world.countries[world.countryOf[j]].name.startsWith('Poland'),
+  );
+  const attacking = (world.garrisons.byCell.get(german) ?? []).filter((c) => isMobile(c.formation));
+  G.setOrders(game, 'germany', attacking.map((c) => ({ column: c.id, from: german, to: polish })));
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  const report = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(report.day, game.day, 'the report is for the day that just turned');
+  ok(!report.quiet, 'and it has something to say');
+  eq(report.battles.length, 1, 'one battle');
+  ok(report.battles[0].attacking, 'which Germany started');
+  ok(report.battles[0].won, 'and won');
+  eq(report.battles[0].against, 'Poland', 'against Poland, not against "Independent"');
+  ok(report.taken.length >= 1, 'and took ground');
+  eq(report.taken[0].how, 'stormed', 'the hex that was fought over was stormed');
+
+  // ---- the arithmetic ----------------------------------------------------
+  //
+  // The check that caught the first version. A column that fights in the
+  // morning and goes hungry in the afternoon is in two entries, and reading
+  // each one as "how much less of it is there than yesterday" charges the whole
+  // day to both — so the report said the battle cost 7,900 men and the famine
+  // 8,000, out of 7,900 lost in all.
+  const parts = {};
+  for (const list of [report.battles, report.starving]) {
+    for (const entry of list) {
+      for (const [arm, n] of Object.entries(entry.lost ?? {})) parts[arm] = (parts[arm] ?? 0) + n;
+    }
+  }
+  for (const [arm, n] of Object.entries(report.losses)) {
+    ok(
+      Math.abs(n - (parts[arm] ?? 0)) <= 2,
+      `the ${arm} lost in the parts adds up to the ${n.toLocaleString()} lost in all`,
+    );
+  }
+  ok(Object.keys(report.losses).length > 0, 'and something was lost, or the check proves nothing');
+
+  // ---- and it is one seat's war ------------------------------------------
+  const polishReport = reportFor({ world, game, seat: 'neutral', day: game.day });
+  ok(polishReport.battles.length === 1, 'the other side gets the same battle');
+  ok(!polishReport.battles[0].attacking, 'from the other end');
+  ok(!polishReport.battles[0].won, 'and it did not go their way');
+  ok(polishReport.lost.length >= 1, 'they lost the ground Germany took');
+  eq(polishReport.taken.length, 0, 'and took none');
+
+  const bystander = reportFor({ world, game, seat: 'usa', day: game.day });
+  ok(bystander.quiet, 'a seat that was not in it is told nothing happened');
+  eq(bystander.battles.length, 0, 'because as far as it is concerned nothing did');
+
+  // ---- refusals are reported ---------------------------------------------
+  // A player who asks for fifteen columns and gets four should be told why.
+  const all = opening.filter((c) => c.formation.nation === 'germany');
+  for (const c of all) {
+    game.battles.push({ day: game.day, cell: c.cell, losers: [c.id], winners: [], loserShare: 0.3, winnerShare: 0 });
+  }
+  G.setOrders(game, 'germany', [], all.map((c) => c.id));
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+  const second = reportFor({ world, game, seat: 'germany', day: game.day });
+  ok(second.sent.length > 0, 'some columns were brought back up');
+  ok(second.refused.length > 0, `and ${second.refused.length} were not`);
+  ok(
+    second.refused.every((r) => typeof r.why === 'string' && r.why.length > 4),
+    'every one of them with a reason',
+  );
+  ok(
+    second.refused.some((r) => r.why.includes('factories')),
+    'and the commonest reason is that the factories were full',
+  );
+  ok(Object.keys(second.gains).length > 0, 'the day made something good');
+
+  // ---- a quiet day -------------------------------------------------------
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+  const third = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(third.sent.length, 0, 'a day nobody asked for anything sends nothing');
+  eq(third.refused.length, 0, 'and refuses nothing');
+
+  for (const capture of game.captures) {
+    world.ownership.set(capture.cell, capture.from, { reason: 'test' });
+  }
   world.march([], 0, [], []);
 }
 

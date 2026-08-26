@@ -63,6 +63,7 @@ function load() {
       saved.captures ??= [];
       saved.replacements ??= [];
       saved.raids ??= [];
+      saved.refused ??= [];
       saved.rebuilding ??= {};
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;

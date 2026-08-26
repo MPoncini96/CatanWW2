@@ -55,6 +55,11 @@ export function newGame() {
     raids: [],
     // Which columns each seat wants replacements sent to tomorrow.
     rebuilding: {},
+    // And the ones that were asked for and not sent, with the reason. The day
+    // used to swallow these, which meant a player could ask for fifteen
+    // columns, be given four, and never find out why — the most annoying kind
+    // of silence a game can keep.
+    refused: [],
     // Bumped on every change so clients can tell whether they are current.
     revision: 0,
   };
@@ -173,6 +178,9 @@ export function advance(game, world = null) {
     }
     // And last, the replacements — after the fighting, so that a column cannot
     // be rebuilt into the middle of the battle it is losing.
+    // A new day's refusals only. Yesterday's are of no use to anybody and the
+    // list would otherwise grow for ever.
+    game.refused = game.refused.filter((r) => r.day >= game.day);
     game.replacements.push(...sendReplacements(game, world));
     game.rebuilding = {};
   }
@@ -219,6 +227,7 @@ export function setOrders(game, power, orders, rebuilding = null) {
  */
 function sendReplacements(game, world) {
   const sent = [];
+  const refused = [];
   const columns = new Map(world.garrisons.opening.map((p) => [p.id, p]));
   const positions = positionsAt(world.garrisons.opening, game.moves, game.day);
   const left = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
@@ -246,9 +255,26 @@ function sendReplacements(game, world) {
         day: game.day,
         supplied: supplyFor(world, power, game.day)[where] === 1,
       });
-      if (!want) continue;
-      if (want.effort > plantDays) continue;
-      if (canAfford(economy, want.cost, running)) continue;
+      if (!want) {
+        refused.push({
+          day: game.day,
+          power,
+          column: id,
+          why: supplyFor(world, power, game.day)[where]
+            ? 'already at full strength'
+            : 'out of supply — nothing can be got to it',
+        });
+        continue;
+      }
+      if (want.effort > plantDays) {
+        refused.push({ day: game.day, power, column: id, why: 'the factories were full' });
+        continue;
+      }
+      const short = canAfford(economy, want.cost, running);
+      if (short) {
+        refused.push({ day: game.day, power, column: id, why: short });
+        continue;
+      }
       plantDays -= want.effort;
       for (const [store, amount] of Object.entries(want.cost)) {
         running[store] = (running[store] ?? 0) + amount;
@@ -256,6 +282,7 @@ function sendReplacements(game, world) {
       sent.push({ day: game.day, power, column: id, ...want });
     }
   }
+  game.refused.push(...refused);
   return sent;
 }
 
@@ -311,6 +338,7 @@ export function publicState(game, viewer) {
     battles: game.battles,
     captures: game.captures,
     replacements: game.replacements,
+    refused: viewer ? (game.refused ?? []).filter((r) => r.power === viewer) : [],
     raids: game.raids,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],

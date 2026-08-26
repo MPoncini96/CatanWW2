@@ -25,6 +25,8 @@ import { Dossier } from './Dossier.jsx';
 import { arrivalsAt, positionsAt } from '../game/movement.js';
 import { Survey } from './Survey.jsx';
 import { March } from './March.jsx';
+import { DayReport } from './DayReport.jsx';
+import { reportFor } from '../game/report.js';
 import { Replacements } from './Replacements.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { capacityFor, spentBy } from '../game/production.js';
@@ -294,6 +296,12 @@ export default function App() {
   // Fifteen figures that are looked at rather than worked from: shut to begin
   // with, and remembered once opened.
   const [storesOpen, setStoresOpen] = useState(false);
+  // The day's returns. Opened on its own when the day turns and there is
+  // something to say, and re-openable from the top bar afterwards, because the
+  // first thing you want after reading it is the map back and the second is to
+  // read it again.
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportSeen, setReportSeen] = useState(0);
   // The hex being marched into, and the day's orders. The orders come back
   // from the server on every frame, so this is a working copy that is replaced
   // whenever the server has something to say about them.
@@ -634,6 +642,22 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, power, master, economy, game?.day, game?.raids?.length, ownershipVersion]);
 
+  // What happened to this seat on the day just resolved. Worked out from the
+  // record rather than stored: ask again tomorrow and it works tomorrow out.
+  const report = useMemo(() => {
+    if (!world || !game || master || !seat || game.day === 0) return null;
+    return reportFor({ world, game, seat, day: game.day });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, game?.day, seat, master, battleCount, captureCount, rebuiltCount]);
+
+  // Show it once a day, unasked, and only when it has something in it.
+  useEffect(() => {
+    if (!report || report.quiet) return;
+    if (reportSeen >= report.day) return;
+    setReportSeen(report.day);
+    setReportOpen(true);
+  }, [report, reportSeen]);
+
   const player = master ? MASTER_SEAT : power ? BY_ID[power] : null;
 
   // The index: eight nations and nothing else to decide.
@@ -688,6 +712,16 @@ export default function App() {
             Output
           </button>
         </div>
+
+        {!master && game?.day > 0 && (
+          <button
+            type="button"
+            className={`topbar__totals${report && !report.quiet ? ' is-live' : ''}`}
+            onClick={() => setReportOpen(true)}
+          >
+            The day
+          </button>
+        )}
 
         <button
           type="button"
@@ -918,6 +952,10 @@ export default function App() {
           </footer>
         </div>
       </div>
+
+      {reportOpen && report && (
+        <DayReport report={report} date={game?.date} onClose={() => setReportOpen(false)} />
+      )}
 
       {totalsOpen && (
         <Totals
