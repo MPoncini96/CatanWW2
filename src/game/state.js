@@ -8,6 +8,7 @@ import { resolveRaids } from './bombing.js';
 import { canAfford, capacityFor, replacementFor, spentBy } from './production.js';
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
+import { collisionsAt } from './combat.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
 import { defeats, heldCells, standings, victory } from './victory.js';
@@ -72,6 +73,9 @@ export function newGame() {
     // economy reads this directly, so a lane cut this morning stops paying
     // into the stores this morning.
     sinkings: [],
+    // Orders that did not happen because somebody was coming the other way.
+    // Kept so a player who ordered an attack and got a defence is told why.
+    collisions: [],
     // Governments that have stopped governing, and where their ground went.
     // The largest single events on the board: one of these moves more hexes in
     // a morning than a month of fighting does.
@@ -251,8 +255,32 @@ export function advance(game, world = null, now = 0) {
   // the beaten fall back — which is itself a march, stamped with the same day,
   // so that where an army is stays one question with one answer.
   game.day += 1;
-  game.moves.push(...executeOrders(game.orders, game.day));
+  const ordered = executeOrders(game.orders, game.day);
   game.orders = {};
+
+  // Two armies ordered onto each other's hex do not pass through each other.
+  // Caught here, before the moves are committed, because everything downstream
+  // reads positions off `game.moves` and a cancelled march must never have
+  // happened at all.
+  let meetings = [];
+  if (world) {
+    const collided = collisionsAt({
+      world,
+      day: game.day,
+      moves: ordered,
+      strengths: strengthsAt(
+        world.garrisons.opening,
+        game.battles,
+        game.day - 1,
+        game.replacements,
+      ),
+    });
+    meetings = collided.meetings;
+    game.collisions.push(...collided.collisions);
+    game.moves.push(...collided.moves);
+  } else {
+    game.moves.push(...ordered);
+  }
 
   if (world) {
     // The sea goes first. Not for its own sake — nothing on land depends on
@@ -286,6 +314,7 @@ export function advance(game, world = null, now = 0) {
       battles: game.battles,
       replacements: game.replacements,
       navy,
+      meetings,
     });
     game.battles.push(...battles);
     game.moves.push(...retreats);
@@ -588,6 +617,7 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     seaBattles: game.seaBattles,
     sinkings: game.sinkings,
     capitulations: game.capitulations,
+    collisions: game.collisions,
     beaten: game.beaten,
     // How close the end is. Worked out when the board changes rather than when
     // somebody asks — it costs a walk of the map, and the map only moves once a

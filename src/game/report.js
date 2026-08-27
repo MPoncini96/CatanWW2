@@ -191,6 +191,13 @@ export function reportFor({ world, game, seat, day }) {
     battles.push({
       cell: entry.cell,
       where: placeOf(world, entry.cell),
+      // A head-on collision has an attacker and a defender in the record
+      // because the record needs two columns to put them in, but neither side
+      // was defending anything — both were marching. The report should say so
+      // rather than telling one of them it was attacked in a place it had
+      // already left.
+      meeting: Boolean(entry.meeting),
+      between: entry.between ?? null,
       attacking,
       won,
       pocket: entry.pocket,
@@ -289,6 +296,23 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- orders that never happened ------------------------------------------
+  // A player who ordered an attack and got a defence is owed a sentence about
+  // why. Both halves of a collision get one: the column that was ridden over
+  // before it could start, and the pair that ran into each other.
+  const stopped = [];
+  for (const entry of game.collisions ?? []) {
+    if (entry.day !== day || entry.power !== seat) continue;
+    stopped.push({
+      column: nameOf(entry.column),
+      where: placeOf(world, entry.from),
+      towards: placeOf(world, entry.to),
+      pressed: Boolean(entry.pressed),
+      by: entry.by ? countryOn(world, entry.to, entry.by) : null,
+      ratio: entry.ratio,
+    });
+  }
+
   // ---- and any government that stopped governing ---------------------------
   // The largest thing that can happen in a day, and the only entry in this
   // report that is not about a hex: one of these moves more ground in a morning
@@ -345,6 +369,7 @@ export function reportFor({ world, game, seat, day }) {
     sunk,
     raided,
     fell,
+    stopped,
     taken,
     lost,
     starving,
@@ -354,6 +379,7 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      stopped.length === 0 &&
       fell.length === 0 &&
       actions.length === 0 &&
       sunk.length === 0 &&

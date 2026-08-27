@@ -46,7 +46,10 @@ export function DayReport({ report, date, onClose }) {
                     <li key={`b${n}`} className={b.won ? 'is-won' : 'is-lost'}>
                       <span className="report__where">{b.where}</span>
                       <span className="report__what">
-                        {b.attacking ? 'attacked' : 'attacked by'} {b.against} —{' '}
+                        {b.meeting
+                          ? `met ${b.against} head-on`
+                          : `${b.attacking ? 'attacked' : 'attacked by'} ${b.against}`}{' '}
+                        —{' '}
                         <strong>{b.won ? 'held' : 'gave way'}</strong>
                         {b.pocket && b.won && ', and the pocket was destroyed'}
                         {b.pocket && !b.won && ', with nowhere to fall back to'}
@@ -91,6 +94,32 @@ export function DayReport({ report, date, onClose }) {
                       <span className="report__cost">
                         {r.fighters} fighters and {r.flak} guns up · {Math.round(r.share * 100)}% of
                         them shot down
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {report.stopped?.length > 0 && (
+              <section>
+                <h3>Orders that did not happen</h3>
+                <ul className="report__list">
+                  {report.stopped.map((c, n) => (
+                    <li key={`c${n}`}>
+                      <span className="report__where">{c.where}</span>
+                      <span className="report__what">
+                        {c.column} never got away towards {c.towards} —{' '}
+                        <strong>
+                          {c.pressed
+                            ? `ridden over by ${c.by ?? 'the enemy'} coming the other way`
+                            : 'it ran head-on into the enemy doing the same thing'}
+                        </strong>
+                      </span>
+                      <span className="report__cost">
+                        {c.pressed
+                          ? `the odds were ${c.ratio}:1 against`
+                          : `${c.ratio}:1 — near enough even that neither got through`}
                       </span>
                     </li>
                   ))}

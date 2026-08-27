@@ -166,6 +166,139 @@ export function isCapital(cell) {
 }
 
 /**
+ * How much stronger one side has to be to shoulder its way through.
+ *
+ * Below this it is a meeting engagement and both sides stop where they are.
+ * At or above it the stronger side simply keeps going, and the weaker finds
+ * itself defending the ground it was trying to leave.
+ *
+ * Three to one is the classical figure for a local superiority that decides
+ * things, and it is set here to stop a specific trick: parking an army by
+ * throwing a battalion head-on at it. Without this rule a token force could
+ * cancel any advance in the game for the price of the token force, every day,
+ * for ever.
+ */
+export const PRESSED_HOME = 3;
+
+/**
+ * Two armies ordered onto each other's hex.
+ *
+ * Until this existed they marched **through** each other and swapped ends: the
+ * Polish army charging the German 3rd Army finished the day behind it, on
+ * German soil, having never fought the thing it charged, while Germany walked
+ * into the position it had left. Battles are found by two armies standing on
+ * one hex, and in a straight swap nobody ever shares one.
+ *
+ * So a head-on pair is caught before the moves are committed, and goes one of
+ * two ways:
+ *
+ * - **Evenly matched** — neither gets through. Both moves are cancelled, both
+ *   columns stay where they started, and they fight a *meeting engagement*:
+ *   no terrain bonus for anybody, because nobody is dug in and both were in the
+ *   open, moving.
+ * - **Heavily one-sided** — the stronger presses home. Only the weaker's move
+ *   is cancelled, so the stronger arrives on top of it and the day resolves it
+ *   as an ordinary attack, with the weaker defending its own ground and getting
+ *   the terrain for it.
+ *
+ * Strength is compared without the supply multiplier. This is a question about
+ * how big the two forces are, and whether either can be fed is applied in the
+ * fight itself rather than twice.
+ *
+ * @returns {{moves, meetings, collisions}} the moves that survive, the head-on
+ *          fights to resolve, and the record of why an order did not happen.
+ */
+export function collisionsAt({ world, day, moves, strengths }) {
+  const today = moves.filter((m) => m.day === day);
+  const columns = new Map(world.garrisons.opening.map((p) => [p.id, p]));
+  const byColumn = new Map(today.map((m) => [m.column, m]));
+
+  const cancelled = new Set();
+  const meetings = [];
+  const collisions = [];
+  const done = new Set();
+
+  for (const move of today) {
+    if (done.has(move.column)) continue;
+    const mine = columns.get(move.column);
+    if (!mine) continue;
+
+    for (const other of today) {
+      if (other === move || done.has(other.column)) continue;
+      // The one case, and only this one: each is going where the other is
+      // coming from. A column that moves aside while another moves in has
+      // genuinely gone, and the ground behind it is genuinely free.
+      if (other.from !== move.to || other.to !== move.from) continue;
+
+      const theirs = columns.get(other.column);
+      if (!theirs) continue;
+      const us = mine.formation.nation;
+      const them = theirs.formation.nation;
+      if (us === them) continue;
+      if (!atWar(day, us, them, world, move.to)) continue;
+
+      const ourWeight = strengthOf([mine], 'attack', strengths);
+      const theirWeight = strengthOf([theirs], 'attack', strengths);
+      const strong = ourWeight >= theirWeight ? move : other;
+      const weak = strong === move ? other : move;
+      const ratio =
+        Math.max(ourWeight, theirWeight) / Math.max(1, Math.min(ourWeight, theirWeight));
+
+      done.add(move.column);
+      done.add(other.column);
+
+      if (ratio >= PRESSED_HOME) {
+        // The weak one never gets out of its position.
+        cancelled.add(weak.column);
+        collisions.push({
+          day,
+          column: weak.column,
+          power: weak.power,
+          from: weak.from,
+          to: weak.to,
+          pressed: true,
+          by: strong.power,
+          ratio: Math.round(ratio * 10) / 10,
+        });
+      } else {
+        cancelled.add(move.column);
+        cancelled.add(other.column);
+        // Recorded on the lower of the two cells. With the ground bonus
+        // suppressed the cell decides only the luck and the place-name, and
+        // the engine already orders everything else by cell index.
+        const cell = Math.min(move.from, other.from);
+        meetings.push({
+          day,
+          cell,
+          other: Math.max(move.from, other.from),
+          a: cell === move.from ? move.column : other.column,
+          b: cell === move.from ? other.column : move.column,
+        });
+        for (const stopped of [move, other]) {
+          collisions.push({
+            day,
+            column: stopped.column,
+            power: stopped.power,
+            from: stopped.from,
+            to: stopped.to,
+            met: true,
+            ratio: Math.round(ratio * 10) / 10,
+          });
+        }
+      }
+      break;
+    }
+  }
+
+  void byColumn;
+  return {
+    moves: moves.filter((m) => !(m.day === day && cancelled.has(m.column))),
+    meetings,
+    collisions,
+  };
+}
+
+/**
  * Resolve one hex's fight for one day.
  *
  * @returns {{winner, attack, defence, losses, retreat, pocket}}
@@ -180,6 +313,7 @@ export function fight({
   fromCell,
   supplied,
   support = null,
+  meeting = false,
 }) {
   const [luckA, luckD] = luckAt(day, cell);
   // Guns offshore are added before the dice and before the ground bonus: a
@@ -187,9 +321,12 @@ export function fight({
   // on is a marsh or a ridge, which is the one thing about naval gunfire that
   // is simpler than everything else in this function.
   const attack = (strengthOf(attackers, 'attack', strengths, supplied) + (support?.attack ?? 0)) * luckA;
+  // A meeting engagement gives the ground to nobody. Both sides were moving,
+  // neither is dug in, and the hex this is recorded on is an accident of which
+  // index happened to be lower.
   const defence =
     (strengthOf(defenders, 'defend', strengths, supplied) + (support?.defence ?? 0)) *
-    groundBonus(world, cell, fromCell) *
+    (meeting ? 1 : groundBonus(world, cell, fromCell)) *
     luckD;
 
   const attackerWins = attack > defence;
@@ -211,10 +348,15 @@ export function fight({
   let pocket = false;
   if (attackerWins) {
     const nation = defenders[0]?.formation.nation;
-    if (isCapital(cell)) pocket = true;
+    if (meeting) pocket = false;
+    else if (isCapital(cell)) pocket = true;
     else {
       retreat = retreatTo(world, cell, nation, fromCell);
-      pocket = retreat === null;
+      // A meeting engagement is fought in the open between two positions. The
+      // loser falls back if it has anywhere to fall back to, and simply holds
+      // where it is if it has not — it was never overrun, because the winner is
+      // still a hex away.
+      pocket = meeting ? false : retreat === null;
     }
   }
 
@@ -281,7 +423,15 @@ export function strengthsAt(placements, battles, day, replacements = []) {
  *
  * @returns {{battles: Array, retreats: Array, captures: Array}}
  */
-export function resolveDay({ world, day, moves, battles: past, replacements = [], navy = null }) {
+export function resolveDay({
+  world,
+  day,
+  moves,
+  battles: past,
+  replacements = [],
+  navy = null,
+  meetings = [],
+}) {
   const positions = positionsAt(world.garrisons.opening, moves, day);
   const strengths = strengthsAt(world.garrisons.opening, past, day - 1, replacements);
 
@@ -296,6 +446,8 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
     if (!maps.has(nation)) maps.set(nation, supplyMap(world, nation, day));
     if (maps.get(nation)[positions.get(column.id) ?? column.cell]) supplied.add(column.id);
   }
+
+  const columnsById = new Map(world.garrisons.opening.map((p) => [p.id, p]));
 
   // Who is standing where, and who got there today.
   const onCell = new Map();
@@ -417,6 +569,66 @@ export function resolveDay({ world, day, moves, battles: past, replacements = []
           retreat: true,
         });
       }
+    }
+  }
+
+  // ------------------------------------------------------------------------
+  // And the head-on ones, which are fought between two hexes rather than on
+  // one.
+  //
+  // These never appear in the scan above, because that finds two armies
+  // standing on one hex and these two are standing on their own. Both were
+  // marching at each other and neither got through, so the ground counts for
+  // nobody and the loser falls back out of its *own* position rather than off
+  // the winner's.
+  for (const meeting of meetings) {
+    const here = columnsById.get(meeting.a);
+    const there = columnsById.get(meeting.b);
+    if (!here || !there) continue;
+    const ourStrength = strengths.get(here.id);
+    const theirStrength = strengths.get(there.id);
+    if (!ourStrength || !theirStrength) continue;
+
+    const attackNation = here.formation.nation;
+    const defendNation = there.formation.nation;
+    const result = fight({
+      world,
+      cell: meeting.cell,
+      day,
+      attackers: [here],
+      defenders: [there],
+      strengths,
+      fromCell: meeting.other,
+      supplied,
+      meeting: true,
+    });
+
+    fought.push({
+      day,
+      cell: meeting.cell,
+      meeting: true,
+      // Both hexes, because a meeting engagement did not happen on either of
+      // them and a reader should be told where the two columns came from.
+      between: [meeting.cell, meeting.other],
+      attacker: attackNation,
+      defender: defendNation,
+      ...result,
+    });
+
+    // Whoever lost falls back from the hex they were standing on.
+    const lostIt = result.winner === 'attacker' ? there : here;
+    const loserCell = result.winner === 'attacker' ? meeting.other : meeting.cell;
+    const winnerCell = result.winner === 'attacker' ? meeting.cell : meeting.other;
+    const back = retreatTo(world, loserCell, lostIt.formation.nation, winnerCell);
+    if (back !== null) {
+      retreats.push({
+        day,
+        power: lostIt.formation.nation,
+        column: lostIt.id,
+        from: loserCell,
+        to: back,
+        retreat: true,
+      });
     }
   }
 

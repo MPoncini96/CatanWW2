@@ -131,6 +131,7 @@ import {
 } from '../src/game/victory.js';
 import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
 import { ISLANDS_1939 } from '../src/world/islands.js';
+import { PRESSED_HOME, collisionsAt } from '../src/game/combat.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -3035,6 +3036,135 @@ section('victory');
   ok(view.allies.china > 0, 'and China is still there');
   ok(view.axis.japan.needed > 0, 'the bombing bar is a number a player can see');
   eq(view.over, null, 'and nobody has won');
+}
+
+
+// -------------------------------------------------- two armies, one road
+section('head-on');
+{
+  const world = freshBoard();
+  const opening = world.garrisons.opening;
+  const strengths = strengthsAt(opening, [], 0, []);
+  const weight = (c) => strengthOf([c], 'attack', strengths);
+
+  // Every place a German column stands next to a Polish one, and how lopsided
+  // each pairing is. The frontier of 1 September gives plenty of both kinds.
+  const byCell = new Map();
+  for (const c of opening) {
+    if (!byCell.has(c.cell)) byCell.set(c.cell, []);
+    byCell.get(c.cell).push(c);
+  }
+  const pairs = [];
+  for (const c of opening) {
+    if (c.formation.nation !== 'germany') continue;
+    for (const j of neighbours(c.cell)) {
+      for (const other of byCell.get(j) ?? []) {
+        if (other.formation.nation !== 'neutral') continue;
+        if (world.countries[world.countryOf[other.cell]]?.name !== 'Poland') continue;
+        const a = weight(c);
+        const b = weight(other);
+        pairs.push({ c, other, ratio: Math.max(a, b) / Math.max(1, Math.min(a, b)) });
+      }
+    }
+  }
+  pairs.sort((x, y) => x.ratio - y.ratio);
+  ok(pairs.length > 50, `${pairs.length} German columns stand next to a Polish one`);
+  const even = pairs[0];
+  const lopsided = pairs[pairs.length - 1];
+  ok(even.ratio < PRESSED_HOME, `the closest pairing is ${even.ratio.toFixed(2)}:1`);
+  ok(lopsided.ratio >= PRESSED_HOME, `and the worst is ${lopsided.ratio.toFixed(1)}:1`);
+
+  const headOn = (p) =>
+    collisionsAt({
+      world,
+      day: 1,
+      strengths,
+      moves: [
+        { day: 1, power: 'germany', column: p.c.id, from: p.c.cell, to: p.other.cell },
+        { day: 1, power: 'neutral', column: p.other.id, from: p.other.cell, to: p.c.cell },
+      ],
+    });
+
+  // ---- evenly matched: neither gets through -------------------------------
+  const met = headOn(even);
+  eq(met.moves.length, 0, 'two armies of a size cancel each other’s march');
+  eq(met.meetings.length, 1, 'and fight a meeting engagement instead');
+  eq(met.collisions.length, 2, 'both are told why their order did not happen');
+  ok(met.collisions.every((c) => c.met), 'and both are told it was head-on');
+
+  // ---- heavily one-sided: the big one shoulders through --------------------
+  const pressed = headOn(lopsided);
+  eq(pressed.moves.length, 1, 'a much stronger army does not stop for a token force');
+  eq(pressed.meetings.length, 0, 'there is no meeting engagement — it is an attack');
+  eq(pressed.moves[0].power, 'germany', 'and it is the strong one that keeps going');
+  eq(pressed.collisions.length, 1, 'only the weak one is stopped');
+  ok(pressed.collisions[0].pressed, 'and told it was ridden over');
+  eq(pressed.collisions[0].column, lopsided.other.id, 'which is the Polish column');
+
+  // ---- and only a true swap counts ----------------------------------------
+  const aside = collisionsAt({
+    world,
+    day: 1,
+    strengths,
+    moves: [
+      { day: 1, power: 'germany', column: even.c.id, from: even.c.cell, to: even.other.cell },
+      // Going somewhere else entirely: this column has genuinely left, and the
+      // ground behind it is genuinely free.
+      { day: 1, power: 'neutral', column: even.other.id, from: even.other.cell, to: even.other.cell + 1 },
+    ],
+  });
+  eq(aside.moves.length, 2, 'a column that steps aside is not a collision');
+  eq(aside.meetings.length, 0, 'and nobody meets anybody');
+
+  // ---- what a whole day does with it --------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  game.orders.germany = [{ column: even.c.id, from: even.c.cell, to: even.other.cell }];
+  game.orders.neutral = [{ column: even.other.id, from: even.other.cell, to: even.c.cell }];
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  const now = positionsAt(opening, game.moves, game.day);
+  ok(
+    now.get(even.c.id) !== even.other.cell,
+    'the German column did not end the day on the hex it was charging',
+  );
+  ok(
+    now.get(even.other.id) !== even.c.cell,
+    'and the Polish column did not end it behind the German lines',
+  );
+  eq(now.get(even.c.id), even.c.cell, 'the winner holds the ground it started on');
+
+  const fight = game.battles.filter((b) => b.meeting);
+  eq(fight.length, 1, 'one meeting engagement was fought');
+  eq(fight[0].between.length, 2, 'and the record says which two hexes it was between');
+  ok(fight[0].between.includes(even.c.cell), 'the German hex');
+  ok(fight[0].between.includes(even.other.cell), 'and the Polish one');
+  eq(fight[0].pocket, false, 'nobody is destroyed in a pocket — the winner is a hex away');
+  ok(fight[0].loserShare > fight[0].winnerShare, 'the loser paid more for it than the winner');
+  eq(game.captures.length, 0, 'and no ground changed hands: neither side took the other’s');
+
+  // The loser fell back off its own hex rather than off the winner's.
+  const beaten = fight[0].winner === 'attacker' ? fight[0].losers : fight[0].losers;
+  ok(beaten.length > 0, 'somebody lost it');
+  const fellBack = game.moves.filter((m) => m.day === game.day && m.retreat);
+  eq(fellBack.length, 1, 'exactly one column fell back');
+  ok(
+    fellBack[0].from === even.c.cell || fellBack[0].from === even.other.cell,
+    'from one of the two hexes the armies started on',
+  );
+  ok(
+    fellBack[0].to !== even.c.cell && fellBack[0].to !== even.other.cell,
+    'and not onto the other one',
+  );
+
+  // ---- and the seat is told ------------------------------------------------
+  const said = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(said.stopped.length, 1, 'the German seat is told its order did not happen');
+  ok(said.stopped[0].ratio > 0, 'with the odds it ran into');
+  ok(!said.stopped[0].pressed, 'and that it was a meeting rather than being ridden over');
+  eq(said.battles.length, 1, 'and the fight itself is in the report');
+  ok(said.battles[0].meeting, 'flagged as a meeting, not as an attack on a place');
 }
 
 console.log(

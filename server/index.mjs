@@ -87,6 +87,9 @@ function load() {
       saved.seaBattles ??= [];
       saved.sinkings ??= [];
       saved.capitulations ??= [];
+      saved.collisions ??= [];
+      saved.beaten ??= [];
+      saved.over ??= null;
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {

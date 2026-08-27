@@ -1080,6 +1080,49 @@ behind, which is what relief in place is, and it holds an advance to roughly one
 hex every two days. That was not designed; it falls out of the movement rule and
 the combat rule meeting.
 
+### Two armies, one road
+
+Battles are found by two armies standing on one hex. In a straight swap — A
+ordered onto B's hex while B is ordered onto A's — nobody ever shares one, so
+until this rule existed **they marched through each other**. The Polish Army
+Pomorze charging the German 3rd Army finished the day *behind* it on German
+soil, having never fought the thing it charged, while Germany walked into the
+position it had left.
+
+A head-on pair is now caught before the moves are committed, and goes one of two
+ways depending on how lopsided it is.
+
+**Evenly matched — a meeting engagement.** Neither gets through. Both moves are
+cancelled, both columns stay where they started, and they fight with **no
+terrain bonus for either side**: nobody is dug in, both were in the open and
+moving, and the hex the fight is recorded on is an accident of which index was
+lower. The loser falls back out of its *own* position — and is never pocketed,
+because the winner is still a hex away and nobody was overrun. No ground changes
+hands. Win the encounter and the road in front of you is empty *tomorrow*, which
+keeps one hex a day honest.
+
+**Heavily one-sided — the stronger presses home.** At **three to one or better**
+the big army does not stop; only the weak one's march is cancelled, so the
+stronger arrives on top of it and the day resolves an ordinary attack, with the
+weaker defending its own ground and getting the terrain for it.
+
+That threshold exists to kill a specific trick: parking an army by throwing a
+battalion head-on at it. Without it, a token force could cancel any advance in
+the game for the price of the token force, every day, for ever.
+
+On the frontier of 1 September there are 224 places a German column stands next
+to a Polish one. 56 of those pairings are under 3:1 and would be meeting
+engagements; 168 are over it and the German would shoulder through — which is
+about the right shape for that particular week.
+
+Only a **true swap** counts. A column that moves aside while another moves in has
+genuinely gone, and the ground behind it is genuinely free.
+
+Both halves are written down, because a player who ordered an attack and got a
+defence is owed a sentence about why. The day's report says either *"met Poland
+head-on"* or *"14th Army never got away — it ran head-on into the enemy doing
+the same thing"*, with the odds it ran into.
+
 ## Supply
 
 Nothing in the model stopped a German column marching to Vladivostok. It would
