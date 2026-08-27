@@ -297,6 +297,26 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- and what the bombers did to an army ---------------------------------
+  const struck = [];
+  const bombed2 = [];
+  for (const hit of game.strikes ?? []) {
+    if (hit.day !== day) continue;
+    const line = {
+      cell: hit.cell,
+      where: placeOf(world, hit.cell),
+      bombers: hit.bombers,
+      through: hit.through,
+      killed: hit.killed,
+      share: hit.share,
+      cover: hit.cover,
+      fighters: hit.fighters,
+      flak: hit.flak,
+    };
+    if (hit.power === seat) struck.push(line);
+    else if (hit.against === seat) bombed2.push(line);
+  }
+
   // ---- who walked to the war on their own ----------------------------------
   // One line rather than a list. Sixty-four formations stepping east on the
   // first morning is one fact about the army, not sixty-four facts about
@@ -430,6 +450,8 @@ export function reportFor({ world, game, seat, day }) {
     formed,
     ordered,
     advanced,
+    struck,
+    strafed: bombed2,
     taken,
     lost,
     starving,
@@ -439,6 +461,8 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       advanced === 0 &&
+      struck.length === 0 &&
+      bombed2.length === 0 &&
       battles.length === 0 &&
       formed.length === 0 &&
       ordered.length === 0 &&

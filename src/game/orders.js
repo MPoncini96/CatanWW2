@@ -50,6 +50,11 @@ export const ORDERS = [
     hint: 'Put an army ashore from a fleet offshore, into whatever is holding it.',
   },
   {
+    id: 'strike',
+    name: 'Strike the troops',
+    hint: 'Send the bombers against the men on this hex, before the infantry goes in.',
+  },
+  {
     id: 'raise',
     name: 'Raise a formation',
     hint: 'Call up a division here. It arrives months later, and the men are gone now.',
@@ -122,6 +127,22 @@ export function ordersFor({ power, day = 0, tile = null }) {
     if (order.id === 'landing') {
       if (tile.terrain?.water) return 'There is no beach here to land on.';
       if (mine) return null;
+      if (!parties.length) return 'Nothing on this hex answers to anybody.';
+      return parties.some((party) => mayFight(day, power, party))
+        ? null
+        : `You are not at war with ${held}.`;
+    }
+
+    // A strike asks about the men rather than the ground: an empty hex has
+    // nothing to bomb however much of it somebody else owns, and a works is a
+    // different mission with a different order.
+    if (order.id === 'strike') {
+      if (mine) return 'Those are your own men.';
+      if (!tile.garrison?.length) {
+        return tile.forcesUnknown
+          ? 'You cannot see what is standing here.'
+          : 'There is nobody standing on this hex.';
+      }
       if (!parties.length) return 'Nothing on this hex answers to anybody.';
       return parties.some((party) => mayFight(day, power, party))
         ? null

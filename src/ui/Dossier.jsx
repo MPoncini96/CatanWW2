@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, onEmbark, onLanding, onRaise, march, battles, rebuilding, raiding, sailing, embarking, landing, raising }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, onEmbark, onLanding, onRaise, onStrike, march, battles, rebuilding, raiding, sailing, embarking, landing, raising, striking }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -102,6 +102,11 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                 {landing.length} landing{landing.length === 1 ? '' : 's'}
               </span>
             )}
+            {striking?.length > 0 && (
+              <span className="dossier__given">
+                {striking.length} group{striking.length === 1 ? '' : 's'} striking
+              </span>
+            )}
             {raising?.length > 0 && (
               <span className="dossier__given">
                 {raising.length} formation{raising.length === 1 ? '' : 's'} being raised
@@ -141,6 +146,7 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                       else if (order.id === 'embark') onEmbark?.();
                       else if (order.id === 'landing') onLanding?.();
                       else if (order.id === 'raise') onRaise?.();
+                      else if (order.id === 'strike') onStrike?.();
                       else setGiven(order.name);
                     }}
                   >

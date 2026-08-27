@@ -64,6 +64,39 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {(report.struck?.length > 0 || report.strafed?.length > 0) && (
+              <section>
+                <h3>Close support</h3>
+                <ul className="report__list">
+                  {(report.struck ?? []).map((s, n) => (
+                    <li key={`k${n}`} className={s.killed > 0 ? 'is-won' : ''}>
+                      <span className="report__where">{s.where}</span>
+                      <span className="report__what">
+                        {s.bombers} sent, {s.through} through —{' '}
+                        <strong>{s.killed.toLocaleString()} of them killed</strong>
+                      </span>
+                      <span className="report__cost">
+                        lost {Math.round(s.share * 100)}% · the ground was worth {s.cover} to them
+                      </span>
+                    </li>
+                  ))}
+                  {(report.strafed ?? []).map((s, n) => (
+                    <li key={`y${n}`} className="is-lost">
+                      <span className="report__where">{s.where}</span>
+                      <span className="report__what">
+                        bombed by {s.through} aircraft —{' '}
+                        <strong>{s.killed.toLocaleString()} men lost</strong>
+                      </span>
+                      <span className="report__cost">
+                        {s.fighters} fighters and {s.flak} guns up · {Math.round(s.share * 100)}% of
+                        them shot down
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(report.flown.length > 0 || report.bombed.length > 0) && (
               <section>
                 <h3>The bombing</h3>

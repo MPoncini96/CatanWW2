@@ -10,6 +10,7 @@ import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { collisionsAt } from './combat.js';
 import { advanceOrders } from './frontward.js';
+import { resolveStrikes } from './strike.js';
 import { cargoAt, carriedBy, mayEmbark, mayLand, ridingMoves } from './amphibious.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
@@ -74,6 +75,11 @@ export function newGame() {
     rebuilding: {},
     // And which bomber groups are to fly, and against what.
     raiding: {},
+    // The other thing bombers do: go for the troops on a hex rather than the
+    // factory. Kept apart from `raiding` because they are different missions
+    // against different things, and a group flies one of them in a day.
+    striking: {},
+    strikes: [],
     // Which fleets are to weigh anchor tomorrow, and for where.
     sailing: {},
     // Where they have actually gone, which is to a fleet what `moves` is to a
@@ -488,6 +494,31 @@ export function advance(game, world = null, now = 0) {
     game.landings.push(...wentAshore);
     game.landing = {};
 
+    // The air goes in before the infantry does. Bombing a hex in the morning
+    // and assaulting it in the afternoon is one plan, and putting the strikes
+    // after the battles would have made it two days of work for no reason
+    // anybody could explain.
+    const flying = resolveStrikes({
+      world,
+      day: game.day,
+      striking: game.striking,
+      positions: positionsAt(world.garrisons.opening, game.moves, game.day),
+      strengths: strengthsAt(
+        world.garrisons.opening,
+        game.battles,
+        game.day - 1,
+        game.replacements,
+      ),
+      flown: new Set(
+        (game.raids ?? [])
+          .filter((r) => r.day === game.day - 1)
+          .flatMap((r) => r.columns ?? []),
+      ),
+    });
+    game.strikes.push(...flying.strikes);
+    game.battles.push(...flying.losses);
+    game.striking = {};
+
     const { battles, retreats, captures } = resolveDay({
       world,
       day: game.day,
@@ -537,7 +568,7 @@ export function advance(game, world = null, now = 0) {
     // The bombers go before the depots do, because a works that was put out
     // this morning cannot make anything this afternoon. That single ordering
     // is the whole of what strategic bombing does here.
-    const flying = resolveRaids({
+    const bombing = resolveRaids({
       world,
       day: game.day,
       raiding: game.raiding,
@@ -545,8 +576,8 @@ export function advance(game, world = null, now = 0) {
       strengths: strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements),
       past: game.raids,
     });
-    game.raids.push(...flying.raids);
-    game.battles.push(...flying.losses);
+    game.raids.push(...bombing.raids);
+    game.battles.push(...bombing.losses);
     game.raiding = {};
 
     // Who is out of the war. Checked after the ground has finished moving, so
@@ -724,6 +755,7 @@ export function setOrders(
   embarking = null,
   landing = null,
   raising = null,
+  striking = null,
 ) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   if (game.over) return { error: 'The war is over.' };
@@ -737,6 +769,7 @@ export function setOrders(
   if (embarking !== null) game.embarking[power] = embarking;
   if (landing !== null) game.landing[power] = landing;
   if (raising !== null) game.raising[power] = raising;
+  if (striking !== null) game.striking[power] = striking;
   game.revision += 1;
   return {
     orders,
@@ -746,6 +779,7 @@ export function setOrders(
     embarking: game.embarking[power] ?? [],
     landing: game.landing[power] ?? [],
     raising: game.raising[power] ?? [],
+    striking: game.striking[power] ?? [],
   };
 }
 
@@ -942,6 +976,8 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     // tomorrow is its own business, and is below.
     raisings: game.raisings,
     raising: viewer ? (game.raising[viewer] ?? []) : [],
+    strikes: game.strikes,
+    striking: viewer ? (game.striking[viewer] ?? []) : [],
     // Whether this seat's armies walk to the fighting by themselves. On unless
     // it has said otherwise.
     standing: viewer ? game.standing?.[viewer] !== false : null,

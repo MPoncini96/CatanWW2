@@ -1563,6 +1563,46 @@ about aeroplanes. Replacements are sent **after** the bombers have flown: a
 works put out this morning makes nothing this afternoon, and that single
 ordering is the whole of what strategic bombing does here.
 
+## Close support
+
+Aircraft could do exactly three things on this board and none of them was
+attacking anybody. They could wreck a **factory**; they could **shoot down**
+somebody else's bombers; and if you marched an air group onto a hex a battle
+happened to be fought over, its aircraft counted towards that battle at eighty
+points a bomber. So the Luftwaffe of 1939 — built almost entirely around
+supporting an army in the field — could not support an army in the field.
+
+A **strike** is the strategic raid pointed at troops instead of at a works, and
+it shares everything with it: the same ten hexes of range, the same interception
+by fighters within three, the same flak, the same arithmetic for who does not
+come home. Two things make it its own mission.
+
+**It happens before the fighting.** The order of a day puts strikes ahead of the
+battles, so bombing a hex in the morning and assaulting it in the afternoon is
+one plan rather than two days of work. That is the whole reason to have it.
+
+**The ground protects.** The multiplier a defender gets for standing in mountains
+or a city is the same multiplier that protects it from the air, because it is the
+same fact about the ground: men in a wood are hard to bomb for exactly the
+reasons they are hard to shell. The panel leads with it — *18k men · the ground
+is worth 1.40 to them* — because it is the decision.
+
+Twelve men a bomber, because most bombs missed. What air attack actually did to a
+division was stop it moving in daylight and break up its concentrations; the
+casualties were a by-product. And never more than **8% of a hex in a day**,
+however much you send: air power did not destroy armies, and the ceiling only
+starts binding above about a hundred and seventy bombers, so a squadron gets a
+squadron's result and an air fleet gets an air fleet's.
+
+What that comes to: Luftflotte 1 putting 280 bombers onto an undefended Polish
+position on the coast kills 2,353 men and drops its defence from 27,165 to
+24,952 — worth having before an assault, and nowhere near enough to take the
+hex. The ground still has to be won on the ground.
+
+The range limit does real work. From Silesia and Pomerania the Polish positions
+are two to five hexes off; Luftflotte 3, facing France, is twelve, and is told
+so: *a bomber of 1939 goes 10 and comes back.*
+
 ## The books
 
 Each nation's page carries its own books down the left: what it holds, what the

@@ -32,6 +32,7 @@ import { Raid } from './Raid.jsx';
 import { Sail } from './Sail.jsx';
 import { Amphibious } from './Amphibious.jsx';
 import { Raise } from './Raise.jsx';
+import { Strike } from './Strike.jsx';
 import { Standings } from './Standings.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { fleetsAt } from '../game/naval.js';
@@ -111,6 +112,8 @@ export default function App() {
   const [raiding, setRaiding] = useState([]);
   const [sailAt, setSailAt] = useState(null);
   const [sailing, setSailing] = useState([]);
+  const [strikeAt, setStrikeAt] = useState(null);
+  const [striking, setStriking] = useState([]);
   const [raiseAt, setRaiseAt] = useState(null);
   const [raising, setRaising] = useState([]);
   const [shoreAt, setShoreAt] = useState(null);
@@ -375,6 +378,8 @@ export default function App() {
     setEmbarking(game?.embarking ?? []);
     setLanding(game?.landing ?? []);
     setRaising(game?.raising ?? []);
+    setStriking(game?.striking ?? []);
+    setStrikeAt(null);
     setShoreAt(null);
     setRaiseAt(null);
     setOrderError(null);
@@ -383,6 +388,15 @@ export default function App() {
     setBombAt(null);
     setSailAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleStrike = useCallback((id, target) => {
+    setOrderError(null);
+    setStriking((current) =>
+      current.some((s) => s.column === id)
+        ? current.filter((s) => s.column !== id)
+        : [...current, { column: id, target }],
+    );
+  }, []);
 
   const toggleRaise = useCallback((template, cell) => {
     setOrderError(null);
@@ -465,6 +479,7 @@ export default function App() {
         embarking,
         landing,
         raising,
+        striking,
       );
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
@@ -473,6 +488,8 @@ export default function App() {
       setEmbarking(state.embarking ?? []);
       setLanding(state.landing ?? []);
       setRaising(state.raising ?? []);
+      setStriking(state.striking ?? []);
+      setStrikeAt(null);
       setShoreAt(null);
       setRaiseAt(null);
       setMarchTo(null);
@@ -484,7 +501,17 @@ export default function App() {
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders, rebuilding, raiding, sailing, embarking, landing, raising]);
+  }, [
+    session?.token,
+    orders,
+    rebuilding,
+    raiding,
+    sailing,
+    embarking,
+    landing,
+    raising,
+    striking,
+  ]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -886,7 +913,9 @@ export default function App() {
               setShoreAt(selected?.index ?? null);
             }}
             onRaise={() => setRaiseAt(selected?.index ?? null)}
+            onStrike={() => setStrikeAt(selected?.index ?? null)}
             raising={raising}
+            striking={striking}
             raiding={raiding}
             sailing={sailing}
             embarking={embarking}
@@ -894,7 +923,23 @@ export default function App() {
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              raiseAt !== null && world ? (
+              strikeAt !== null && world ? (
+                <Strike
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={strikeAt}
+                  positions={positions}
+                  strengths={strengths}
+                  raids={game?.raids ?? []}
+                  striking={striking}
+                  onToggle={toggleStrike}
+                  onSend={sendOrders}
+                  onCancel={() => setStrikeAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : raiseAt !== null && world ? (
                 <Raise
                   world={world}
                   power={seat}

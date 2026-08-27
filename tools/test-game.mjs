@@ -133,6 +133,7 @@ import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
 import { ISLANDS_1939 } from '../src/world/islands.js';
 import { PRESSED_HOME, collisionsAt } from '../src/game/combat.js';
 import { advanceOrders, frontDistance } from '../src/game/frontward.js';
+import { MEN_PER_BOMBER, WORST_STRIKE, mayStrike } from '../src/game/strike.js';
 import {
   COLONIAL_RECRUITS,
   HOME_RECRUITS,
@@ -1183,11 +1184,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 8, 'eight orders a seat may give on a hex');
+  eq(ORDERS.length, 9, 'nine orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements bomb sail embark landing raise',
-    'march, attack, rebuild, fly, sail, load, land — or raise something new',
+    'reinforce attack replacements bomb sail embark landing strike raise',
+    'march, attack, rebuild, bomb a works, sail, load, land, strike an army, or raise one',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -3759,6 +3760,152 @@ section('the advance to the front');
   const empty = G.newGame();
   G.advance(empty, nobody, 0);
   eq(empty.moves.length, 0, 'and an empty chair does not march anybody');
+}
+
+
+// -------------------------------------------------------------- bombing an army
+section('close support');
+{
+  const world = freshBoard();
+  const opening = world.garrisons.opening;
+  const strengths = strengthsAt(opening, [], 0, []);
+  const positions = positionsAt(opening, [], 0);
+
+  // A German group, and a Polish hex within reach with men standing on it.
+  const groups = opening.filter(
+    (c) => c.formation.nation === 'germany' && (c.strength.bombers ?? 0) > 0,
+  );
+  ok(groups.length > 0, `${groups.length} German groups have bombers`);
+
+  let target = null;
+  for (const [cell, here] of world.garrisons.byCell) {
+    if (world.countries[world.countryOf?.[cell] ?? -1]?.name !== 'Poland') continue;
+    const poles = here.filter((c) => c.formation.nation === 'neutral');
+    const men = poles.reduce((n, c) => n + (c.strength.infantry ?? 0), 0);
+    if (men < 20000) continue;
+    const group = groups.find((g) => hexesApart(g.cell, cell) <= BOMBER_RANGE);
+    if (!group) continue;
+    target = { cell, poles, men, group };
+    break;
+  }
+  ok(target, 'and one of them can reach a Polish position');
+  const { cell, poles, men, group } = target;
+
+  // ---- what may fly --------------------------------------------------------
+  const ask = (opts) =>
+    mayStrike({
+      world,
+      power: 'germany',
+      day: 1,
+      positions,
+      flown: new Set(),
+      ordered: new Set(),
+      ...opts,
+    });
+  eq(ask({ column: group, target: cell }), null, 'a group in range may go for the troops');
+  ok(
+    ask({ column: group, target: group.cell })?.includes('your own men'),
+    'and not for its own',
+  );
+
+  // The difference from a raid on a works, in one line: a strike needs
+  // somebody to be standing there.
+  const bare = (() => {
+    for (let i = 0; i < TILE_COUNT; i += 1) {
+      if (world.countries[world.countryOf?.[i] ?? -1]?.name !== 'Poland') continue;
+      if ((world.garrisons.byCell.get(i) ?? []).length) continue;
+      if (hexesApart(group.cell, i) > BOMBER_RANGE) continue;
+      return i;
+    }
+    return null;
+  })();
+  ok(
+    bare === null || ask({ column: group, target: bare })?.includes('nobody standing'),
+    'an empty hex has nothing on it to bomb, however much of it somebody owns',
+  );
+  ok(
+    ask({ column: group, target: cellFor(29.56, 106.55) })?.includes('not at war'),
+    'nor go for Chongqing, which Germany is not fighting',
+  );
+  // Range, against somebody it *is* fighting: the far end of Poland.
+  const far = (() => {
+    let worst = null;
+    let best = 0;
+    for (const [c, here] of world.garrisons.byCell) {
+      if (world.countries[world.countryOf?.[c] ?? -1]?.name !== 'Poland') continue;
+      if (!here.some((x) => x.formation.nation === 'neutral')) continue;
+      const d = hexesApart(group.cell, c);
+      if (d > best) {
+        best = d;
+        worst = c;
+      }
+    }
+    return best > BOMBER_RANGE ? worst : null;
+  })();
+  ok(
+    far === null || ask({ column: group, target: far })?.includes(`goes ${BOMBER_RANGE}`),
+    'and cannot reach the far end of Poland, which is what a bomber of 1939 could not do',
+  );
+  const noBombers = opening.find((c) => c.formation.nation === 'germany' && !(c.strength.bombers > 0));
+  ok(ask({ column: noBombers, target: cell })?.includes('no bombers'), 'and an army with no aircraft stays');
+  ok(
+    ask({ column: group, target: cell, flown: new Set([group.id]) })?.includes('turned round'),
+    'a group that has already flown today does not fly again',
+  );
+
+  // ---- and what it does ----------------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  G.setStanding(game, 'germany', false);
+  G.setOrders(game, 'germany', [], [], [], [], [], [], [], [
+    { column: group.id, target: cell },
+  ]);
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  eq(game.strikes.length, 1, 'one strike is flown');
+  const hit = game.strikes[0];
+  eq(hit.cell, cell, 'against the hex it was aimed at');
+  ok(hit.through > 0 && hit.through <= hit.bombers, `${hit.through} of ${hit.bombers} got through`);
+  ok(hit.killed > 0, `${hit.killed.toLocaleString()} men were killed`);
+  ok(hit.hurt <= WORST_STRIKE + 1e-9, `and never more than ${WORST_STRIKE * 100}% of the hex in a day`);
+  ok(hit.share >= 0.02, 'and nothing is free — some of the bombers did not come back');
+
+  // The men are really gone, and the position is really weaker for it.
+  const after = strengthsAt(opening, game.battles, game.day, game.replacements);
+  const left = poles.reduce((n, c) => n + (after.get(c.id)?.infantry ?? 0), 0);
+  ok(left < men, `the position falls from ${Math.round(men).toLocaleString()} to ${Math.round(left).toLocaleString()}`);
+  ok(
+    strengthOf(poles, 'defend', after) < strengthOf(poles, 'defend', strengths),
+    'so it defends less well this afternoon than it did this morning',
+  );
+
+  // And the bombers paid for it, in aircraft rather than in ground crew.
+  const crew = after.get(group.id);
+  ok(crew.bombers < group.strength.bombers, 'the group lost bombers');
+  eq(crew.infantry, group.strength.infantry, 'and not the fitters who armed them');
+
+  // ---- the ground protects -------------------------------------------------
+  ok(MEN_PER_BOMBER > 0, 'a bomber over a hex is worth something');
+  const open = groundBonus(world, cellFor(52.2, 20.0));
+  let hard = null;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (TERRAIN[world.biome[i]].id !== 'mountain') continue;
+    hard = groundBonus(world, i);
+    break;
+  }
+  ok(hard !== null && hard > open, `mountains are worth ${hard?.toFixed(2)} against ${open.toFixed(2)} on a plain`);
+  ok(
+    hard > 1.5,
+    'so troops dug into them take well under half of what the same men take in the open',
+  );
+
+  // ---- and the seat is told ------------------------------------------------
+  const told = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(told.struck.length, 1, 'the seat that sent them is told what they did');
+  eq(told.strafed.length, 0, 'and was not itself bombed');
+  ok(told.struck[0].killed > 0, 'with the count');
+  ok(!told.quiet, 'and the day is not reported as a quiet one');
 }
 
 console.log(

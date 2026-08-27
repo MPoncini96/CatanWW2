@@ -10,6 +10,7 @@ import { arrivalsAt, mayMarch, positionsAt } from '../src/game/movement.js';
 import { mayRaid } from '../src/game/bombing.js';
 import { fleetsAt, fleetsOf, mayShip } from '../src/game/naval.js';
 import { cargoAt, mayEmbark, mayLand } from '../src/game/amphibious.js';
+import { mayStrike } from '../src/game/strike.js';
 import { strengthsAt } from '../src/game/combat.js';
 
 // The one game.
@@ -96,6 +97,8 @@ function load() {
       saved.raising ??= {};
       saved.raisings ??= [];
       saved.standing ??= {};
+      saved.striking ??= {};
+      saved.strikes ??= [];
       saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
@@ -214,7 +217,7 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding, raiding, sailing, embarking, landing, raising } =
+    const { orders, rebuilding, raiding, sailing, embarking, landing, raising, striking } =
       await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
@@ -250,6 +253,12 @@ async function api(req, res, url) {
     }
     if ((raising?.length ?? 0) > 60) {
       return json(res, 400, { error: 'too many formations to raise in one day' });
+    }
+    if (striking !== undefined && !Array.isArray(striking)) {
+      return json(res, 400, { error: 'striking must be a list of missions' });
+    }
+    if ((striking?.length ?? 0) > 100) {
+      return json(res, 400, { error: 'too many strikes for one day' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -371,7 +380,40 @@ async function api(req, res, url) {
     // Raising is checked when the day turns rather than here: what a nation can
     // afford depends on what the day does to its stores and its manpower, and
     // the same is true of replacements, which are settled the same way.
-    G.setOrders(game, seat, accepted, rebuild, flights, sails, loads, beaches, raising ?? []);
+    // Strikes are checked here for a decent message, and again when the day
+    // turns, which is where the rule lives.
+    const strikes = [];
+    const striking_seen = new Set();
+    for (const order of striking ?? []) {
+      const why = mayStrike({
+        world,
+        column: columns.get(order?.column),
+        target: order?.target,
+        power: seat,
+        day: game.day,
+        positions,
+        flown: new Set(
+          (game.raids ?? []).filter((r) => r.day === game.day).flatMap((r) => r.columns ?? []),
+        ),
+        ordered: striking_seen,
+      });
+      if (why) return json(res, 409, { error: why, column: order?.column });
+      striking_seen.add(order.column);
+      strikes.push({ column: order.column, target: order.target });
+    }
+
+    G.setOrders(
+      game,
+      seat,
+      accepted,
+      rebuild,
+      flights,
+      sails,
+      loads,
+      beaches,
+      raising ?? [],
+      strikes,
+    );
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
