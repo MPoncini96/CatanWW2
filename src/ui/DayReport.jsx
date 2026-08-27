@@ -101,6 +101,24 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {report.advanced > 0 && (
+              <section>
+                <h3>On the march</h3>
+                <ul className="report__list">
+                  <li>
+                    <span className="report__where">Towards the front</span>
+                    <span className="report__what">
+                      {report.advanced} formation{report.advanced === 1 ? '' : 's'} moved up on
+                      their own
+                    </span>
+                    <span className="report__cost">
+                      they had no other orders · they stop when they reach the line
+                    </span>
+                  </li>
+                </ul>
+              </section>
+            )}
+
             {(report.formed?.length > 0 || report.ordered?.length > 0) && (
               <section>
                 <h3>The depots</h3>

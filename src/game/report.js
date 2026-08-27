@@ -297,6 +297,15 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- who walked to the war on their own ----------------------------------
+  // One line rather than a list. Sixty-four formations stepping east on the
+  // first morning is one fact about the army, not sixty-four facts about
+  // divisions, and a reader who wants the detail has the map.
+  let advanced = 0;
+  for (const move of game.moves ?? []) {
+    if (move.day === day && move.advance && move.power === seat) advanced += 1;
+  }
+
   // ---- what the depots produced --------------------------------------------
   const formed = [];
   const ordered = [];
@@ -420,6 +429,7 @@ export function reportFor({ world, game, seat, day }) {
     embarked,
     formed,
     ordered,
+    advanced,
     taken,
     lost,
     starving,
@@ -428,6 +438,7 @@ export function reportFor({ world, game, seat, day }) {
     losses,
     gains,
     quiet:
+      advanced === 0 &&
       battles.length === 0 &&
       formed.length === 0 &&
       ordered.length === 0 &&

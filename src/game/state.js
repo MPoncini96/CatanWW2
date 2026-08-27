@@ -9,6 +9,7 @@ import { canAfford, capacityFor, replacementFor, spentBy } from './production.js
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { collisionsAt } from './combat.js';
+import { advanceOrders } from './frontward.js';
 import { cargoAt, carriedBy, mayEmbark, mayLand, ridingMoves } from './amphibious.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
@@ -97,6 +98,12 @@ export function newGame() {
     landing: {},
     embarks: [],
     landings: [],
+    // Whether each seat's idle field formations walk towards the fighting on
+    // their own. On unless a seat says otherwise: the alternative is a
+    // fortnight of ticking the same six hexes every morning to get the army in
+    // Bavaria to the Polish frontier, which is not a decision, it is the
+    // absence of one repeated.
+    standing: {},
     // Orders that did not happen because somebody was coming the other way.
     // Kept so a player who ordered an attack and got a defence is told why.
     collisions: [],
@@ -281,6 +288,37 @@ export function advance(game, world = null, now = 0) {
   game.day += 1;
   const ordered = executeOrders(game.orders, game.day);
   game.orders = {};
+
+  // And then everybody who was told nothing. Worked out before the collisions,
+  // so two armies walking into each other are caught by the same rule as two
+  // armies ordered into each other.
+  let advanced = 0;
+  if (world) {
+    const positions = positionsAt(world.garrisons.opening, game.moves, game.day);
+    const arrivals = arrivalsAt(game.moves, game.day);
+    const aboard = cargoAt(game.embarks, game.landings, game.day - 1);
+    const taken = ordered.map((m) => m.column);
+    for (const power of PLAYER_IDS) {
+      // Somebody has to be sitting there. An empty seat does nothing on this
+      // board and this is not the rule that starts it playing itself.
+      if (!game.seats[power]) continue;
+      if (game.standing?.[power] === false) continue;
+      const steps = advanceOrders({
+        world,
+        power,
+        day: game.day,
+        positions,
+        arrivals,
+        taken,
+        aboard,
+      });
+      for (const step of steps) {
+        ordered.push(step);
+        taken.push(step.column);
+      }
+      advanced += steps.length;
+    }
+  }
 
   // Two armies ordered onto each other's hex do not pass through each other.
   // Caught here, before the moves are committed, because everything downstream
@@ -653,6 +691,7 @@ export function advance(game, world = null, now = 0) {
     game.replacements.push(...sendReplacements(game, world));
     game.rebuilding = {};
   }
+  void advanced;
   for (const id of PLAYER_IDS) {
     if (game.seats[id]) game.seats[id].ready = false;
   }
@@ -708,6 +747,20 @@ export function setOrders(
     landing: game.landing[power] ?? [],
     raising: game.raising[power] ?? [],
   };
+}
+
+/**
+ * Whether a seat's idle formations walk to the front on their own.
+ *
+ * Kept per seat rather than as a global rule, because a player who wants to
+ * position an army by hand should be able to stop the board doing it for them
+ * without stopping it for everybody.
+ */
+export function setStanding(game, power, on) {
+  if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
+  game.standing[power] = Boolean(on);
+  game.revision += 1;
+  return { standing: game.standing[power] };
 }
 
 /**
@@ -889,6 +942,9 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     // tomorrow is its own business, and is below.
     raisings: game.raisings,
     raising: viewer ? (game.raising[viewer] ?? []) : [],
+    // Whether this seat's armies walk to the fighting by themselves. On unless
+    // it has said otherwise.
+    standing: viewer ? game.standing?.[viewer] !== false : null,
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

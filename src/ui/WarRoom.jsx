@@ -24,7 +24,7 @@ function untilClose(at) {
   return `Turns on its own in ${minutes}m, ready or not.`;
 }
 
-export function WarRoom({ power, state, onReady, onClaim, onLeave, busy, error }) {
+export function WarRoom({ power, state, onReady, onClaim, onLeave, onStanding, busy, error }) {
   const [name, setName] = useState('');
   const player = BY_ID[power];
   if (!player) return null;
@@ -180,6 +180,24 @@ export function WarRoom({ power, state, onReady, onClaim, onLeave, busy, error }
               . It may still march on its own ground, raise formations and put to sea.
             </p>
           )}
+          {/* The one setting on this panel, and it is here because it is about
+              what the day does rather than about any one hex. An army with
+              nothing better to do walks towards the nearest enemy and stops
+              when it gets there; anything you have ordered this morning is
+              what that column does instead. */}
+          <label className="war__standing">
+            <input
+              type="checkbox"
+              checked={state?.standing !== false}
+              disabled={busy}
+              onChange={(e) => onStanding?.(e.target.checked)}
+            />
+            <span>
+              Advance to the front
+              <em>Idle divisions walk towards the fighting and stop at the line.</em>
+            </span>
+          </label>
+
         </>
       )}
 

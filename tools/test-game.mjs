@@ -132,6 +132,7 @@ import {
 import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
 import { ISLANDS_1939 } from '../src/world/islands.js';
 import { PRESSED_HOME, collisionsAt } from '../src/game/combat.js';
+import { advanceOrders, frontDistance } from '../src/game/frontward.js';
 import {
   COLONIAL_RECRUITS,
   HOME_RECRUITS,
@@ -3637,6 +3638,127 @@ section('raising formations');
   eq(told.formed.length, 1, 'the day it arrives is reported');
   eq(told.formed[0].name, entry.name, 'by name');
   ok(game.log.some((e) => e.id === `raised:${entry.id}`), 'and written into the log');
+}
+
+
+// ------------------------------------------------------------ walking to the war
+section('the advance to the front');
+{
+  const world = freshBoard();
+
+  // ---- where the front is --------------------------------------------------
+  const german = frontDistance(world, 'germany', 0);
+  let line = 0;
+  let reachable = 0;
+  let deepest = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) {
+    if (german[i] === 0) line += 1;
+    if (german[i] >= 0) {
+      reachable += 1;
+      if (german[i] > deepest) deepest = german[i];
+    }
+  }
+  ok(line > 5, `${line} hexes of German ground touch somebody Germany is fighting`);
+  ok(reachable > line, 'and the rest of it knows how far away that is');
+  ok(deepest > 5 && deepest < 40, `the deepest German hex is ${deepest} from the front`);
+
+  // A power at war with nobody has no front, and nothing to walk towards.
+  const british = frontDistance(world, 'uk', 0);
+  let anyBritish = 0;
+  for (let i = 0; i < TILE_COUNT; i += 1) if (british[i] >= 0) anyBritish += 1;
+  eq(anyBritish, 0, 'Britain is fighting nobody on 1 September, so nothing walks anywhere');
+
+  // ---- what walks ----------------------------------------------------------
+  const positions = positionsAt(world.garrisons.opening, [], 0);
+  const steps = advanceOrders({
+    world,
+    power: 'germany',
+    day: 1,
+    positions,
+    arrivals: new Map(),
+    taken: [],
+    aboard: new Map(),
+  });
+  ok(steps.length > 20, `${steps.length} German formations step forward on the first morning`);
+  ok(
+    steps.every((m) => m.day === 1),
+    'every one of them is stamped with the day — an unstamped move applies to every day there is',
+  );
+
+  // The rule that matters most: an advance never starts a battle.
+  eq(
+    steps.filter((m) => world.ownership.owner[m.to] !== NATION_INDEX.germany).length,
+    0,
+    'and not one of them steps onto ground somebody else is holding',
+  );
+  ok(
+    steps.every((m) => german[m.to] < german[m.from]),
+    'each goes to a hex nearer the fighting than the one it is on',
+  );
+  ok(
+    steps.every((m) => [...neighbours(m.from)].includes(m.to)),
+    'and one hex at a time, like everything else',
+  );
+
+  // Only the manoeuvre elements. Garrisons, depots, flak and fortress troops
+  // hold what they are standing on.
+  const byId = new Map(world.garrisons.opening.map((c) => [c.id, c]));
+  ok(
+    steps.every((m) => ['field', 'armor'].includes(byId.get(m.column).formation.type)),
+    'depots, flak and fortress troops stay where they were put',
+  );
+
+  // Anything already ordered is left alone: that is the whole override.
+  const one = steps[0].column;
+  const without = advanceOrders({
+    world,
+    power: 'germany',
+    day: 1,
+    positions,
+    arrivals: new Map(),
+    taken: [one],
+    aboard: new Map(),
+  });
+  ok(!without.some((m) => m.column === one), 'a column with an order of its own is not moved');
+  eq(without.length, steps.length - 1, 'and nothing else changes');
+
+  // ---- and it stops --------------------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  const perDay = [];
+  for (let d = 0; d < 6; d += 1) {
+    G.setReady(game, 'germany', true);
+    G.advance(game, world);
+    perDay.push(game.moves.filter((m) => m.day === game.day && m.advance).length);
+  }
+  ok(perDay[0] > 20, `${perDay[0]} walked on the first day`);
+  ok(perDay[perDay.length - 1] === 0, 'and by the sixth nobody is still walking');
+  ok(
+    perDay[0] > perDay[1] && perDay[1] > perDay[2],
+    `the army arrives rather than marching for ever — ${perDay.join(', ')}`,
+  );
+
+  const told = reportFor({ world, game, seat: 'germany', day: 1 });
+  void told;
+
+  // ---- and it can be switched off -----------------------------------------
+  const quiet = freshBoard();
+  const still = G.newGame();
+  G.claim(still, 'germany', 'germany', 'A');
+  G.setStanding(still, 'germany', false);
+  G.setReady(still, 'germany', true);
+  G.advance(still, quiet);
+  eq(
+    still.moves.filter((m) => m.advance).length,
+    0,
+    'a seat that would rather move its own armies is not overruled',
+  );
+
+  // An empty seat is not played for by the board either.
+  const nobody = freshBoard();
+  const empty = G.newGame();
+  G.advance(empty, nobody, 0);
+  eq(empty.moves.length, 0, 'and an empty chair does not march anybody');
 }
 
 console.log(

@@ -1075,6 +1075,43 @@ behind, which is what relief in place is, and it holds an advance to roughly one
 hex every two days. That was not designed; it falls out of the movement rule and
 the combat rule meeting.
 
+### Walking to the war
+
+A nation's armies are deployed where a nation keeps armies, which is not where
+the fighting is. Germany opens with divisions in Bavaria, in the Rhineland, in
+East Prussia and around Berlin, and getting them to the Polish frontier was a
+fortnight of ticking the same boxes on the same six hexes every morning. That is
+not a decision. It is the absence of one, repeated.
+
+So **an army with nothing better to do walks towards the nearest enemy of its own
+accord, and stops when it gets there.** Two rules make that safe to leave on:
+
+**It stops at the line.** Stepping onto ground somebody else is holding is an
+attack, and an attack is a decision — so the standing order brings a column up
+to the frontier and leaves it there. Nothing is ever committed to a battle by a
+rule the player did not think about that morning.
+
+**An order beats it.** Anything you have told a column to do this morning is what
+it does; the advance only ever moves the columns you said nothing about. That is
+the whole of how it is overridden, and it needs no second mechanism. There is
+also a switch in the rail for a player who would rather place every division by
+hand.
+
+Only the manoeuvre elements go — field formations and armour. Depots, flak,
+fortress troops and security garrisons hold what they are standing on, which is
+what they were put there for.
+
+The route is a breadth-first field: every hex of your ground carries its distance
+from the contact line, and a column steps to the neighbour with a smaller number.
+Ground with no way to the front — an island, a pocket cut off behind the enemy,
+or anywhere at all when you are fighting nobody — is marked -1 and nothing on it
+moves. Britain on 1 September has no front, and no British division stirs.
+
+It ends. Germany moves 64 formations on the first morning, 38 on the second, 13
+on the third, and nothing after that: the army arrives and the record stops
+growing. What it leaves behind is 115 moves, which is the whole of the German
+concentration against Poland.
+
 ### Two armies, one road
 
 Battles are found by two armies standing on one hex. In a straight swap — A

@@ -65,6 +65,11 @@ export function setReady(token, ready) {
   return call('/api/ready', { method: 'POST', body: { ready }, token });
 }
 
+/** Whether this seat's idle formations walk to the fighting on their own. */
+export function setStanding(token, advance) {
+  return call('/api/standing', { method: 'POST', body: { advance }, token });
+}
+
 /**
  * Give this seat's marching orders for tomorrow.
  *

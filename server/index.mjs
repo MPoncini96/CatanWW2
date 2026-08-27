@@ -95,6 +95,7 @@ function load() {
       saved.embarks ??= [];
       saved.raising ??= {};
       saved.raisings ??= [];
+      saved.standing ??= {};
       saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
@@ -187,6 +188,15 @@ async function api(req, res, url) {
     maybeAdvance();
     broadcast();
     return json(res, 200, {});
+  }
+
+  if (url.pathname === '/api/standing' && req.method === 'POST') {
+    if (!seat) return json(res, 401, { error: 'take a seat first' });
+    const { advance } = await readBody(req);
+    const result = G.setStanding(game, seat, advance !== false);
+    if (result.error) return json(res, 409, result);
+    broadcast();
+    return json(res, 200, G.publicState(game, seat, DAY_MS));
   }
 
   if (url.pathname === '/api/ready' && req.method === 'POST') {

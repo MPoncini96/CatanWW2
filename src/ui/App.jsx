@@ -46,6 +46,7 @@ import {
   savedSession,
   setOrders as setOrdersOnServer,
   setReady,
+  setStanding as setStandingOnServer,
   watch,
 } from '../game/client.js';
 
@@ -176,6 +177,24 @@ export default function App() {
     const fresh = await fetchState(null).catch(() => null);
     setGame(fresh ? { ...fresh, forToken: null } : null);
   }, [session?.token]);
+
+  const declareStanding = useCallback(
+    async (advance) => {
+      setBusy(true);
+      setSeatError(null);
+      try {
+        setGame({
+          ...(await setStandingOnServer(session.token, advance)),
+          forToken: session.token,
+        });
+      } catch (err) {
+        setSeatError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session?.token],
+  );
 
   const declareReady = useCallback(
     async (ready) => {
@@ -709,6 +728,7 @@ export default function App() {
               onReady={declareReady}
               onClaim={takeSeat}
               onLeave={logOut}
+              onStanding={declareStanding}
               busy={busy}
               error={seatError}
             />
