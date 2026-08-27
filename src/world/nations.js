@@ -91,6 +91,43 @@ export class Ownership {
     return changed;
   }
 
+  /**
+   * Apply a whole capture record, oldest first, as one event.
+   *
+   * One emit, not one per hex — and that is not a micro-optimisation. Until a
+   * government could fall, the largest thing a day ever handed over was a few
+   * dozen cells and emitting per cell cost nothing. A capitulation moves
+   * several thousand in a morning, and a listener that rebuilds the map on each
+   * one turns loading the page into a hang. It did exactly that, on the first
+   * page load after the rule went in.
+   *
+   * Order is preserved, because it matters: a hex can change hands twice.
+   */
+  replay(captures) {
+    let changed = 0;
+    for (const capture of captures) {
+      const to = typeof capture.to === 'string' ? NATION_INDEX[capture.to] : capture.to;
+      if (to === undefined || to < 0 || to >= NATIONS.length) continue;
+      const index = capture.cell ?? capture.index;
+      const from = this.owner[index];
+      if (from === to) continue;
+      this.owner[index] = to;
+      this.log.push({
+        index,
+        from,
+        to,
+        day: capture.day,
+        reason: capture.reason ?? (capture.capitulation ? 'capitulation' : 'taken'),
+      });
+      changed += 1;
+    }
+    if (changed) {
+      this.version += 1;
+      this.emit();
+    }
+    return changed;
+  }
+
   /** Every recorded change to one tile, oldest first. */
   history(index) {
     return this.log.filter((entry) => entry.index === index);

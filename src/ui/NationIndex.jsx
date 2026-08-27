@@ -22,7 +22,7 @@ export function NationIndex({ state }) {
             <h1 className="index__wordmark">
               <img src="/logo1.webp" alt="HexWW2.world" width="2048" height="768" />
             </h1>
-            <p>Earth on a hex globe · one game, eight seats</p>
+            <p>Earth on a hex globe · one game, seven seats</p>
           </div>
           {state && (
             <div className="index__date">

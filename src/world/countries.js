@@ -204,6 +204,14 @@ const SOVEREIGNS = {
   Curacao: 'Netherlands',
   'Belgian Congo': 'Belgium',
   'Ruanda-Urundi': 'Belgium',
+  // Denmark's North Atlantic. Iceland is a simplification — it was a sovereign
+  // kingdom in personal union with Denmark rather than a colony — but it is the
+  // right simplification here, because what happened to Iceland in May 1940
+  // happened *because* Copenhagen had fallen in April. Britain took the Faroes
+  // and Iceland, and the Americans took Greenland the year after, and none of
+  // the three was ever going to be German.
+  Greenland: 'Denmark',
+  Iceland: 'Denmark',
 };
 
 /**

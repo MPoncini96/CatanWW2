@@ -1,5 +1,6 @@
 import { NATIONS, NATION_INDEX } from '../world/nations.js';
 import { fleetsOf } from './naval.js';
+import { displayName } from './capitulation.js';
 import { strengthsAt } from './combat.js';
 import { formationName } from '../world/deploy.js';
 import { grid } from '../world/sphere.js';
@@ -209,6 +210,11 @@ export function reportFor({ world, game, seat, day }) {
   const lost = [];
   for (const capture of game.captures ?? []) {
     if (capture.day !== day) continue;
+    // Ground that changed hands because a government fell is not listed hex by
+    // hex. Four capitulations move about four thousand cells, and a reader
+    // scrolling past 1,470 lines reading "Belgian Congo (Katanga) — taken" has
+    // been told less than the one line above that says Britain got the Congo.
+    if (capture.capitulation) continue;
     const how = capture.cutOff ? 'cut off' : capture.walkedIn ? 'walked into' : 'stormed';
     if (capture.to === seat) {
       taken.push({ cell: capture.cell, where: placeOf(world, capture.cell), how, from: capture.from });
@@ -283,6 +289,28 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- and any government that stopped governing ---------------------------
+  // The largest thing that can happen in a day, and the only entry in this
+  // report that is not about a hex: one of these moves more ground in a morning
+  // than a month of fighting does.
+  const fell = [];
+  for (const entry of game.capitulations ?? []) {
+    if (entry.day !== day) continue;
+    fell.push({
+      country: displayName(entry.country),
+      to: displayName(entry.to),
+      empire: entry.empire ? displayName(entry.empire) : null,
+      note: entry.note,
+      metropoleCells: entry.metropoleCells,
+      empireCells: entry.empireCells,
+      forces: entry.forces.length,
+      // Which of the three this seat is: the one that took the capital, the one
+      // that inherited the empire, or a bystander who is merely being told.
+      took: entry.to === seat,
+      inherited: entry.empire === seat,
+    });
+  }
+
   // ---- the depots ----------------------------------------------------------
   const sent = [];
   for (const entry of game.replacements ?? []) {
@@ -316,6 +344,7 @@ export function reportFor({ world, game, seat, day }) {
     actions,
     sunk,
     raided,
+    fell,
     taken,
     lost,
     starving,
@@ -325,6 +354,7 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      fell.length === 0 &&
       actions.length === 0 &&
       sunk.length === 0 &&
       raided.length === 0 &&

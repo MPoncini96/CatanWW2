@@ -53,6 +53,15 @@ export function CAPITAL_CELLS() {
   return cache;
 }
 
+/** The cell a given government sits on. */
+export function capitalCell(whose) {
+  const sphere = grid();
+  for (const [, lat, lon, owner] of CAPITALS_1939) {
+    if (owner === whose) return cellAt(sphere, lat, lon);
+  }
+  return null;
+}
+
 /** Whose capital is on this cell, if any. */
 export function capitalAt(cell) {
   const sphere = grid();

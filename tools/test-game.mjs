@@ -108,6 +108,16 @@ import {
   resolveNavalDay,
 } from '../src/game/naval.js';
 import { RELIEF_DAYS, ROUTES_1939, convoyCell, deliveredBy } from '../src/world/convoys.js';
+import {
+  CAPITULATIONS,
+  NEVER_CAPITULATE,
+  capitulationsOn,
+  displayName,
+  forcesOf,
+  holdingsOf,
+} from '../src/game/capitulation.js';
+import { capitalCell } from '../src/world/capitals.js';
+import { UNPLAYED } from '../src/game/players.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -131,6 +141,24 @@ function board() {
     bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
   );
   return WORLD;
+}
+
+/**
+ * A board nobody else is using.
+ *
+ * `board()` hands out one cached world, which is right for every other section
+ * and wrong for this one: a capitulation moves two thousand hexes, and doing
+ * that to the shared board would quietly rewrite the map underneath every test
+ * that ran after it.
+ */
+function freshBoard() {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const bin = fs.readFileSync(path.join(here, '..', 'src', 'world', 'earth.bin'));
+  return buildWorld(
+    bin.subarray(0, TILE_COUNT),
+    bin.subarray(TILE_COUNT, TILE_COUNT * 2),
+    bin.subarray(TILE_COUNT * 2, TILE_COUNT * 3),
+  );
 }
 
 /** The cell a place is on, for asking about somewhere by name. */
@@ -2633,6 +2661,167 @@ section('the war at sea');
   const told = reportFor({ world, game, seat: 'germany', day: game.day });
   ok(Array.isArray(told.actions), 'the report has a place for actions at sea');
   ok(Array.isArray(told.sunk) && Array.isArray(told.raided), 'and for the lanes, both ways round');
+}
+
+
+// ------------------------------------------------------- and when a government falls
+section('capitulation');
+{
+  // ---- the seat that is not there any more ---------------------------------
+  eq(PLAYER_IDS.length, 7, 'seven seats');
+  ok(!PLAYER_IDS.includes('france'), 'and France is not one of them');
+  ok(UNPLAYED.has('france'), 'it is unplayed on purpose, not missing by accident');
+  ok(
+    NATIONS.some((n) => n.id === 'france'),
+    'but France is still a nation — its ground, army, navy and colours all stand',
+  );
+  eq(powerFromPath('/france'), null, 'and its old page falls back to the index rather than breaking');
+
+  // ---- who can fall, and who cannot ----------------------------------------
+  for (const power of PLAYER_IDS) {
+    ok(NEVER_CAPITULATE.has(power), `${power} cannot be made to surrender by losing one hex`);
+    ok(!CAPITULATIONS[power], `and is not on the succession table`);
+  }
+  ok(CAPITULATIONS.france, 'France can — it is the one great power in this war that did');
+
+  const world = freshBoard();
+  const owned = (power) => {
+    const n = NATION_INDEX[power];
+    let count = 0;
+    for (let i = 0; i < TILE_COUNT; i += 1) if (world.ownership.owner[i] === n) count += 1;
+    return count;
+  };
+
+  // ---- what each government answers for ------------------------------------
+  const french = holdingsOf(world, 'france');
+  ok(french.metropole.length > 80 && french.metropole.length < 200, 'metropolitan France is a hundred-odd hexes');
+  ok(french.empire.length > 2000, `and the empire is ${french.empire.length} — twenty times the size of it`);
+  const dutch = holdingsOf(world, 'Netherlands');
+  ok(dutch.empire.length > 300, 'the Dutch empire is mostly the East Indies');
+  ok(dutch.metropole.length < 20, 'and the Netherlands itself is nearly nothing');
+  const danish = holdingsOf(world, 'Denmark');
+  ok(danish.empire.length > 400, 'Denmark answers for Greenland and Iceland, which dwarf it');
+
+  // Every hex is in one half or the other, never both.
+  ok(
+    !french.metropole.some((c) => french.empire.includes(c)),
+    'no hex is both home and overseas',
+  );
+
+  // ---- one day is a raid, two is a surrender -------------------------------
+  const paris = capitalCell('france');
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  world.ownership.set(paris, 'germany', { day: game.day, reason: 'taken' });
+  game.captures.push({ day: game.day, cell: paris, to: 'germany', from: 'france' });
+  eq(
+    capitulationsOn({ world, day: game.day, captures: game.captures, already: [] }).length,
+    0,
+    'a capital taken this morning is a raid, not a surrender',
+  );
+
+  const heldFrance = owned('france');
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+  eq(game.capitulations.length, 1, 'and a capital still held tomorrow is a surrender');
+
+  const fell = game.capitulations[0];
+  eq(fell.country, 'france', 'France');
+  eq(fell.to, 'germany', 'to whoever is standing in Paris');
+  eq(fell.empire, 'neutral', 'and the empire to nobody — this is Vichy');
+
+  eq(owned('france'), 0, 'France now holds nothing at all');
+  ok(owned('germany') > 200, `Germany holds ${owned('germany')} hexes, up from 130`);
+  ok(
+    heldFrance - owned('germany') > 2000,
+    'and got the smaller half — the empire went its own way, not to the conqueror',
+  );
+
+  // The army and the navy stop being forces on the board.
+  const left = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
+  const army = forcesOf(world, 'france');
+  ok(army.length > 100, `${army.length} French formations were on the board`);
+  eq(
+    army.reduce((n, p) => n + (left.get(p.id)?.infantry ?? 0), 0),
+    0,
+    'and not one of them is still under arms',
+  );
+  const fleets = fleetsAt(world, game, game.day).filter((f) => f.power === 'france' && !f.cargo);
+  eq(
+    Math.round(fleets.reduce((n, f) => n + f.hulls, 0)),
+    0,
+    'nor is a single French hull still afloat — scuttled, interned or seized',
+  );
+  ok(
+    (world.convoys ?? [])
+      .filter((c) => c.power === 'france')
+      .every((c) => game.sinkings.some((s) => s.convoy === c.id)),
+    'and its trade routes are shut for good — a lane needs a country at the end of it',
+  );
+
+  // It only happens once.
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+  eq(game.capitulations.length, 1, 'a country only surrenders once');
+
+  // ---- and what Britain inherits -------------------------------------------
+  const other = freshBoard();
+  const theirs = (power) => {
+    const n = NATION_INDEX[power];
+    let count = 0;
+    for (let i = 0; i < TILE_COUNT; i += 1) if (other.ownership.owner[i] === n) count += 1;
+    return count;
+  };
+  const before = economyFor(other, 'uk', 0, {}, []);
+  const ukWas = theirs('uk');
+  const germanyWas = theirs('germany');
+
+  const low = G.newGame();
+  G.claim(low, 'germany', 'germany', 'A');
+  G.setReady(low, 'germany', true);
+  G.advance(low, other);
+  for (const who of ['Belgium', 'Netherlands', 'Denmark']) {
+    const cell = capitalCell(who);
+    other.ownership.set(cell, 'germany', { day: low.day, reason: 'taken' });
+    low.captures.push({ day: low.day, cell, to: 'germany', from: 'neutral' });
+  }
+  G.setReady(low, 'germany', true);
+  G.advance(low, other);
+
+  eq(low.capitulations.length, 3, 'three governments fall in one morning');
+  ok(
+    low.capitulations.every((c) => c.to === 'germany' && c.empire === 'uk'),
+    'Germany takes the metropoles and Britain takes the empires',
+  );
+
+  const gained = theirs('uk') - ukWas;
+  const took = theirs('germany') - germanyWas;
+  ok(took < 30, `Germany gained ${took} hexes for three countries`);
+  ok(gained > 1000, `and Britain gained ${gained} without firing a shot`);
+  ok(gained > took * 40, 'which is the whole point of the rule');
+
+  const after = economyFor(other, 'uk', low.day, {}, []);
+  const oil = (books) => books.stores.find((r) => r.id === 'oil').income;
+  const rubber = (books) => books.stores.find((r) => r.id === 'rubber').income;
+  ok(oil(after) > oil(before) * 1.5, 'British oil goes up by half again — the East Indies');
+  ok(rubber(after) > rubber(before) * 1.8, 'and its rubber nearly doubles');
+  ok(after.people > before.people, 'with eighty million more people under its flag');
+
+  // Named, so a reader knows what actually changed hands.
+  const said = low.log.filter((e) => e.id?.startsWith('capitulation'));
+  eq(said.length, 3, 'and each is written down');
+  ok(said.some((e) => e.text.includes('Congo')), 'the Congo by name');
+  ok(said.some((e) => e.text.includes('East Indies')), 'the East Indies by name');
+  ok(said.some((e) => e.text.includes('United Kingdom')), 'and who got them');
+  ok(
+    said.every((e) => /^\d+ hexes/.test(e.text)),
+    'each saying how much ground moved',
+  );
+  eq(displayName('france'), 'France', 'governments are named the way a person would name them');
+  eq(displayName('uk'), 'United Kingdom', 'not by their ids');
 }
 
 console.log(

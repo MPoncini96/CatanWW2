@@ -98,6 +98,36 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {report.fell?.length > 0 && (
+              <section>
+                <h3>The governments</h3>
+                <ul className="report__list">
+                  {report.fell.map((c, n) => (
+                    <li
+                      key={`g${n}`}
+                      className={c.took || c.inherited ? 'is-won' : ''}
+                    >
+                      <span className="report__where">{c.country} capitulates</span>
+                      <span className="report__what">
+                        {c.metropoleCells} hexes to <strong>{c.to}</strong>
+                        {c.empireCells > 0 && (
+                          <>
+                            {' · '}
+                            {c.empireCells} of empire{' '}
+                            <strong>{c.empire === 'nobody' ? 'go their own way' : `to ${c.empire}`}</strong>
+                          </>
+                        )}
+                      </span>
+                      <span className="report__cost">
+                        {c.note ? `${c.note} · ` : ''}
+                        {c.forces} formations lay down their arms
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(report.actions?.length > 0 ||
               report.sunk?.length > 0 ||
               report.raided?.length > 0) && (

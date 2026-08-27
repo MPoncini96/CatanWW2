@@ -284,9 +284,7 @@ export default function App() {
     if (!world?.march || !game) return;
     // Ground first, then the armies: a column that took a hex has to find the
     // hex already its own, or the fog would hide the men that captured it.
-    for (const capture of game.captures ?? []) {
-      world.ownership.set(capture.cell, capture.to, { day: capture.day, reason: 'taken' });
-    }
+    world.ownership.replay(game.captures ?? []);
     world.march(game.moves ?? [], game.day, game.battles ?? [], game.replacements ?? []);
     setMarchVersion((v) => v + 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -659,7 +657,7 @@ export default function App() {
                         can reach is drained towards a dead grey. A diamond on the water is a fleet
                         — filled and sized if you may count it, an outline if you may not. Canada,
                         Australia, New Zealand, South Africa and Newfoundland are drawn as the
-                        United Kingdom: there are eight seats, and they were self-governing.
+                        United Kingdom: there are seven seats, and they were self-governing.
                         Independent covers both the genuinely neutral and the colonies of neutral
                         powers — the Congo is Belgian, the East Indies Dutch, Angola Portuguese.
                       </p>

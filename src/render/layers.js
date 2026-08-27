@@ -106,7 +106,14 @@ export function politicalColors(world, out, viewer = null, day = 0) {
 
     const id = world.countryOf ? world.countryOf[i] : -1;
     const country = id >= 0 ? world.countries[id] : null;
-    const hex = country ? country.color : NATIONS[nation].color;
+    // A country's colour is baked from who owned it on 1 September, which is
+    // right until somebody takes it and then is a lie. So the country's colour
+    // holds only while the country still holds the ground: the Congo is Belgian
+    // blue until the day Brussels falls, and British gold from the day after.
+    // Without this the map never shows a conquest at all — not Poland, and not
+    // the four thousand hexes a capitulation moves in one morning.
+    const hex =
+      country && country.power === nation ? country.color : NATIONS[nation].color;
     let rgb = cache.get(hex);
     if (!rgb) {
       rgb = rgbOf(hex);

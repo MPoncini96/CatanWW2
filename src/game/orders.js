@@ -123,7 +123,7 @@ export function ordersFor({ power, day = 0, tile = null }) {
 
     // Replacements go to troops you already have standing somewhere. Retreat
     // used to be an option and is not offered any more, because it is not a
-    // decision: a beaten army falls back on its own, and asking eight seats to
+    // decision: a beaten army falls back on its own, and asking seven seats to
     // choose each time would stall the day for the sake of an order the men on
     // the ground were carrying out without one.
     const men = tile.forces?.reduce((sum, arm) => sum + arm.count, 0) ?? 0;

@@ -9,6 +9,7 @@ import { canAfford, capacityFor, replacementFor, spentBy } from './production.js
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
+import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -70,6 +71,10 @@ export function newGame() {
     // economy reads this directly, so a lane cut this morning stops paying
     // into the stores this morning.
     sinkings: [],
+    // Governments that have stopped governing, and where their ground went.
+    // The largest single events on the board: one of these moves more hexes in
+    // a morning than a month of fighting does.
+    capitulations: [],
     // And the ones that were asked for and not sent, with the reason. The day
     // used to swallow these, which meant a player could ask for fifteen
     // columns, be given four, and never find out why — the most annoying kind
@@ -175,7 +180,7 @@ export function readyToAdvance(game) {
 /**
  * How long a day may stay open before it turns without everybody.
  *
- * A day that only ends when all eight seats have said so is a day that ends
+ * A day that only ends when all seven seats have said so is a day that ends
  * when the slowest player wakes up. Anyone who has not finished simply does not
  * get to give orders — which is a real cost, and is the point: the war does not
  * wait, and neither did any of the actual staffs.
@@ -194,6 +199,27 @@ export function overdue(game, now, limit = DAY_LENGTH_MS) {
 /** When the current day will close of its own accord, if nobody closes it. */
 export function closesAt(game, limit = DAY_LENGTH_MS) {
   return game.opened ? game.opened + limit : null;
+}
+
+/** What a government falling reads as in the log. */
+function capitulationText(fallen) {
+  const parts = [
+    `${fallen.metropoleCells} hexes of ${displayName(fallen.country)} pass to ` +
+      `${displayName(fallen.to)}`,
+  ];
+  if (fallen.empireCells) {
+    parts.push(
+      fallen.empire === 'neutral'
+        ? `${fallen.empireCells} hexes of empire go their own way — ${fallen.note}`
+        : `${fallen.empireCells} hexes of empire pass to ${displayName(fallen.empire)}` +
+          (fallen.note ? ` — ${fallen.note}` : ''),
+    );
+  }
+  const arms = [];
+  if (fallen.forces.length) arms.push(`${fallen.forces.length} formations`);
+  if (fallen.fleets.length) arms.push(`${fallen.fleets.length} fleets`);
+  const stood = arms.length ? ` ${arms.join(' and ')} lay down their arms.` : '';
+  return `${parts.join(', and ')}.${stood}`;
 }
 
 export function advance(game, world = null, now = 0) {
@@ -243,6 +269,34 @@ export function advance(game, world = null, now = 0) {
     for (const capture of captures) {
       world.ownership.set(capture.cell, capture.to, { day: game.day, reason: 'taken' });
       game.captures.push(capture);
+    }
+
+    // And then the governments. This runs after the day's captures are on the
+    // record, because the question it asks is about the record: is somebody
+    // standing in a capital this morning who was also standing in it yesterday
+    // morning? A capital taken today is a raid and the country has until
+    // tomorrow to take it back.
+    for (const fallen of capitulationsOn({
+      world,
+      day: game.day,
+      captures: game.captures,
+      already: game.capitulations,
+    })) {
+      const { captures: handed, stoodDown, interned, shut } = applyCapitulation(world, fallen);
+      // In one go: this is thousands of hexes, and handing them over one at a
+      // time would tell every listener thousands of times that the map changed.
+      world.ownership.replay(handed);
+      game.captures.push(...handed);
+      if (stoodDown) game.battles.push(stoodDown);
+      if (interned) game.seaBattles.push(interned);
+      game.sinkings.push(...shut);
+      game.capitulations.push(fallen);
+      game.log.push({
+        id: `capitulation:${fallen.country}`,
+        day: game.day,
+        name: `${displayName(fallen.country)} capitulates`,
+        text: capitulationText(fallen),
+      });
     }
     // And last, the replacements — after the fighting, so that a column cannot
     // be rebuilt into the middle of the battle it is losing.
@@ -454,6 +508,7 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     sailings: game.sailings,
     seaBattles: game.seaBattles,
     sinkings: game.sinkings,
+    capitulations: game.capitulations,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     raiding: viewer ? (game.raiding[viewer] ?? []) : [],

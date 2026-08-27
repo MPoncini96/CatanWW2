@@ -55,7 +55,7 @@ const world = (() => {
 let game = load();
 // Put the armies where the record says they are and the ground where it says
 // it went, in case this is a resumed game.
-for (const capture of game.captures ?? []) world.ownership.set(capture.cell, capture.to, capture);
+world.ownership.replay(game.captures ?? []);
 world.march(game.moves ?? [], game.day, game.battles ?? [], game.replacements ?? []);
 
 function load() {
@@ -84,6 +84,7 @@ function load() {
       saved.sailings ??= [];
       saved.seaBattles ??= [];
       saved.sinkings ??= [];
+      saved.capitulations ??= [];
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
       return saved;
     } catch (err) {

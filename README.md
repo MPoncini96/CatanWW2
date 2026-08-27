@@ -23,7 +23,7 @@ at their moorings.
 
 ## The game
 
-One game, eight seats, and a calendar that starts on 1 September 1939.
+One game, seven seats, and a calendar that starts on 1 September 1939.
 
 **A nation is a page.** `/germany` is Germany's board, `/uk` is Britain's, and
 so on through `/france`, `/usa`, `/ussr`, `/china`, `/japan` and `/italy`; the
@@ -1029,7 +1029,7 @@ ten-to-one attack is cheap for the attacker and dear for the defender; an even
 one costs both about a tenth of what they brought.
 
 **Retreat is automatic and not a decision.** An army that has lost a position
-withdraws — asking eight seats to choose each time would stall the day, and the
+withdraws — asking seven seats to choose each time would stall the day, and the
 men on the ground were doing it without orders anyway. It falls back onto its own
 nation's ground, preferring to put distance between itself and whatever pushed
 it, then the hardest ground to be followed onto. Nothing random: the same rout
@@ -1331,7 +1331,7 @@ it needs no legend.
 
 ## The clock
 
-**A day that only ends when all eight seats have said so ends when the slowest
+**A day that only ends when all seven seats have said so ends when the slowest
 player wakes up.** There was no way to proceed without them at all, which is
 the difference between a demo and something people can play across time zones.
 
@@ -1516,6 +1516,74 @@ known, while one you may count is filled, sized by its hulls, and labelled with
 them — and close in, becomes the ships: a battleship, a carrier with its island
 and an aeroplane on the deck, a submarine with its conning tower. A strength you
 are not allowed to know never becomes a silhouette; it stays a diamond.
+
+## When a government falls
+
+Every other rule here settles one hex at a time. That is the right model for a
+campaign and the wrong one for the end of a country: France did not lose 30,000
+hexes in six weeks, it lost about a fifth of them and then signed, and the rest
+changed hands in an afternoon because a government in Bordeaux said so.
+
+**Hold an enemy capital for one full day and the country capitulates.** Taken
+this morning is a raid and the country has until tomorrow to take it back; still
+held tomorrow is a government that has stopped governing.
+
+Then the country splits in two, and the halves go to different people.
+
+| Capital falls | Metropole → | Empire → | |
+| --- | --- | --- | --- |
+| Brussels | the conqueror | **Britain** | the Congo |
+| Amsterdam | the conqueror | **Britain** | the East Indies, Suriname, Curaçao |
+| Copenhagen | the conqueror | **Britain** | Iceland and Greenland |
+| Oslo | the conqueror | **Britain** | |
+| Athens | the conqueror | **Britain** | |
+| Paris | the conqueror | **nobody** | Vichy — up for grabs |
+| Warsaw, Belgrade | the conqueror | — | there is no empire |
+
+Five governments went to London in 1940 and their empires went with them. The
+arithmetic of that is the point of the whole rule: taking Belgium, the
+Netherlands and Denmark gains Germany **21 hexes** and gains Britain **1,470** —
+along with 64% more oil and twice the rubber, because the Netherlands East
+Indies is the second-largest oil producer in the Allied world and Japan comes
+for it three years later.
+
+**France is the exception, and it is the interesting one.** Vichy kept the
+empire and fought Britain for it: Mers-el-Kébir in July, Dakar in September,
+Syria in 1941, Madagascar in 1942 — while Japan walked into Indochina in the
+same months. So the French empire goes *neutral* rather than British. Handing
+2,345 hexes and 115 million people to Britain for taking one city would be the
+largest windfall in the game; turning them loose starts a scramble, which is
+what actually happened.
+
+The army does not change sides. A capitulated country's formations and fleets
+are gone — 1.8 million French soldiers went into captivity in six weeks, and the
+navy was scuttled, interned or seized inside two years. Its trade routes shut
+for good, because a lane needs a country at the far end of it. What a successor
+inherits is ground and what is under it, and no troops to hold it with, which is
+exactly the strain Britain was under.
+
+**The great powers cannot capitulate.** No great power in this war surrendered
+on losing its capital — France is the single exception, which is why France is
+on the list and the seven seats are not. Taking Moscow is devastating and it is
+not a surrender.
+
+### France is a country, not a seat
+
+There are **seven seats**. France keeps its colour, its ground, its army, its
+navy and its trade routes; what it has not got is anybody giving it orders.
+
+That is deliberate. On this board France is a thing that *happens to you* rather
+than a thing you play: an unplayed France sits in the Maginot, does not
+manoeuvre, does not counterattack, and loses Paris — and when Paris goes, six
+weeks of war resolve in a day and the map redraws itself from the Rhine to the
+Congo. Sitting a player there and asking them to lose on schedule would be a
+worse job than any of the seven that are left. `/france` now falls back to the
+index rather than breaking.
+
+One consequence worth knowing: if Warsaw falls before the Soviet player has
+marched, *all* of Poland goes to Germany. The 17 September entry declares a war;
+it does not move any ground. Stalin's share of Poland has to be taken, and there
+are ten days to do it in.
 
 ## The war at sea
 
@@ -1746,7 +1814,7 @@ src/
                                                    the men back
            supply.js                             — and getting it forward
            report.js                             — what the day brought
-           players.js  state.js                  — the eight seats and the turn
+           players.js  state.js                  — the seven seats and the turn
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
 
@@ -1757,6 +1825,10 @@ how the grid, the world build, the territory probes and the camera maths are all
 verified.
 
 ## Not built yet
+
+The rest of a victory condition. Capitulation is the first half of one — a
+country can now be finished — but the seven great powers deliberately cannot be
+finished that way, so there is still no moment at which somebody has won.
 
 Shipyards, which now have something to do: hulls can be lost, so they can be
 replaced, and the yards are the obvious next thing the factories should learn to
