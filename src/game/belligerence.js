@@ -181,7 +181,7 @@ export function isActive(day, party) {
 }
 
 /**
- * A short summary per power, for the HUD and the ledger: whether it is in the
+ * A short summary per power, for the HUD: whether it is in the
  * war yet, when it gets in, and against how much. Powers are listed whether or
  * not anyone is playing them.
  */

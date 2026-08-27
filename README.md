@@ -102,11 +102,6 @@ and each is also the day a seat starts playing: Germany, Japan and China from
 the first day, Britain and France on the 3rd, the Soviet Union on the 17th,
 Italy in June 1940, the United States at Pearl Harbor.
 
-**The ledger** — *Who may attack whom* in the war room — is the whole mechanic
-on one page: every power, whether it is fighting or watching, the day it gets
-in, and the list of everything it may move against. Germany's list on the 3rd is
-two powers and forty-four countries; Italy's, until June 1940, is nobody.
-
 Rights are **replayed from that table** rather than stored with the game, which
 has two consequences worth the trouble: the state of the war can never drift out
 of step with the timeline, and an event added months from now applies correctly

@@ -12,7 +12,6 @@ import { seesFleet, visibilityFor } from '../world/intel.js';
 import { economyFor } from '../world/economy.js';
 import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
-import { WarLedger } from './WarLedger.jsx';
 import { EventCard } from './EventCard.jsx';
 import { NationIndex } from './NationIndex.jsx';
 import { Forces, Stores } from './Economy.jsx';
@@ -87,7 +86,6 @@ export default function App() {
   const [hover, setHover] = useState(null);
   const [selected, setSelected] = useState(null);
   const [cam, setCam] = useState(null);
-  const [ledgerOpen, setLedgerOpen] = useState(false);
   const [totalsOpen, setTotalsOpen] = useState(false);
   // The bottom strip starts open: it is the half of the inspector that shows
   // everything, and a reader who has never seen it cannot ask for it.
@@ -711,7 +709,6 @@ export default function App() {
               onReady={declareReady}
               onClaim={takeSeat}
               onLeave={logOut}
-              onLedger={() => setLedgerOpen(true)}
               busy={busy}
               error={seatError}
             />
@@ -1034,7 +1031,6 @@ export default function App() {
           onClose={() => setTotalsOpen(false)}
         />
       )}
-      {ledgerOpen && <WarLedger state={game} onClose={() => setLedgerOpen(false)} />}
       {session && pending.length > 0 && (
         <EventCard event={pending[0]} onDismiss={dismiss} remaining={pending.length} />
       )}

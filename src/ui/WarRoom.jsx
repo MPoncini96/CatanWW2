@@ -24,7 +24,7 @@ function untilClose(at) {
   return `Turns on its own in ${minutes}m, ready or not.`;
 }
 
-export function WarRoom({ power, state, onReady, onClaim, onLeave, onLedger, busy, error }) {
+export function WarRoom({ power, state, onReady, onClaim, onLeave, busy, error }) {
   const [name, setName] = useState('');
   const player = BY_ID[power];
   if (!player) return null;
@@ -126,10 +126,6 @@ export function WarRoom({ power, state, onReady, onClaim, onLeave, onLedger, bus
           );
         })}
       </ul>
-
-      <button type="button" className="war__ledger" onClick={onLedger}>
-        Who may attack whom
-      </button>
 
       {mine && seat.votes && (
         <>
