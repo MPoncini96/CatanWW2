@@ -246,6 +246,7 @@ export function reportFor({ world, game, seat, day }) {
       days: raid.days,
       fighters: raid.fighters,
       flak: raid.flak,
+      escort: raid.escort ?? 0,
     };
     if (raid.power === seat) flown.push(entry);
     else if (raid.against === seat) bombed.push(entry);
@@ -312,6 +313,7 @@ export function reportFor({ world, game, seat, day }) {
       cover: hit.cover,
       fighters: hit.fighters,
       flak: hit.flak,
+      escort: hit.escort ?? 0,
     };
     if (hit.power === seat) struck.push(line);
     else if (hit.against === seat) bombed2.push(line);

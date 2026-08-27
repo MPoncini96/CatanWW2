@@ -76,7 +76,9 @@ export function DayReport({ report, date, onClose }) {
                         <strong>{s.killed.toLocaleString()} of them killed</strong>
                       </span>
                       <span className="report__cost">
-                        lost {Math.round(s.share * 100)}% · the ground was worth {s.cover} to them
+                        lost {Math.round(s.share * 100)}%
+                        {s.escort > 0 ? ` with ${s.escort} escorting` : ''} · the ground was worth{' '}
+                        {s.cover} to them
                       </span>
                     </li>
                   ))}
@@ -88,6 +90,7 @@ export function DayReport({ report, date, onClose }) {
                         <strong>{s.killed.toLocaleString()} men lost</strong>
                       </span>
                       <span className="report__cost">
+                        {s.escort > 0 ? `${s.escort} of them escorts · ` : ''}
                         {s.fighters} fighters and {s.flak} guns up · {Math.round(s.share * 100)}% of
                         them shot down
                       </span>
@@ -111,7 +114,9 @@ export function DayReport({ report, date, onClose }) {
                         </strong>
                       </span>
                       <span className="report__cost">
-                        lost {Math.round(r.share * 100)}% · {r.fighters} fighters, {r.flak} guns
+                        lost {Math.round(r.share * 100)}%
+                        {r.escort > 0 ? ` with ${r.escort} escorting` : ''} · {r.fighters} fighters,{' '}
+                        {r.flak} guns
                       </span>
                     </li>
                   ))}
@@ -125,6 +130,7 @@ export function DayReport({ report, date, onClose }) {
                         </strong>
                       </span>
                       <span className="report__cost">
+                        {r.escort > 0 ? `${r.escort} of them escorts · ` : ''}
                         {r.fighters} fighters and {r.flak} guns up · {Math.round(r.share * 100)}% of
                         them shot down
                       </span>

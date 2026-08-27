@@ -36,7 +36,14 @@ export const RATINGS = {
   infantry: { attack: 1, defend: 1.3 },
   tanks: { attack: 90, defend: 40 },
   artillery: { attack: 60, defend: 80 },
-  fighters: { attack: 25, defend: 25 },
+  // A fighter is worth more over its own ground than over somebody else's, and
+  // by a wide margin. At home it is fighting on ground control, it is minutes
+  // from its own airfield, and a pilot who jumps lands among friends and flies
+  // again next week. Over the enemy it is at the end of its range, it is
+  // watching the fuel gauge, and every loss is permanent. That asymmetry
+  // decided the Battle of Britain and it is why every air force in the war
+  // found defence cheaper than offence.
+  fighters: { attack: 18, defend: 30 },
   bombers: { attack: 80, defend: 15 },
 };
 

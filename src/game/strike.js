@@ -2,7 +2,7 @@ import { NATIONS, NATION_INDEX } from '../world/nations.js';
 import { formationName } from '../world/deploy.js';
 import { atWar } from './movement.js';
 import { groundBonus } from './combat.js';
-import { BOMBER_RANGE, defenceOf, hexesApart, raidLuck } from './bombing.js';
+import { BOMBER_RANGE, airCombat, defenceOf, hexesApart, raidLuck } from './bombing.js';
 
 // Bombing an army.
 //
@@ -54,10 +54,10 @@ export const MEN_PER_BOMBER = 12;
  */
 export const WORST_STRIKE = 0.08;
 
-/** What it costs the bombers, on the same terms as a raid on a works. */
-const BASE_LOSS = 0.1;
-const LEAST_LOSS = 0.02;
-const WORST_LOSS = 0.25;
+// What it costs the crews is not worked out here. It is `airCombat` in
+// bombing.js, the same function a raid on a works uses, because it is the same
+// flight: the same fighters come up, the same guns fire, and the escort does
+// the same job whichever the target is. One set of numbers, one place.
 
 /**
  * May this group go for the troops on this hex?
@@ -72,8 +72,10 @@ export function mayStrike({ world, column, target, power, day, positions, flown,
   if (ordered?.has(column.id)) return 'Already flying tomorrow.';
   if (flown?.has(column.id)) return 'It flew today and is being turned round.';
 
+  // Bombers to do the work, or fighters to see them there.
   const bombers = column.strength?.bombers ?? 0;
-  if (!bombers) return `${name} has no bombers in it.`;
+  const fighters = column.strength?.fighters ?? 0;
+  if (!bombers && !fighters) return `${name} has no aircraft in it.`;
 
   const owner = world.ownership.owner[target];
   if (owner === undefined || owner < 0) return 'There is nothing out there to bomb.';
@@ -143,17 +145,30 @@ export function resolveStrikes({ world, day, striking, positions, strengths, flo
   )) {
     let bombers = 0;
     let weight = 0;
+    let escort = 0;
+    let escortWeight = 0;
     for (const column of columns) {
       const have = strengths?.get(column.id) ?? column.strength;
+      const quality = column.formation.quality ?? 0.5;
       const n = have.bombers ?? 0;
       bombers += n;
-      weight += n * (column.formation.quality ?? 0.5);
+      weight += n * quality;
+      const f = have.fighters ?? 0;
+      escort += f;
+      escortWeight += f * quality;
     }
-    weight *= raidLuck(day, target);
+    const luck = raidLuck(day, target);
+    weight *= luck;
+    escortWeight *= luck;
 
-    const against = defenceOf(world, target, power, positions, strengths);
-    const odds = against.total / Math.max(1, weight);
-    const share = Math.min(WORST_LOSS, Math.max(LEAST_LOSS, BASE_LOSS * odds));
+    const against = defenceOf(world, target, power, positions, strengths, day);
+    const fight = airCombat({
+      guardFighters: against.fighters,
+      guardFlak: against.flak,
+      escort: escortWeight,
+      bombers: weight,
+    });
+    const share = fight.bomberShare;
     const through = Math.max(0, Math.round(bombers * (1 - share)));
 
     // Who is under it, and how hard the ground is making it.
@@ -191,6 +206,9 @@ export function resolveStrikes({ world, day, striking, positions, strengths, flo
       killed: Math.round(men * hurt),
       fighters: Math.round(against.fighters),
       flak: Math.round(against.flak),
+      escort: Math.round(escort),
+      escortShare: fight.escortShare,
+      guardShare: fight.guardShare,
       columnsHit: under.map((c) => c.id),
     });
 
@@ -202,6 +220,32 @@ export function resolveStrikes({ world, day, striking, positions, strengths, flo
         strike: true,
         losers: under.map((c) => c.id),
         loserShare: hurt,
+        winners: [],
+        winnerShare: 0,
+      });
+    }
+
+    // The fighters on both sides, if either was there.
+    if (escort > 0 && fight.escortShare > 0) {
+      losses.push({
+        day,
+        cell: target,
+        strike: true,
+        arms: ['fighters'],
+        losers: columns.map((c) => c.id),
+        loserShare: fight.escortShare,
+        winners: [],
+        winnerShare: 0,
+      });
+    }
+    if (against.guards.length && fight.guardShare > 0) {
+      losses.push({
+        day,
+        cell: target,
+        strike: true,
+        arms: ['fighters'],
+        losers: against.guards,
+        loserShare: fight.guardShare,
         winners: [],
         winnerShare: 0,
       });

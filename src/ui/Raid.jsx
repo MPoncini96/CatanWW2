@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { formatUnits } from '../world/forces.js';
 import { formationName } from '../world/deploy.js';
-import { BOMBER_RANGE, defenceOf, hexesApart, mayRaid } from '../game/bombing.js';
+import { BOMBER_RANGE, airCombat, defenceOf, hexesApart, mayRaid } from '../game/bombing.js';
 
 /**
  * Sending the bombers.
@@ -38,11 +38,15 @@ export function Raid({
     for (const column of world.garrisons.opening) {
       if (column.formation.nation !== power) continue;
       const have = strengths?.get(column.id) ?? column.strength;
-      if (!(have.bombers > 0)) continue;
+      // Fighters count too. A group of them ordered against a target is flying
+      // escort, which is the one offensive thing a fighter does here.
+      if (!(have.bombers > 0) && !(have.fighters > 0)) continue;
       const at = positions?.get(column.id) ?? column.cell;
       out.push({
         column,
-        bombers: have.bombers,
+        bombers: have.bombers ?? 0,
+        fighters: have.fighters ?? 0,
+        quality: column.formation.quality ?? 0.5,
         away: hexesApart(at, cell),
         why: mayRaid({
           world,
@@ -61,13 +65,25 @@ export function Raid({
   }, [world, power, day, cell, positions, strengths, raids, chosen]);
 
   const against = useMemo(
-    () => defenceOf(world, cell, power, positions, strengths),
-    [world, cell, power, positions, strengths],
+    () => defenceOf(world, cell, power, positions, strengths, day),
+    [world, cell, power, positions, strengths, day],
   );
 
   const sending = groups.filter((g) => chosen.has(g.column.id));
   const bombers = sending.reduce((n, g) => n + g.bombers, 0);
+  const escort = sending.reduce((n, g) => n + g.fighters, 0);
   const works = (world.works ?? []).filter((w) => w.cell === cell);
+
+  // What the escort is buying, which is the only reason to send one: the same
+  // bombers over the same target, with and without it.
+  const flight = {
+    guardFighters: against.fighters,
+    guardFlak: against.flak,
+    bombers: sending.reduce((n, g) => n + g.bombers * g.quality, 0),
+  };
+  const weight = sending.reduce((n, g) => n + g.fighters * g.quality, 0);
+  const cost = airCombat({ ...flight, escort: weight }).bomberShare;
+  const alone = airCombat({ ...flight, escort: 0 }).bomberShare;
 
   return (
     <div className="march">
@@ -84,8 +100,10 @@ export function Raid({
           {error && <span className="march__error">{error}</span>}
           <span className="march__count">
             {bombers
-              ? `${formatUnits(bombers)} bombers · against ${Math.round(against.fighters)} fighters and ${Math.round(against.flak)} guns`
-              : `defended by ${Math.round(against.fighters)} fighters and ${Math.round(against.flak)} guns`}
+              ? `${formatUnits(bombers)} bombers${escort ? ` and ${formatUnits(escort)} escort` : ''} · losing about ${Math.round(cost * 100)}%${escort ? ` instead of ${Math.round(alone * 100)}%` : ''}`
+              : escort
+                ? `${formatUnits(escort)} fighters sweeping · nothing to drop`
+                : `defended by ${Math.round(against.fighters)} fighters and ${Math.round(against.flak)} guns`}
           </span>
           <button type="button" onClick={onCancel} disabled={busy}>
             Done
@@ -97,10 +115,10 @@ export function Raid({
       </div>
 
       {!groups.length ? (
-        <p className="march__none">You have no bombers anywhere.</p>
+        <p className="march__none">You have no aircraft anywhere.</p>
       ) : (
         <ul className="march__list">
-          {groups.map(({ column, bombers: n, away, why }) => (
+          {groups.map(({ column, bombers: n, fighters: f, away, why }) => (
             <li key={column.id} className={why ? 'is-barred' : ''}>
               <label>
                 <input
@@ -113,7 +131,14 @@ export function Raid({
                 <span className="march__from">
                   {Math.round(away)} hexes {away <= BOMBER_RANGE ? 'away' : '— too far'}
                 </span>
-                <span className="march__men">{formatUnits(n)} bombers</span>
+                <span className="march__men">
+                  {[
+                    n ? `${formatUnits(n)} bombers` : '',
+                    f ? `${formatUnits(f)} escort` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
               </label>
               {why && <p className="march__why">{why}</p>}
             </li>
@@ -123,7 +148,9 @@ export function Raid({
       <p className="march__none" style={{ marginTop: '6px' }}>
         Everything sent against one works on one night is one raid: a large formation saturates the
         defence that a small one is destroyed by. What gets through decides how long the works is
-        out, and a group that flies is turned round the next day and cannot go again.
+        out, and a group that flies is turned round the next day and cannot go again. Fighters sent
+        with them fly escort — they hold the interceptors off the bombers and fight them for it, but
+        they can do nothing at all about the flak.
       </p>
     </div>
   );

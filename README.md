@@ -986,7 +986,7 @@ than to a column commander.
 | Infantry | 1 | 1.3 |
 | Tanks | 90 | 40 |
 | Artillery | 60 | 80 |
-| Fighters | 25 | 25 |
+| Fighters | 18 | 30 |
 | Bombers | 80 | 15 |
 
 In men, and every figure is an argument. **A tank is 90 men going forward and 40
@@ -996,8 +996,15 @@ thing that made it worth having. **Artillery is the reverse** — it killed more
 men than anything else in both wars, and it killed most of them from a prepared
 position onto ground the attacker had to cross. **Infantry defends better than
 it attacks**, because it can dig. **Bombers hit hard and hold nothing.**
-Fighters decide who else gets to do those things, which on the ground is worth
-something and not much.
+
+**A fighter is worth two thirds as much over somebody else's ground as over its
+own**, and the gap is the largest of any arm on the table. At home it fights on
+ground control, it is minutes from its own airfield, and a pilot who jumps lands
+among friends and flies again next week. Over the enemy it is at the end of its
+range, it is watching the fuel gauge, and every loss is permanent. That asymmetry
+decided the Battle of Britain — the RAF recovered half its shot-down pilots and
+the Luftwaffe recovered none of them — and it is why every air force in the war
+found defence cheaper than offence.
 
 All of it is multiplied by the formation's **quality**, which is what stops
 2.5 million Chinese infantry outweighing 1.8 million Japanese. That field has
@@ -1524,6 +1531,14 @@ is contested by **fighters within three hexes of the target**, because a Bf 109
 could neither escort nor intercept further than that, and by **whatever flak is
 standing on the hex**. Guns do not travel; they defend the hex they are on.
 
+Only by people you are actually fighting. The first version counted every
+aeroplane on earth that was not yours, so a raid on the Ruhr in September 1939
+was met by the Dutch and the Belgians as well as the Luftwaffe — 236 fighters
+where there should have been 170. While nobody could shoot back at them it was
+merely a thumb on the scale. It stopped being harmless the moment escorts
+arrived, because it would have had Fighter Command destroying neutral air forces
+over countries nobody had invaded.
+
 Nobody takes any ground. That is the whole point of the thing, and the argument
 about whether it was worth doing lasted the entire war.
 
@@ -1539,11 +1554,11 @@ day. Nobody makes that trade twice.
 
 Sent together, the same aircraft do this:
 
-> **480 bombers sent, 398 through, 17% lost** — against 236 fighters and 1,000
-> guns. The Ruhr out for **nine days**, which is **63% of German replacement
-> capacity** gone with it.
+> **480 bombers sent, 408 through, 15% lost** — against 170 fighters and 1,000
+> guns. The Ruhr out for **nine days**, which is **64% of German steel** gone
+> with it.
 
-A fifth of Bomber Command for nine days of German industry is a real decision,
+A seventh of Bomber Command for nine days of German industry is a real decision,
 and it is the decision the whole offensive was about. An undefended works costs
 almost nothing and is shut for a fortnight, which is why you defend one.
 
@@ -1563,6 +1578,68 @@ about aeroplanes. Replacements are sent **after** the bombers have flown: a
 works put out this morning makes nothing this afternoon, and that single
 ordering is the whole of what strategic bombing does here.
 
+## Escort
+
+A fighter had exactly one offensive job and this is it: **a fighter group
+ordered against a target flies escort**. It takes no ground, it bombs nothing,
+and it lands back on the airfield it took off from — which is true of every air
+mission here, because a raid emits no move record and never has.
+
+The fight over the target now produces **three numbers rather than one**:
+
+| | what it loses |
+| --- | --- |
+| The bombers | what the escort could not hold off, plus the guns |
+| The escort | what the interceptors got through it |
+| The interceptors | what the escort got through them |
+
+Before this, only the first of those existed. The defending fighters were
+invulnerable: they took a raid apart every night for six years and never lost an
+aeroplane.
+
+**An escort is worth 0.72 of the interceptor it is holding off.** The interceptor
+picks its moment; the escort cannot. It is tied to bombers flying a straight line
+at a fixed height and speed, it cannot chase, and it has to be where its charges
+are — so it fights the fight the defender chooses. That is why escorting was the
+harder job and the one that took longest to solve.
+
+### What it buys
+
+Bomber Command against the Ruhr, the same 480 bombers every time:
+
+| escort | through | lost | RAF fighters lost | Luftwaffe fighters lost |
+| --- | --- | --- | --- | --- |
+| none | 408 | 15% | 0 | 4 |
+| 300 | 434 | 10% | 32 | 20 |
+| 600 | 435 | 9% | 32 | 40 |
+
+The four German fighters lost to the unescorted raid are the floor that applies
+to everything in the air — two per cent, the same floor the bombers get. Bomber
+formations had gunners and the gunners hit things.
+
+Three things fall out of that and all of them are the argument the USAAF had
+with itself for four years.
+
+**The first escort is worth sending.** Three hundred fighters save 26 bombers and
+cost 32 of their own — roughly even in airframes, and much better than even in
+crews, since a bomber carries five men and a fighter carries one.
+
+**The second is not, for the bombers.** Doubling the escort saves one more
+bomber. The escort can shoot down fighters and it can never shoot down a gun, so
+**flak is the floor** — once the escort outweighs the interceptors, everything
+still lost over the Ruhr is lost to the thousand guns standing on it, and no
+number of fighters touches that.
+
+**But it doubles what the Luftwaffe pays.** The escort's own losses are flat —
+the interceptors shoot down what they can shoot down, however many come at them —
+while German losses scale straight with the escort sent. Which is the whole of
+the case for the long-range escort as an attrition weapon rather than as
+protection, and the reason it eventually won: not that it got the bombers
+through, but that it made coming up to meet them unaffordable.
+
+A fighter group is turned round the next day like any other, and a group carrying
+both fighters and bombers does both jobs on the same flight.
+
 ## Close support
 
 Aircraft could do exactly three things on this board and none of them was
@@ -1574,8 +1651,9 @@ supporting an army in the field — could not support an army in the field.
 
 A **strike** is the strategic raid pointed at troops instead of at a works, and
 it shares everything with it: the same ten hexes of range, the same interception
-by fighters within three, the same flak, the same arithmetic for who does not
-come home. Two things make it its own mission.
+by fighters within three, the same flak, the same escort, and the same arithmetic
+for who does not come home — one `airCombat`, called from both, because it is the
+same flight whichever the target is. Two things make it its own mission.
 
 **It happens before the fighting.** The order of a day puts strikes ahead of the
 battles, so bombing a hex in the morning and assaulting it in the afternoon is

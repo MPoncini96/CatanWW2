@@ -62,6 +62,17 @@ export const WORST_CIVILIAN_SHARE = 0.03;
  * defended airspace on earth.
  */
 export const FIGHTER_WEIGHT = 1.2;
+
+/**
+ * And what one is worth escorting, which is less.
+ *
+ * The interceptor picks its moment; the escort cannot. It is tied to bombers
+ * flying a straight line at a fixed height and speed, it cannot chase, and it
+ * has to be somewhere its charges are — so it fights the fight the defender
+ * chooses. Sixty per cent of an interceptor is the going rate for that, and it
+ * is why escorting was the harder job and the one that took longest to solve.
+ */
+export const ESCORT_WEIGHT = 0.72;
 export const FLAK_WEIGHT = 0.35;
 
 /**
@@ -118,8 +129,12 @@ export function mayRaid({ world, column, target, power, day, positions, raids, o
   if (column.formation.nation !== power) return `${name} is not yours to order.`;
   if (ordered?.has(column.id)) return 'Already flying tomorrow.';
 
+  // Bombers to do the work, or fighters to see them there. A group of fighters
+  // ordered against a target is an escort, and it is the only offensive thing
+  // a fighter can do.
   const bombers = column.strength?.bombers ?? 0;
-  if (!bombers) return `${name} has no bombers in it.`;
+  const fighters = column.strength?.fighters ?? 0;
+  if (!bombers && !fighters) return `${name} has no aircraft in it.`;
 
   // A group that flew yesterday is being patched up and rearmed today. The
   // same rule as a column that marched, for the same reason.
@@ -147,10 +162,20 @@ export function mayRaid({ world, column, target, power, day, positions, raids, o
   return null;
 }
 
-/** Everything that would try to stop a raid on this hex. */
-export function defenceOf(world, target, nation, positions, strengths) {
+/**
+ * Everything that would try to stop a raid on this hex.
+ *
+ * Only what is actually fighting you. `day` is not optional in spirit: without
+ * it this counted every aeroplane on earth that was not yours, so a raid on the
+ * Ruhr was met by the Dutch and the Belgians as well as the Luftwaffe. That
+ * merely inflated the defence while nobody could shoot back at it. Now that an
+ * escort costs the interceptors something, it would have Fighter Command
+ * destroying neutral air forces over a country nobody had invaded.
+ */
+export function defenceOf(world, target, nation, positions, strengths, day) {
   let fighters = 0;
   let flak = 0;
+  const guards = [];
   for (const column of world.garrisons.opening) {
     if (column.formation.nation === nation) continue;
     const owner = NATION_INDEX[column.formation.nation];
@@ -158,6 +183,10 @@ export function defenceOf(world, target, nation, positions, strengths) {
     const have = strengths?.get(column.id) ?? column.strength;
     const where = positions?.get(column.id) ?? column.cell;
     const quality = column.formation.quality ?? 0.5;
+    // Neutral until somebody makes them otherwise. `atWar` reads the country
+    // under the aircraft, which is how one 'neutral' nation holds thirty
+    // countries that come into the war on thirty different days.
+    if (day !== undefined && !atWar(day, nation, column.formation.nation, world, where)) continue;
 
     // Flak only defends the hex it is standing on. Guns do not travel.
     if (where === target && column.formation.type === 'aa') {
@@ -166,12 +195,41 @@ export function defenceOf(world, target, nation, positions, strengths) {
     // Fighters reach as far as fighters reached, which is not far.
     if ((have.fighters ?? 0) > 0 && hexesApart(where, target) <= FIGHTER_RANGE) {
       fighters += have.fighters * quality;
+      guards.push(column.id);
     }
   }
   return {
     fighters,
     flak,
     total: fighters * FIGHTER_WEIGHT + flak * FLAK_WEIGHT,
+    // Who they belong to, so an escort that fights them can cost them
+    // something. Without this the defending fighters were invulnerable: they
+    // took a raid apart every night for six years and never lost an aeroplane.
+    guards,
+  };
+}
+
+/**
+ * The fight in the air over a target.
+ *
+ * Three things come out of it and they are not the same number: what the
+ * bombers lose, what the escort loses, and what the defenders lose. An escort
+ * does not shoot down flak, so the guns come through whatever happens — which
+ * is the whole reason flak was worth having.
+ */
+export function airCombat({ guardFighters, guardFlak, escort, bombers }) {
+  const guarding = guardFighters * FIGHTER_WEIGHT;
+  const escorting = escort * ESCORT_WEIGHT;
+  // What the escort could not hold off, plus the guns, which it never can.
+  const covered = Math.max(0, guarding - escorting) + guardFlak * FLAK_WEIGHT;
+
+  const clamp = (n) => Math.min(WORST_LOSS, Math.max(LEAST_LOSS, n));
+  return {
+    covered,
+    bomberShare: clamp(BASE_LOSS * (covered / Math.max(1, bombers))),
+    // The escort fights the interceptors, and the interceptors fight back.
+    escortShare: escort > 0 ? clamp(BASE_LOSS * (guarding / Math.max(1, escorting))) : 0,
+    guardShare: guardFighters > 0 ? clamp(BASE_LOSS * (escorting / Math.max(1, guarding))) : 0,
   };
 }
 
@@ -222,17 +280,32 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
   )) {
     let bombers = 0;
     let strength = 0;
+    let escort = 0;
+    let escortWeight = 0;
     for (const column of columns) {
       const have = strengths?.get(column.id) ?? column.strength;
+      const quality = column.formation.quality ?? 0.5;
       const n = have.bombers ?? 0;
       bombers += n;
-      strength += n * (column.formation.quality ?? 0.5);
+      strength += n * quality;
+      // Anything with fighters in it is flying escort, whether or not it is
+      // also carrying bombs. A group of both does both.
+      const f = have.fighters ?? 0;
+      escort += f;
+      escortWeight += f * quality;
     }
-    strength *= raidLuck(day, target);
-    const against = defenceOf(world, target, power, positions, strengths);
+    const luck = raidLuck(day, target);
+    strength *= luck;
+    escortWeight *= luck;
+    const against = defenceOf(world, target, power, positions, strengths, day);
 
-    const odds = against.total / Math.max(1, strength);
-    const share = Math.min(WORST_LOSS, Math.max(LEAST_LOSS, BASE_LOSS * odds));
+    const fight = airCombat({
+      guardFighters: against.fighters,
+      guardFlak: against.flak,
+      escort: escortWeight,
+      bombers: strength,
+    });
+    const share = fight.bomberShare;
     const through = Math.max(0, Math.round(bombers * (1 - share)));
     const out = Math.min(LONGEST_SHUTDOWN, Math.round(through / BOMBERS_PER_DAY));
 
@@ -248,6 +321,9 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
       share,
       fighters: Math.round(against.fighters),
       flak: Math.round(against.flak),
+      escort: Math.round(escort),
+      escortShare: fight.escortShare,
+      guardShare: fight.guardShare,
       // The day the works is working again. Read by `capacityFor`, which has
       // been waiting for somebody to put a number in it.
       until: day + out,
@@ -263,6 +339,34 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
         ),
       ),
     });
+
+    // What the escort lost holding the interceptors off, and what the
+    // interceptors lost being held off. Fighters on both sides, and nobody
+    // else: a raid costs aircraft, not the fitters who armed them.
+    if (escort > 0 && fight.escortShare > 0) {
+      losses.push({
+        day,
+        cell: target,
+        raid: true,
+        arms: ['fighters'],
+        losers: columns.map((c) => c.id),
+        loserShare: fight.escortShare,
+        winners: [],
+        winnerShare: 0,
+      });
+    }
+    if (against.guards.length && fight.guardShare > 0) {
+      losses.push({
+        day,
+        cell: target,
+        raid: true,
+        arms: ['fighters'],
+        losers: against.guards,
+        loserShare: fight.guardShare,
+        winners: [],
+        winnerShare: 0,
+      });
+    }
 
     losses.push({
       day,

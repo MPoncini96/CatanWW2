@@ -89,9 +89,11 @@ import { placeOf, reportFor } from '../src/game/report.js';
 import { drawOrders } from '../src/render/orders.js';
 import {
   BOMBER_RANGE,
+  ESCORT_WEIGHT,
   FIGHTER_RANGE,
   FIGHTER_WEIGHT,
   FLAK_WEIGHT,
+  airCombat,
   defenceOf,
   hexesApart,
   mayRaid,
@@ -1509,6 +1511,10 @@ section('fighting for a hex');
   ok(RATINGS.artillery.defend > RATINGS.artillery.attack, 'and a gun the other way about');
   ok(RATINGS.infantry.defend > RATINGS.infantry.attack, 'as is a rifleman, who can dig');
   ok(RATINGS.bombers.attack > RATINGS.bombers.defend * 4, 'a bomber cannot hold anything');
+  ok(
+    RATINGS.fighters.defend > RATINGS.fighters.attack,
+    'and a fighter is worth more over its own ground than over somebody else’s',
+  );
 
   const column = { id: 'x', formation: { quality: 1 }, strength: { infantry: 1000, tanks: 10 } };
   eq(strengthOf([column], 'attack'), 1000 * 1 + 10 * 90, 'strength is the arms at their ratings');
@@ -2367,7 +2373,7 @@ section('strategic bombing');
   const german = opening.find((c) => c.formation.nation === 'germany' && (c.strength.bombers ?? 0) > 0);
   ok(ask({ column: german, target: ruhr.cell })?.includes('not yours'), 'and not somebody else’s group');
   const noBombers = opening.find((c) => c.formation.nation === 'uk' && !(c.strength.bombers > 0));
-  ok(ask({ column: noBombers, target: ruhr.cell })?.includes('no bombers'), 'nor an army with no aircraft');
+  ok(ask({ column: noBombers, target: ruhr.cell })?.includes('no aircraft'), 'nor an army with no aircraft');
 
   // A group that flew today is turned round tomorrow.
   ok(
@@ -2380,7 +2386,7 @@ section('strategic bombing');
   );
 
   // ---- what is waiting for it ---------------------------------------------
-  const guard = defenceOf(world, ruhr.cell, 'uk', positions, strengths);
+  const guard = defenceOf(world, ruhr.cell, 'uk', positions, strengths, 3);
   ok(guard.flak > 500, `the Ruhr has ${Math.round(guard.flak)} guns over it`);
   ok(guard.fighters > 0, 'and fighters within reach');
   ok(FIGHTER_WEIGHT > FLAK_WEIGHT * 3, 'one fighter is worth several guns');
@@ -2388,7 +2394,7 @@ section('strategic bombing');
     guard.total < guard.flak + guard.fighters,
     'but a thousand guns are still a thousand guns, and weigh more than the fighters do',
   );
-  const quiet = defenceOf(world, cellFor(41.6, -87.3), 'germany', positions, strengths);
+  const quiet = defenceOf(world, cellFor(41.6, -87.3), 'germany', positions, strengths, 3);
   ok(quiet.total < guard.total, 'and Chicago, which nobody can reach, is not defended like that');
 
   // ---- a raid -------------------------------------------------------------
@@ -3847,7 +3853,7 @@ section('close support');
     'and cannot reach the far end of Poland, which is what a bomber of 1939 could not do',
   );
   const noBombers = opening.find((c) => c.formation.nation === 'germany' && !(c.strength.bombers > 0));
-  ok(ask({ column: noBombers, target: cell })?.includes('no bombers'), 'and an army with no aircraft stays');
+  ok(ask({ column: noBombers, target: cell })?.includes('no aircraft'), 'and an army with no aircraft stays');
   ok(
     ask({ column: group, target: cell, flown: new Set([group.id]) })?.includes('turned round'),
     'a group that has already flown today does not fly again',
@@ -3906,6 +3912,147 @@ section('close support');
   eq(told.strafed.length, 0, 'and was not itself bombed');
   ok(told.struck[0].killed > 0, 'with the count');
   ok(!told.quiet, 'and the day is not reported as a quiet one');
+}
+
+
+// --------------------------------------------------------------------- escort
+//
+// The one offensive thing a fighter does, and the reason it is worth less doing
+// it than sitting over its own airfield waiting.
+{
+  console.log('escort');
+  const world = board();
+  const opening = world.garrisons.opening;
+  const positions = new Map();
+  const strengths = strengthsAt(opening, [], 3, []);
+
+  // ---- what it is worth ----------------------------------------------------
+  ok(
+    ESCORT_WEIGHT < FIGHTER_WEIGHT,
+    `an escort is worth ${ESCORT_WEIGHT} against the ${FIGHTER_WEIGHT} of the interceptor it is holding off`,
+  );
+
+  // ---- the fight -----------------------------------------------------------
+  const over = { guardFighters: 200, guardFlak: 1000, bombers: 400 };
+  const alone = airCombat({ ...over, escort: 0 });
+  const with300 = airCombat({ ...over, escort: 300 });
+  ok(
+    with300.bomberShare < alone.bomberShare,
+    `an escort brings bomber losses from ${Math.round(alone.bomberShare * 100)}% to ${Math.round(with300.bomberShare * 100)}%`,
+  );
+  ok(
+    airCombat({ ...over, escort: 600 }).bomberShare <= with300.bomberShare,
+    'and a bigger one brings them down further',
+  );
+  eq(alone.escortShare, 0, 'a raid that took no escort loses none');
+  ok(
+    alone.guardShare <= 0.02,
+    'and the interceptors that met it come off with the floor, which the bombers’ own gunners earned',
+  );
+  ok(with300.escortShare > 0, 'an escort pays for the job');
+  ok(
+    with300.guardShare > alone.guardShare,
+    `and the interceptors pay ${Math.round(with300.guardShare * 100)}% for meeting it instead of ${Math.round(alone.guardShare * 100)}%`,
+  );
+
+  // The thing an escort can do nothing at all about.
+  const guns = airCombat({ guardFighters: 0, guardFlak: 4000, bombers: 400, escort: 4000 });
+  ok(
+    guns.bomberShare > 0.02,
+    `four thousand fighters do not shoot down a gun — the bombers still lose ${Math.round(guns.bomberShare * 100)}%`,
+  );
+
+  // ---- over the Ruhr -------------------------------------------------------
+  const ruhr = world.works.find((w) => w.name.startsWith('Ruhr'));
+  const bombers = opening.filter(
+    (c) => c.formation.nation === 'uk' && (c.strength.bombers ?? 0) > 0 && hexesApart(c.cell, ruhr.cell) <= BOMBER_RANGE,
+  );
+  const escort = opening.filter(
+    (c) => c.formation.nation === 'uk' && (c.strength.fighters ?? 0) > 0 && hexesApart(c.cell, ruhr.cell) <= BOMBER_RANGE,
+  );
+  ok(escort.length >= 3, `${escort.length} groups of Fighter Command can reach the Ruhr and come back`);
+
+  // Only the people you are fighting come up to meet you. The Dutch and the
+  // Belgians have fighters within three hexes of the Ruhr and they stay on the
+  // ground, which they did.
+  const met = defenceOf(world, ruhr.cell, 'uk', positions, strengths, 3);
+  ok(
+    met.guards.every((id) => opening.find((c) => c.id === id)?.formation.nation === 'germany'),
+    'and only the Luftwaffe comes up — the neutrals next door are not in this war',
+  );
+
+  const fly = (send) => {
+    const game = G.newGame();
+    G.claim(game, 'uk', 'uk', 'A');
+    G.setStanding(game, 'uk', false);
+    for (let n = 0; n < 3; n += 1) {
+      G.setReady(game, 'uk', true);
+      G.advance(game, world);
+    }
+    G.setOrders(game, 'uk', [], [], send.map((c) => ({ column: c.id, target: ruhr.cell })));
+    G.setReady(game, 'uk', true);
+    G.advance(game, world);
+    return game;
+  };
+
+  const bare = fly(bombers);
+  const covered = fly([...bombers, ...escort]);
+  eq(bare.raids.length, 1, 'the bombers go on their own');
+  eq(covered.raids.length, 1, 'and again with the fighters, which is one raid either way');
+  eq(covered.raids[0].bombers, bare.raids[0].bombers, 'the same bombers, over the same works');
+  ok(covered.raids[0].escort > 0, `${covered.raids[0].escort} fighters went with them`);
+  ok(
+    covered.raids[0].share < bare.raids[0].share,
+    `and ${Math.round(covered.raids[0].share * 100)}% did not come back instead of ${Math.round(bare.raids[0].share * 100)}%`,
+  );
+  ok(covered.raids[0].through > bare.raids[0].through, 'so more of them got over the target');
+  ok(covered.raids[0].days >= bare.raids[0].days, 'and the works is out at least as long');
+
+  // ---- and somebody paid for it -------------------------------------------
+  const luft = opening.find((c) => c.id === met.guards[0]);
+  const after = (game) => strengthsAt(opening, game.battles, game.day, game.replacements);
+  const escorted = after(covered);
+  const unescorted = after(bare);
+  ok(
+    escorted.get(luft.id).fighters < unescorted.get(luft.id).fighters,
+    `the Luftwaffe is down to ${Math.round(escorted.get(luft.id).fighters)} fighters against the ${Math.round(unescorted.get(luft.id).fighters)} that met the unescorted raid`,
+  );
+  ok(
+    escorted.get(escort[0].id).fighters < escort[0].strength.fighters,
+    'Fighter Command lost fighters doing it',
+  );
+  eq(
+    escorted.get(escort[0].id).bombers ?? 0,
+    escort[0].strength.bombers ?? 0,
+    'and a fighter group loses fighters and nothing else',
+  );
+
+  // ---- a fighter group may be ordered at all -------------------------------
+  const why = mayRaid({
+    world,
+    column: escort[0],
+    target: ruhr.cell,
+    power: 'uk',
+    day: 3,
+    positions,
+    raids: [],
+    ordered: new Set(),
+  });
+  eq(why, null, 'a group of fighters on its own may be ordered against a target');
+  eq(
+    mayStrike({
+      world,
+      column: escort[0],
+      target: ruhr.cell,
+      power: 'uk',
+      day: 3,
+      positions,
+      flown: new Set(),
+      ordered: new Set(),
+    }),
+    null,
+    'and against an army, which is the same flight',
+  );
 }
 
 console.log(
