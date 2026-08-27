@@ -66,11 +66,11 @@ export function Sail({ world, power, day, cell, fleets, sailing, onToggle, onSen
           <span className="march__count">
             {chosen.size ? `${chosen.size} fleet${chosen.size === 1 ? '' : 's'} sailing` : 'none sailing'}
           </span>
-          <button type="button" onClick={onCancel} disabled={busy}>
-            Done
+          <button type="button" className="march__drop" onClick={onCancel} disabled={busy}>
+            Cancel
           </button>
           <button type="button" className="march__send" onClick={onSend} disabled={busy}>
-            {busy ? 'Sending…' : 'Send orders'}
+            {busy ? 'Saving…' : 'Save & close'}
           </button>
         </div>
       </div>

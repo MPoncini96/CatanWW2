@@ -151,11 +151,11 @@ export function Amphibious({
                 : 'nobody going aboard'
               : `${landingHere.size} fleet${landingHere.size === 1 ? '' : 's'} landing`}
           </span>
-          <button type="button" onClick={onCancel} disabled={busy}>
-            Done
+          <button type="button" className="march__drop" onClick={onCancel} disabled={busy}>
+            Cancel
           </button>
           <button type="button" className="march__send" onClick={onSend} disabled={busy}>
-            {busy ? 'Sending…' : 'Send orders'}
+            {busy ? 'Saving…' : 'Save & close'}
           </button>
         </div>
       </div>

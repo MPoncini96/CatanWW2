@@ -2306,8 +2306,58 @@ section('orders drawn on the map');
   drawOrders(ctx, world, hidden, 1200, 800, orders, [], positions);
   eq(calls.stroke, before.stroke, 'nor for ground round the back of the globe');
 
+  // ---- flights, and the marches nobody ordered -----------------------------
+  //
+  // The stub camera above puts every cell on the same pixel, which an arrow
+  // survives and an arc does not: a curve between two points less than a pixel
+  // apart has no direction to bow in and is refused. So flights get a camera
+  // that can tell two hexes apart.
+  const spread = {
+    ...camera,
+    project: (lat, lon, w, h, out) => {
+      out.x = 600 + lon * 3;
+      out.y = 400 - lat * 3;
+      out.visible = true;
+      return out;
+    },
+  };
+  //
+  // An air mission is not one hex long. It crosses a third of the board, so it
+  // is still worth drawing at a zoom where a march arrow would be shorter than
+  // its own head — and that is exactly the zoom at which a player is looking
+  // at where the bombers are going.
+  const far = { ...spread, pixelsPerCell: () => 4 };
+  const airOnly = { ...calls };
+  drawOrders(ctx, world, far, 1200, 800, [], [], positions, [{ from, to: opening[3].cell }], []);
+  ok(calls.stroke > airOnly.stroke, 'a flight is drawn at a zoom too far out for an arrow');
+
+  const curved = { ...calls, quadraticCurveTo: 0 };
+  const arc = new Proxy(
+    {},
+    {
+      get(_, key) {
+        return (...args) => {
+          if (key in curved) curved[key] += 1;
+          void args;
+        };
+      },
+      set: () => true,
+    },
+  );
+  drawOrders(arc, world, spread, 1200, 800, [], [], positions, [{ from, to: opening[3].cell }], []);
+  ok(curved.quadraticCurveTo > 0, 'and it is an arc rather than a straight line');
+
+  const both = { ...calls };
+  drawOrders(ctx, world, spread, 1200, 800, [], [], positions, [], [{ from, to }]);
+  ok(calls.stroke > both.stroke, 'and the advance the standing order will make is drawn too');
+
+  const same = { ...calls };
+  drawOrders(ctx, world, spread, 1200, 800, [], [], positions, [{ from, to: from }], []);
+  eq(calls.stroke, same.stroke, 'a mission against the hex it flies from draws nothing');
+
+  const quiet = { ...calls };
   drawOrders(ctx, world, camera, 1200, 800, [], [], positions);
-  eq(calls.stroke, before.stroke, 'and a seat with no orders is drawn nothing');
+  eq(calls.stroke, quiet.stroke, 'and a seat with no orders is drawn nothing');
 }
 
 

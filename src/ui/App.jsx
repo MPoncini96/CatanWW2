@@ -12,6 +12,7 @@ import { seesFleet, visibilityFor } from '../world/intel.js';
 import { economyFor } from '../world/economy.js';
 import { PLAYERS } from '../game/players.js';
 import { WarRoom } from './WarRoom.jsx';
+import { EndDay } from './EndDay.jsx';
 import { EventCard } from './EventCard.jsx';
 import { NationIndex } from './NationIndex.jsx';
 import { Forces, Stores } from './Economy.jsx';
@@ -39,6 +40,7 @@ import { fleetsAt } from '../game/naval.js';
 import { cargoAt } from '../game/amphibious.js';
 import { manpowerFor } from '../game/manpower.js';
 import { buildingOn, placementFor, readyBy } from '../game/raising.js';
+import { advanceOrders } from '../game/frontward.js';
 import { capacityFor, spentBy } from '../game/production.js';
 import {
   claimSeat,
@@ -330,6 +332,13 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [world, moveCount, game?.day],
   );
+  // Who is presently riding a ship. This is what makes a column at sea findable
+  // at all, since its position is the fleet's rather than any hex of ground.
+  const aboard = useMemo(
+    () => cargoAt(game?.embarks ?? [], game?.landings ?? [], game?.day ?? 0),
+    [game?.embarks, game?.landings, game?.day],
+  );
+
   const arrivals = useMemo(
     () => arrivalsAt(game?.moves ?? [], game?.day ?? 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -443,11 +452,57 @@ export default function App() {
     );
   }, []);
 
-// And the orders, which change when a player ticks a box. Kept apart from
+  /**
+   * Every air mission this seat has ordered, as a line on the map.
+   *
+   * Raids on works and strikes on troops are one thing to look at: both are
+   * aircraft leaving an airfield tonight and coming back to it, and which of
+   * the two it is shows in the panel that ordered it.
+   */
+  const missions = useMemo(() => {
+    const out = [];
+    for (const m of [...(raiding ?? []), ...(striking ?? [])]) {
+      const from = positions?.get(m.column);
+      if (from === undefined || m.target === undefined) continue;
+      out.push({ from, to: m.target });
+    }
+    return out;
+  }, [raiding, striking, positions]);
+
+  /**
+   * And the marches nobody ordered.
+   *
+   * Worked out here from the same function the server runs at the end of the
+   * day, on the same inputs, so what is drawn is what will happen — not a
+   * guess at it. A column the player gives an order to drops out of this on
+   * the next render, which is the whole of how the standing order is
+   * overridden and needs no second mechanism to show it.
+   */
+  const advances = useMemo(() => {
+    if (!world || !seat || !positions) return [];
+    if (game?.standing === false) return [];
+    try {
+      return advanceOrders({
+        world,
+        power: seat,
+        day: game?.day ?? 0,
+        positions,
+        arrivals,
+        taken: (orders ?? []).map((o) => o.column),
+        aboard,
+      });
+    } catch {
+      // A drawing is never worth a blank page.
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, seat, game?.day, game?.standing, ownershipVersion, positions, arrivals, orders, aboard]);
+
+  // And the orders, which change when a player ticks a box. Kept apart from
   // the two above so that ticking one does not throw away the selected hex.
   useEffect(() => {
-    viewRef.current?.setOrders(orders, rebuilding, positions);
-  }, [orders, rebuilding, positions, world]);
+    viewRef.current?.setOrders(orders, rebuilding, positions, missions, advances);
+  }, [orders, rebuilding, positions, missions, advances, world]);
 
   const toggleRebuild = useCallback((id) => {
     setOrderError(null);
@@ -464,6 +519,27 @@ export default function App() {
         : [...current, { column: column.id, from, to: marchTo }],
     );
   }, [marchTo]);
+
+  /**
+   * Give up on a panel.
+   *
+   * The button here used to say Done and did neither thing its name promised:
+   * it shut the panel and left every box that had been ticked still ticked, so
+   * a panel opened by mistake put orders on the map behind it. Cancel puts back
+   * what the server last confirmed and then shuts.
+   *
+   * The server's copy is the only truth about what has been ordered, which is
+   * why it is what gets restored rather than some snapshot taken on opening.
+   */
+  const giveUp = useCallback(
+    (shut, ...restore) =>
+      () => {
+        for (const [put, was] of restore) put(was ?? []);
+        setOrderError(null);
+        shut(null);
+      },
+    [],
+  );
 
   const sendOrders = useCallback(async () => {
     if (!session?.token) return;
@@ -586,13 +662,6 @@ export default function App() {
     return manpowerFor(world, seat, game?.day ?? 0, game?.replacements ?? [], game?.raisings ?? []);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, seat, game?.day, game?.replacements, game?.raisings, ownershipVersion]);
-
-  // Who is presently riding a ship. This is what makes a column at sea findable
-  // at all, since its position is the fleet's rather than any hex of ground.
-  const aboard = useMemo(
-    () => cargoAt(game?.embarks ?? [], game?.landings ?? [], game?.day ?? 0),
-    [game?.embarks, game?.landings, game?.day],
-  );
 
   // Hand the globe the fleets. Deliberately down here, below where `fleets` is
   // worked out: an effect placed with the other view setters would read the
@@ -745,14 +814,15 @@ export default function App() {
       </header>
 
       <div className="layout">
+        {/* Reference above, scrolling; the one action below, pinned. */}
         <aside className="rail">
+          <div className="rail__body">
           {master ? (
             <Survey world={world} tally={tally} />
           ) : (
             <WarRoom
               power={power}
               state={game}
-              onReady={declareReady}
               onClaim={takeSeat}
               onLeave={logOut}
               onStanding={declareStanding}
@@ -851,6 +921,12 @@ export default function App() {
               },
             ]}
           />
+          </div>
+
+          {/* Never scrolled away from, never covered by a panel. */}
+          {!master && (
+            <EndDay power={power} state={game} onReady={declareReady} busy={busy} />
+          )}
         </aside>
 
         <div className="field">
@@ -935,7 +1011,7 @@ export default function App() {
                   striking={striking}
                   onToggle={toggleStrike}
                   onSend={sendOrders}
-                  onCancel={() => setStrikeAt(null)}
+                  onCancel={giveUp(setStrikeAt, [setStriking, game?.striking])}
                   busy={sending}
                   error={orderError}
                 />
@@ -953,7 +1029,7 @@ export default function App() {
                   raising={raising}
                   onToggle={toggleRaise}
                   onSend={sendOrders}
-                  onCancel={() => setRaiseAt(null)}
+                  onCancel={giveUp(setRaiseAt, [setRaising, game?.raising])}
                   busy={sending}
                   error={orderError}
                 />
@@ -974,7 +1050,7 @@ export default function App() {
                   onToggleEmbark={toggleEmbark}
                   onToggleLanding={toggleLanding}
                   onSend={sendOrders}
-                  onCancel={() => setShoreAt(null)}
+                  onCancel={giveUp(setShoreAt, [setEmbarking, game?.embarking], [setLanding, game?.landing])}
                   busy={sending}
                   error={orderError}
                 />
@@ -988,7 +1064,7 @@ export default function App() {
                   sailing={sailing}
                   onToggle={toggleSail}
                   onSend={sendOrders}
-                  onCancel={() => setSailAt(null)}
+                  onCancel={giveUp(setSailAt, [setSailing, game?.sailing])}
                   busy={sending}
                   error={orderError}
                 />
@@ -1004,7 +1080,7 @@ export default function App() {
                   raiding={raiding}
                   onToggle={toggleRaid}
                   onSend={sendOrders}
-                  onCancel={() => setBombAt(null)}
+                  onCancel={giveUp(setBombAt, [setRaiding, game?.raiding])}
                   busy={sending}
                   error={orderError}
                 />
@@ -1020,7 +1096,7 @@ export default function App() {
                   capacity={capacity}
                   onToggle={toggleRebuild}
                   onSend={sendOrders}
-                  onCancel={() => setRebuildAt(null)}
+                  onCancel={giveUp(setRebuildAt, [setRebuilding, game?.rebuilding])}
                   busy={sending}
                   error={orderError}
                 />
@@ -1035,7 +1111,7 @@ export default function App() {
                   orders={orders}
                   onToggle={toggleColumn}
                   onSend={sendOrders}
-                  onCancel={() => setMarchTo(null)}
+                  onCancel={giveUp(setMarchTo, [setOrders, game?.orders])}
                   busy={sending}
                   error={orderError}
                 />

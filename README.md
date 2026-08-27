@@ -2263,6 +2263,68 @@ across the limb, and fade out as they approach it. Text also shrinks towards the
 edge, where the ground is steeply foreshortened. Where labels would collide, the
 larger country or city keeps its name and the smaller goes without.
 
+### Tomorrow, drawn on today
+
+A day's orders used to exist only in the player's head, which is the wrong place
+for them. Four things are now drawn on the board, and the whole point of the set
+is that they do not look alike.
+
+**A march** is a solid gold arrow, one hex long, stopping short of the middle of
+the hex it enters so the head sits on the edge rather than on top of whatever is
+standing there. Several columns going the same way are one arrow with a count on
+it, because six arrows along one line is one arrow drawn six times.
+
+**An advance** — the march the standing order will make if you say nothing — is
+the same arrow at half the weight and dashed. The only question a player has
+about these is which ones are theirs, so the answer is in how they are drawn. It
+is worked out on the client by the same function the server runs at the end of
+the day, on the same inputs, so what is drawn is what will happen rather than a
+guess at it. Give a column an order and its ghost disappears on the next frame,
+which is the whole of how the standing order is overridden.
+
+**A flight** is a dashed arc in a cold blue nothing on the ground uses, with a
+ring on the airfield it leaves from. Bowed rather than straight because a
+mission is the one order that does not concern the ground it crosses: a straight
+solid line from an airfield to a works reads as a march through everything in
+between, which is exactly the wrong thing to say about aircraft. Raids on works
+and strikes on troops are drawn the same, being the same aeroplanes on the same
+night.
+
+**A hex waiting on the depots** is a dashed green ring.
+
+Arrows switch off below nine pixels a cell, where they are shorter than their
+own heads. Flights stay on down to three, because a bomber goes ten hexes and is
+still a legible line across half of Germany at a zoom where a march is a smudge
+— and that is exactly the zoom at which you are looking at where the aircraft
+are going.
+
+### The button that ends the day
+
+Pinned to the foot of the rail, and the rail scrolls underneath it. It used to
+sit halfway down that column, under the seat list and above five drawers, so on
+a short window — or with a hex selected and the dossier open across the bottom
+of the map — it was simply below the fold. A player who had just spent ten
+minutes giving orders had to go looking for the way to say they were finished.
+
+Everything else in that column is reference. This is the one thing that is an
+action, and it is the last one of the day.
+
+### One button, and a way out
+
+Every order panel had **Done** and **Send orders**, and Done did neither thing
+its name promised: it shut the panel and left every box that had been ticked
+still ticked, so a panel opened by mistake put orders on the map behind it.
+
+There is now one confirming button — **Save & close**, which sends the orders to
+the server and shuts — and **Cancel**, which puts back what the server last
+confirmed and then shuts. The server's copy is the only truth about what has
+been ordered, which is why it is what gets restored rather than a snapshot taken
+on opening.
+
+Clicking the selected hex a second time deselects it. The way out of a selection
+used to be finding somewhere you did not care about and clicking that, which is
+not a way out.
+
 ## Layout
 
 ```
@@ -2283,7 +2345,11 @@ src/
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
            globeView.js                           — input and the frame loop
            labels.js  cities.js  fleets.js        — names, dots and fleets, in 2D
-           orders.js                             — the arrows of tomorrow
+           orders.js                             — the arrows of tomorrow, the
+                                                   ghosts of the standing order
+                                                   and the arcs of a night's
+                                                   flying
+           selection.js                          — gold along the hex you clicked
            units.js                              — what is standing on a hex
   ui/      App.jsx  NationIndex.jsx  Survey.jsx  — the pages
            routes.js routes.jsx                  — what a path means, and
@@ -2292,7 +2358,9 @@ src/
                                                    the foot of the board
            Economy.jsx  Drawer.jsx               — the books, and the rail
            Totals.jsx  DayReport.jsx             — the board, and the day
-           WarRoom.jsx  WarLedger.jsx  EventCard.jsx
+           WarRoom.jsx  EndDay.jsx  EventCard.jsx  — the seat, the one
+                                                   control that never scrolls
+                                                   away, and the dispatches
            intel.js (in world/)                  — what a seat may know
   game/    calendar.js  events.js                — the date, and the war table
            belligerence.js                       — who may fight whom, and when

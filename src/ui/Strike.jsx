@@ -128,11 +128,11 @@ export function Strike({
                 ? `${formatUnits(escort)} fighters sweeping · nothing to drop`
                 : `defended by ${Math.round(against.fighters)} fighters and ${Math.round(against.flak)} guns`}
           </span>
-          <button type="button" onClick={onCancel} disabled={busy}>
-            Done
+          <button type="button" className="march__drop" onClick={onCancel} disabled={busy}>
+            Cancel
           </button>
           <button type="button" className="march__send" onClick={onSend} disabled={busy}>
-            {busy ? 'Sending…' : 'Send orders'}
+            {busy ? 'Saving…' : 'Save & close'}
           </button>
         </div>
       </div>

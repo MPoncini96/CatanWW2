@@ -276,10 +276,14 @@ export class GlobeView {
     if (this.pointers.size < 2) this.pinch = 0;
     if (this.pointers.size === 0) {
       this.dragging = false;
-      // A click, not a drag: select what is under it. Empty space clears.
+      // A click, not a drag: select what is under it. Empty space clears, and
+      // so does clicking the hex that is already selected — the way out of a
+      // selection was to find somewhere you did not care about and click that,
+      // which is not a way out.
       if (this.moved < 5) {
         const point = this.localPoint(event);
-        const cell = this.cellAtScreen(point.x, point.y);
+        const at = this.cellAtScreen(point.x, point.y);
+        const cell = at >= 0 && at === this.selected ? -1 : at;
         this.selected = cell;
         this.handlers.onSelect?.(this.describe(cell));
         this.camera.spin.lat = 0;
@@ -367,10 +371,15 @@ export class GlobeView {
    * Held on the view rather than passed through the draw call because they
    * change when a player ticks a box and not when the camera moves.
    */
-  setOrders(orders, rebuilding, positions) {
+  setOrders(orders, rebuilding, positions, missions, advances) {
     this.orders = orders ?? [];
     this.rebuilding = rebuilding ?? [];
     this.positions = positions ?? null;
+    // The flights ordered for tomorrow, and the marches the standing order
+    // will make if nobody says otherwise. Both are drawn, and only one of them
+    // is something the player did.
+    this.missions = missions ?? [];
+    this.advances = advances ?? [];
     this.needsDraw = true;
   }
 
@@ -485,6 +494,8 @@ export class GlobeView {
       this.orders,
       this.rebuilding,
       this.positions,
+      this.missions,
+      this.advances,
     );
   }
 }
