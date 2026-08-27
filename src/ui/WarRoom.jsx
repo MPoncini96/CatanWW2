@@ -127,7 +127,16 @@ export function WarRoom({ power, state, onReady, onClaim, onLeave, busy, error }
         })}
       </ul>
 
-      {mine && seat.votes && (
+      {/* Everybody with a seat gets this button, whether or not their vote is
+          one of the ones the day is waiting on.
+
+          It used to be hidden from any power not yet in the war, on the
+          reasoning that such a power "takes no turns". That was true when it
+          was written and is not any more: a neutral can march inside its own
+          borders, raise divisions, sail fleets and load them. Hiding the
+          control left a player who had just spent ten minutes giving orders
+          with no way to say they were finished. */}
+      {mine && (
         <>
           <button
             type="button"
@@ -137,43 +146,41 @@ export function WarRoom({ power, state, onReady, onClaim, onLeave, busy, error }
           >
             {seat.ready ? 'Waiting — take it back' : 'End Current Day'}
           </button>
-          <p className="war__waiting">
-            {seat.ready
-              ? waiting.length
-                ? `Waiting on ${waiting.map((id) => BY_ID[id].name).join(', ')}`
-                : 'Turning the day…'
-              : `${voting.length - waiting.length} of ${voting.length} ready`}
-          </p>
+          {seat.votes ? (
+            <p className="war__waiting">
+              {seat.ready
+                ? waiting.length
+                  ? `Waiting on ${waiting.map((id) => BY_ID[id].name).join(', ')}`
+                  : 'Turning the day…'
+                : `${voting.length - waiting.length} of ${voting.length} ready`}
+            </p>
+          ) : (
+            // Said rather than hidden, because the alternative is a button that
+            // looks like it holds up the war and does not.
+            <p className="war__waiting">
+              {waiting.length
+                ? `The day turns when ${waiting.map((id) => BY_ID[id].name).join(', ')} ${
+                    waiting.length === 1 ? 'is' : 'are'
+                  } ready — it does not wait for ${player.name}.`
+                : `The day does not wait for ${player.name}.`}
+            </p>
+          )}
           {/* And when it turns anyway. A day that only ends when everybody has
               said so ends when the slowest player wakes up; this is the hour
               at which the war stops waiting. */}
           {state?.closesAt && <p className="war__clock">{untilClose(state.closesAt)}</p>}
           {!seat.inTheWar && (
             <p className="war__note">
-              Nobody at this table is in the war yet, so the pace is yours until somebody is.
+              {player.name} is not in the war yet
+              {seat.entersOn === null
+                ? ' and no event on the timeline brings it in'
+                : `, and enters on ${formatDateShort(seat.entersOn)} — in ${
+                    seat.entersOn - state.day
+                  } ${seat.entersOn - state.day === 1 ? 'day' : 'days'}`}
+              . It may still march on its own ground, raise formations and put to sea.
             </p>
           )}
         </>
-      )}
-
-      {mine && !seat.votes && (
-        <div className="war__watching">
-          <strong>View only</strong>
-          <p>
-            {player.name} has nobody it may fight, so it takes no turns:{' '}
-            {seat.entersOn === null
-              ? 'no event on the timeline brings it into the war.'
-              : `it enters the war on ${formatDateShort(seat.entersOn)}, in ${
-                  seat.entersOn - state.day
-                } ${seat.entersOn - state.day === 1 ? 'day' : 'days'}.`}{' '}
-            The calendar turns without it.
-          </p>
-          {waiting.length > 0 && (
-            <p className="war__waiting">
-              Waiting on {waiting.map((id) => BY_ID[id].name).join(', ')}
-            </p>
-          )}
-        </div>
       )}
 
       {error && <p className="war__error">{error}</p>}

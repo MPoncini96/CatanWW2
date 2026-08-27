@@ -13,6 +13,7 @@ import { drawCityMarkers } from './cities.js';
 import { drawFleetMarkers } from './fleets.js';
 import { drawUnitIcons } from './units.js';
 import { drawOrders } from './orders.js';
+import { drawSelection } from './selection.js';
 
 // Input, the frame loop, and the writing on top of it.
 //
@@ -448,6 +449,10 @@ export class GlobeView {
     const ctx = this.ctx;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
+    // The hex you clicked, under everything else: a label or a fleet marker
+    // sitting on the selected cell should stay readable over the glow rather
+    // than the other way round.
+    drawSelection(ctx, this.camera, this.width, this.height, this.selected);
     const taken = this.showLabels
       ? drawCountryLabels(ctx, this.world, this.camera, this.width, this.height)
       : [];

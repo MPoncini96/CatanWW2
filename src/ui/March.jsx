@@ -74,6 +74,18 @@ export function March({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, power, day, to, positions, arrivals, ordered]);
 
+  // Everything that could come and is not already ordered to. Six hexes of
+  // frontage can be a dozen columns, and ticking them one at a time to push an
+  // attack — or to pull a line back — is the slowest thing in the game.
+  const free = candidates.filter((c) => !c.why && !c.ticked);
+  const picked = candidates.filter((c) => !c.why && c.ticked);
+  const takeAll = () => {
+    for (const c of free) onToggle(c.column, c.from);
+  };
+  const takeNone = () => {
+    for (const c of picked) onToggle(c.column, c.from);
+  };
+
   const coming = orders.filter((o) => o.to === to);
   const men = coming.reduce((sum, o) => {
     const column = world.garrisons.opening.find((p) => p.id === o.column);
@@ -94,6 +106,16 @@ export function March({
               ? `${coming.length} column${coming.length === 1 ? '' : 's'} · ${formatUnits(men)} men`
               : 'nothing ordered'}
           </span>
+          {(free.length > 0 || picked.length > 0) && (
+            <button
+              type="button"
+              className="march__all"
+              disabled={busy}
+              onClick={free.length ? takeAll : takeNone}
+            >
+              {free.length ? `Select all (${free.length})` : 'Clear'}
+            </button>
+          )}
           <button type="button" onClick={onCancel} disabled={busy}>
             Done
           </button>
