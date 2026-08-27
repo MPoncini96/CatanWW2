@@ -93,6 +93,8 @@ function load() {
       saved.embarking ??= {};
       saved.landing ??= {};
       saved.embarks ??= [];
+      saved.raising ??= {};
+      saved.raisings ??= [];
       saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
@@ -202,7 +204,8 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding, raiding, sailing, embarking, landing } = await readBody(req);
+    const { orders, rebuilding, raiding, sailing, embarking, landing, raising } =
+      await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
     if (rebuilding !== undefined && !Array.isArray(rebuilding)) {
@@ -231,6 +234,12 @@ async function api(req, res, url) {
     }
     if ((embarking?.length ?? 0) > 200 || (landing?.length ?? 0) > 100) {
       return json(res, 400, { error: 'too many amphibious orders for one day' });
+    }
+    if (raising !== undefined && !Array.isArray(raising)) {
+      return json(res, 400, { error: 'raising must be a list of formations' });
+    }
+    if ((raising?.length ?? 0) > 60) {
+      return json(res, 400, { error: 'too many formations to raise in one day' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -349,7 +358,10 @@ async function api(req, res, url) {
       beaches.push({ fleet: order.fleet, to: order.to });
     }
 
-    G.setOrders(game, seat, accepted, rebuild, flights, sails, loads, beaches);
+    // Raising is checked when the day turns rather than here: what a nation can
+    // afford depends on what the day does to its stores and its manpower, and
+    // the same is true of replacements, which are settled the same way.
+    G.setOrders(game, seat, accepted, rebuild, flights, sails, loads, beaches, raising ?? []);
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));
   }

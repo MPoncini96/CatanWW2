@@ -101,6 +101,34 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {(report.formed?.length > 0 || report.ordered?.length > 0) && (
+              <section>
+                <h3>The depots</h3>
+                <ul className="report__list">
+                  {(report.formed ?? []).map((f, n) => (
+                    <li key={`f${n}`} className="is-won">
+                      <span className="report__where">{f.where}</span>
+                      <span className="report__what">
+                        <strong>{f.name} is formed</strong>
+                      </span>
+                      <span className="report__cost">
+                        {f.men.toLocaleString()} men · {f.days} days in the making
+                      </span>
+                    </li>
+                  ))}
+                  {(report.ordered ?? []).map((o, n) => (
+                    <li key={`o${n}`}>
+                      <span className="report__where">{o.where}</span>
+                      <span className="report__what">{o.name} ordered</span>
+                      <span className="report__cost">
+                        {o.men.toLocaleString()} men called up · ready on day {o.ready}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {(report.ashore?.length > 0 || report.embarked?.length > 0) && (
               <section>
                 <h3>Across the water</h3>

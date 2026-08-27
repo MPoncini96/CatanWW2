@@ -413,7 +413,17 @@ export function fight({
  */
 export function strengthsAt(placements, battles, day, replacements = []) {
   const left = new Map();
-  for (const placement of placements) left.set(placement.id, { ...placement.strength });
+  for (const placement of placements) {
+    // A formation raised during the war did not exist before the day it was
+    // raised. Without this a division ordered in 1943 turns up at full strength
+    // in the record of 1940, because the roster it lives in is one list and the
+    // list does not know about time.
+    if (placement.raisedOn !== undefined && placement.raisedOn > day) {
+      left.set(placement.id, Object.fromEntries(Object.keys(placement.strength).map((a) => [a, 0])));
+      continue;
+    }
+    left.set(placement.id, { ...placement.strength });
+  }
   for (const battle of battles) {
     if (battle.day > day) break;
     // An entry may name the arms it touches. A battle takes from everything

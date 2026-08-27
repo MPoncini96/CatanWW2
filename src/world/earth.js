@@ -316,10 +316,30 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
     roleAt: armies.roleAt,
     warnings: armies.warnings,
     // The opening deployment, kept apart from where the columns are now. It is
-    // the fixed point every position is replayed from and it never changes.
+    // the fixed point every position is replayed from.
+    //
+    // It used to never change. It does now, in exactly one way: a formation
+    // raised during the war is appended to it, because everything that asks
+    // where an army is or what is left of it walks this list, and a division
+    // that does not appear in it does not exist. The placement carries the day
+    // it came into being, so replaying an earlier day still finds nothing.
     opening: armies.opening,
     version: 0,
     listeners: new Set(),
+  };
+
+  /**
+   * Add a formation the war produced.
+   *
+   * Idempotent by id, because both the server and every client replay the whole
+   * raising record whenever they load, and a division must not be raised twice
+   * for having been read twice.
+   */
+  world.garrisons.raise = (placement) => {
+    if (!placement) return false;
+    if (world.garrisons.opening.some((p) => p.id === placement.id)) return false;
+    world.garrisons.opening.push(placement);
+    return true;
   };
 
   /**

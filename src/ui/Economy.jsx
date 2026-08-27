@@ -58,7 +58,7 @@ export function Stores({ economy }) {
 }
 
 /** The men under arms, the people behind them, and the plant that rebuilds. */
-export function Forces({ economy, capacity }) {
+export function Forces({ economy, capacity, manpower, building }) {
   if (!economy) return null;
   return (
     <div className="economy">
@@ -82,6 +82,43 @@ export function Forces({ economy, capacity }) {
         {economy.machines.aircraft.toLocaleString()} aircraft ·{' '}
         {economy.machines.hulls.toLocaleString()} hulls
       </p>
+
+      {/* The depots. This is the shortage that decides the second half of the
+          war: steel was never what stopped Germany raising divisions in 1944,
+          eighteen-year-olds were. One pool pays for replacing the formations
+          you have and for raising new ones, and it is the only number on this
+          panel that a player has to choose how to spend. */}
+      {manpower && (
+        <>
+          <h3>The depots</h3>
+          <dl className="economy__people">
+            <div>
+              <dt>Trained and waiting</dt>
+              <dd>{formatPopulation(manpower.available)}</dd>
+            </div>
+            <div>
+              <dt>Called up a day</dt>
+              <dd>{formatPopulation(manpower.perDay)}</dd>
+            </div>
+          </dl>
+          <p className="economy__note">
+            {formatPopulation(manpower.spent)} have been sent forward or found for new
+            formations since the war began. Replacements and raisings draw on the same men.
+          </p>
+          {building?.length > 0 && (
+            <p className="economy__note">
+              {building.length} formation{building.length === 1 ? '' : 's'} in the depots:{' '}
+              {building
+                .slice()
+                .sort((a, b) => a.ready - b.ready)
+                .slice(0, 4)
+                .map((b) => b.name)
+                .join(', ')}
+              {building.length > 4 ? ` and ${building.length - 4} more` : ''}.
+            </p>
+          )}
+        </>
+      )}
 
       {/* What the works can turn out. Not a store — you cannot save it up — but
           the ceiling on how much of an army can be rebuilt in a day, and the

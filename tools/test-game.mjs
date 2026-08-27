@@ -132,6 +132,23 @@ import {
 import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
 import { ISLANDS_1939 } from '../src/world/islands.js';
 import { PRESSED_HOME, collisionsAt } from '../src/game/combat.js';
+import {
+  COLONIAL_RECRUITS,
+  HOME_RECRUITS,
+  manpowerFor,
+  menAvailable,
+  recruitsPerDay,
+} from '../src/game/manpower.js';
+import {
+  TEMPLATES,
+  TEMPLATE_INDEX,
+  buildingOn,
+  costOf,
+  mayRaise,
+  menIn as menInTemplate,
+  nameFor,
+  placementFor,
+} from '../src/game/raising.js';
 import { LANDING_HEAVY, LANDING_STRENGTH } from '../src/game/combat.js';
 import {
   LIFT_PER_HULL,
@@ -1165,11 +1182,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 7, 'seven orders a seat may give on a hex');
+  eq(ORDERS.length, 8, 'eight orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements bomb sail embark landing',
-    'march, attack, rebuild, fly, sail, load a fleet, or come ashore off one',
+    'reinforce attack replacements bomb sail embark landing raise',
+    'march, attack, rebuild, fly, sail, load, land — or raise something new',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -3463,6 +3480,163 @@ section('amphibious');
       [...neighbours(tokyo)].some((c) => world.ownership.owner[c] === SEA),
     'and so does Tokyo, which no army could reach at all before',
   );
+}
+
+
+// ------------------------------------------------------------- and raising more
+section('raising formations');
+{
+  const world = freshBoard();
+
+  // ---- the men ------------------------------------------------------------
+  ok(HOME_RECRUITS > COLONIAL_RECRUITS * 5, 'home ground yields far more men than an empire');
+
+  // Set from what the war actually took out of each country, and the check is
+  // that six unlike states land near their real mobilisation over six years.
+  const WAR = 2192;
+  const REAL = { germany: 13.6e6, ussr: 34e6, usa: 16.1e6, china: 14e6 };
+  for (const [power, actual] of Object.entries(REAL)) {
+    const over = recruitsPerDay(world, power) * WAR;
+    ok(
+      over > actual * 0.6 && over < actual * 1.5,
+      `${power} raises ${(over / 1e6).toFixed(1)}M over six years, against ${(actual / 1e6).toFixed(0)}M in life`,
+    );
+  }
+
+  // Britain is the case the colonial rate exists for: 725 million people, of
+  // whom 40 million are at home.
+  const uk = recruitsPerDay(world, 'uk') * WAR;
+  ok(uk < 20e6, `and Britain raises ${(uk / 1e6).toFixed(1)}M rather than the whole Raj`);
+
+  // The pool is replayed like everything else.
+  const opening = manpowerFor(world, 'germany', 0, [], []);
+  ok(opening.available > 100000, `Germany opens with ${Math.round(opening.available).toLocaleString()} trained`);
+  const later = manpowerFor(world, 'germany', 100, [], []);
+  ok(later.available > opening.available, 'and the class of every day since is added to it');
+  eq(
+    Math.round(menAvailable(world, 'germany', 10, [{ power: 'germany', day: 3, men: 1000 }], [])),
+    Math.round(menAvailable(world, 'germany', 10, [], []) - 1000),
+    'replacements come out of the same pool',
+  );
+  eq(
+    Math.round(menAvailable(world, 'germany', 10, [], [{ power: 'germany', day: 3, men: 1000 }])),
+    Math.round(menAvailable(world, 'germany', 10, [], []) - 1000),
+    'and so do raisings — one pool, two demands',
+  );
+
+  // ---- what can be built --------------------------------------------------
+  ok(TEMPLATES.length >= 5, `${TEMPLATES.length} kinds of formation can be raised`);
+  const rifle = TEMPLATE_INDEX.infantry;
+  const armour = TEMPLATE_INDEX.armour;
+  ok(armour.days > rifle.days * 1.5, 'an armoured division takes far longer than a rifle one');
+  ok(menInTemplate(rifle) > 10000, 'a division is a division');
+  ok(costOf(armour).steel > costOf(rifle).steel, 'and costs more steel');
+  eq(nameFor('germany', rifle, []), '1st Infantry Division', 'the first is the 1st');
+  eq(
+    nameFor('germany', rifle, [{ power: 'germany', template: 'infantry' }]),
+    '2nd Infantry Division',
+    'and the next is the 2nd',
+  );
+  eq(
+    nameFor('germany', rifle, [{ power: 'uk', template: 'infantry' }]),
+    '1st Infantry Division',
+    'counted per nation, not per world',
+  );
+
+  // ---- where it may be raised ---------------------------------------------
+  const berlin = world.cities.find((c) => c.name === 'Berlin');
+  const ask = (opts) =>
+    mayRaise({
+      world,
+      power: 'germany',
+      cell: berlin.index,
+      template: rifle,
+      day: 0,
+      replacements: [],
+      raisings: [],
+      ...opts,
+    });
+  eq(ask({}), null, 'a division may be raised at Berlin');
+  ok(ask({ cell: world.cities.find((c) => c.name === 'London').index })?.includes('your own ground'),
+    'and not at London');
+  const field = (() => {
+    for (let i = 0; i < TILE_COUNT; i += 1) {
+      if (world.ownership.owner[i] !== NATION_INDEX.germany) continue;
+      if ((world.cityAt?.[i] ?? -1) >= 0) continue;
+      if ((world.works ?? []).some((w) => w.cell === i)) continue;
+      return i;
+    }
+    return null;
+  })();
+  ok(ask({ cell: field })?.includes('no town or works'), 'nor in a field');
+
+  // The men are the shortage, and the panel says so.
+  ok(
+    ask({ raisings: [{ power: 'germany', day: 0, men: 1e9 }] })?.includes('men are available'),
+    'and not at all once the depots are empty',
+  );
+
+  // ---- a division, end to end ---------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  const before = world.garrisons.opening.length;
+  const pool = manpowerFor(world, 'germany', game.day, game.replacements, game.raisings).available;
+
+  G.setOrders(game, 'germany', [], [], [], [], [], [], [
+    { template: 'infantry', cell: berlin.index },
+  ]);
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  eq(game.raisings.length, 1, 'the order is taken');
+  const entry = game.raisings[0];
+  eq(entry.ready, entry.day + rifle.days, `and it arrives ${rifle.days} days later`);
+  eq(entry.name, '1st Infantry Division', 'with a name');
+  ok(entry.men > 10000, `${entry.men.toLocaleString()} men are called up for it`);
+
+  const after = manpowerFor(world, 'germany', game.day, game.replacements, game.raisings);
+  ok(after.available < pool, 'the men come out of the depots the day it is ordered');
+  eq(buildingOn(game.raisings, 'germany', game.day).length, 1, 'and it is in the depots');
+
+  eq(world.garrisons.opening.length, before, 'nothing is on the board yet');
+  const early = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
+  eq(early.get(entry.id), undefined, 'and it has no strength, because it does not exist');
+
+  // Run it out.
+  while (game.day < entry.ready) {
+    G.setReady(game, 'germany', true);
+    G.advance(game, world);
+  }
+  eq(world.garrisons.opening.length, before + 1, 'on the day it is ready it joins the board');
+  const made = world.garrisons.opening.find((p) => p.id === entry.id);
+  ok(made, 'by the id the record gave it');
+  eq(made.cell, berlin.index, 'standing where it was raised');
+  eq(made.formation.nation, 'germany', 'in German service');
+  ok(made.formation.raised, 'and marked as something the war produced');
+
+  const now = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
+  const yesterday = strengthsAt(world.garrisons.opening, game.battles, game.day - 1, game.replacements);
+  eq(now.get(entry.id).infantry, rifle.strength.infantry, 'at full strength today');
+  eq(yesterday.get(entry.id).infantry, 0, 'and at nothing at all yesterday');
+  eq(
+    positionsAt(world.garrisons.opening, game.moves, game.day).get(entry.id),
+    berlin.index,
+    'and it has a position like anything else',
+  );
+  eq(buildingOn(game.raisings, 'germany', game.day).length, 0, 'the depots are clear');
+
+  // Raising it twice from one record must not make two of it.
+  eq(world.garrisons.raise(placementFor(entry)), false, 'a formation is not raised twice');
+  eq(world.garrisons.opening.length, before + 1, 'however many times the record is replayed');
+
+  // ---- and the seat is told -----------------------------------------------
+  const told = reportFor({ world, game, seat: 'germany', day: game.day });
+  eq(told.formed.length, 1, 'the day it arrives is reported');
+  eq(told.formed[0].name, entry.name, 'by name');
+  ok(game.log.some((e) => e.id === `raised:${entry.id}`), 'and written into the log');
 }
 
 console.log(

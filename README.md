@@ -1322,6 +1322,91 @@ been: a beaten army falls back on its own, and offering it as an order implied a
 choice that does not exist. The three things a seat can do to a hex are march
 in, march onto somebody, and send up replacements.
 
+## Men
+
+The war economy was half a model. Stores said whether the steel existed and the
+factories said whether anybody could turn it into rifles, and between them they
+decided everything — which meant a division cost twelve kilotonnes of steel and
+about a tenth of one day of German industry, and nothing else at all. **Nobody
+had to find the men.**
+
+That is the wrong shortage. Steel was never what stopped Germany raising
+divisions in 1944; eighteen-year-olds were. Britain broke up whole divisions in
+1944 to keep the others up to strength. So there is now one pool, and two things
+draw on it: **replacing the formations you have, and raising new ones.** That is
+the trade, and it is the one every general staff in the war actually argued
+about.
+
+### The rate
+
+**Seventy men a million a day at home, three a million in an empire.**
+
+The home figure is set from what the war took out of each country, and the
+striking thing is how little the number varies: Germany's 13.6 million over six
+years from a home population of 74 million, the Soviet Union's 34 million from
+216 million, and American conscription all land within a few per cent of each
+other. That three unlike states agree is not a coincidence — it is roughly what
+a twentieth-century industrial society can take out of itself and still work.
+
+The colonial rate exists for Britain, which holds 725 million people and is
+40 million at home. India raised two and a half million men from four hundred
+and eighty-seven million, entirely by volunteering — there was no conscription,
+no reserve system, and in most places no intention of arming the population at
+all. At the home rate Britain raises the largest army in history, twice over.
+
+| | over six years | actually mobilised |
+| --- | --- | --- |
+| Soviet Union | 33.2M | 34M |
+| United States | 16.5M | 16.1M |
+| China | 12.7M | 14M |
+| Germany | 11.5M | 13.6M |
+| United Kingdom | 10.7M | 8.7M |
+
+Thirty days' intake is trained and waiting on the first morning, which for
+Germany is the Ersatzheer — the replacement army that existed precisely so the
+field army did not have to wait for the next class to be called up.
+
+## Raising a formation
+
+Until now a nation could rebuild what the order of battle gave it in September
+1939 and nothing else, so over six years the war could only shrink. That is the
+wrong shape for this war above all: the United States Army had nine divisions in
+1939 and eighty-nine in 1945.
+
+A formation is ordered at a **city or works you hold and can supply**, and it
+appears there months later.
+
+| | to raise | men |
+| --- | --- | --- |
+| Infantry division | 90 days | 15,040 |
+| Motorised division | 120 days | 13,030 |
+| Armoured division | 180 days | 11,230 |
+| Artillery brigade | 60 days | 2,120 |
+| Fighter group | 120 days | 1,620 |
+| Bomber group | 150 days | 2,590 |
+
+Everything is paid **on the day it is ordered** — the class is called up, the
+contracts are placed — and the men are out of the depots for the whole time they
+are training, which is exactly where they were. What arrives is a formation like
+any other: it marches, fights, starves and can be rebuilt exactly as the ones the
+war started with.
+
+### What it took to fit into the board
+
+Everything on this board is replayed from a fixed opening list, so a formation
+that was not in 1939 has nowhere to live. The roster now grows: a finished
+raising is appended to it, built from the record alone so that the server and
+every client construct the identical formation from the identical entry.
+
+The cost of that is one line in `strengthsAt`: a placement carries the day it
+came into being, and has **no strength before it**. Without that a division
+ordered in 1943 turns up at full strength in the record of 1940, because the
+roster is one list and a list does not know about time.
+
+Appending is idempotent by id, because both the server and every client replay
+the whole raising record whenever they load, and a division must not be raised
+twice for having been read twice.
+
 ## The day's returns
 
 Everything a war does here goes into four lists — the battles, the ground, the

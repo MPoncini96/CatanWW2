@@ -1,6 +1,7 @@
 import { NATIONS, NATION_INDEX } from '../world/nations.js';
 import { fleetsOf } from './naval.js';
 import { displayName } from './capitulation.js';
+import { TEMPLATE_INDEX } from './raising.js';
 import { strengthsAt } from './combat.js';
 import { formationName } from '../world/deploy.js';
 import { grid } from '../world/sphere.js';
@@ -296,6 +297,30 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- what the depots produced --------------------------------------------
+  const formed = [];
+  const ordered = [];
+  for (const entry of game.raisings ?? []) {
+    if (entry.power !== seat) continue;
+    if (entry.ready === day) {
+      formed.push({
+        name: entry.name,
+        where: placeOf(world, entry.cell),
+        men: entry.men,
+        days: entry.ready - entry.day,
+      });
+    }
+    if (entry.day === day) {
+      ordered.push({
+        name: entry.name,
+        where: placeOf(world, entry.cell),
+        men: entry.men,
+        ready: entry.ready,
+        days: TEMPLATE_INDEX[entry.template]?.days ?? entry.ready - entry.day,
+      });
+    }
+  }
+
   // ---- across the water ----------------------------------------------------
   // A landing is the largest single thing a seat can order and it would
   // otherwise appear only as an ordinary attack on a hex, with nothing to say
@@ -393,6 +418,8 @@ export function reportFor({ world, game, seat, day }) {
     stopped,
     ashore,
     embarked,
+    formed,
+    ordered,
     taken,
     lost,
     starving,
@@ -402,6 +429,8 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      formed.length === 0 &&
+      ordered.length === 0 &&
       ashore.length === 0 &&
       embarked.length === 0 &&
       stopped.length === 0 &&

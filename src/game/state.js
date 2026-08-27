@@ -13,6 +13,16 @@ import { cargoAt, carriedBy, mayEmbark, mayLand, ridingMoves } from './amphibiou
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
 import { defeats, heldCells, standings, victory } from './victory.js';
+import { manpowerFor, menAvailable } from './manpower.js';
+import {
+  TEMPLATE_INDEX,
+  costOf,
+  effortFor,
+  mayRaise,
+  menIn as menInTemplate,
+  nameFor,
+  placementFor,
+} from './raising.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -74,6 +84,12 @@ export function newGame() {
     // economy reads this directly, so a lane cut this morning stops paying
     // into the stores this morning.
     sinkings: [],
+    // Formations that did not exist in 1939. `raising` is what a seat wants
+    // ordered tomorrow; `raisings` is the record of every one commissioned,
+    // each carrying the day it was ordered, the day it arrives, and what it
+    // took — so the manpower it consumed can be replayed like everything else.
+    raising: {},
+    raisings: [],
     // Armies going aboard ships, and armies coming off them onto a beach.
     // Between the two a column has the position of the fleet carrying it, which
     // is how it crosses water at all.
@@ -547,6 +563,89 @@ export function advance(game, world = null, now = 0) {
       });
     }
 
+    // ---- what the depots have finished --------------------------------
+    // Before the replacements, so a division that arrives this morning can be
+    // brought up to strength this afternoon like any other.
+    for (const entry of game.raisings) {
+      if (entry.ready !== game.day) continue;
+      const placement = placementFor(entry);
+      if (!placement) continue;
+      if (world.garrisons.raise(placement)) {
+        game.log.push({
+          id: `raised:${entry.id}`,
+          day: game.day,
+          name: `${entry.name} is formed`,
+          text:
+            `${menInTemplate(TEMPLATE_INDEX[entry.template]).toLocaleString()} men, ordered on day ` +
+            `${entry.day} and ${game.day - entry.day} days in the making, join ` +
+            `${displayName(entry.power)}'s order of battle.`,
+        });
+      }
+    }
+
+    // ---- and what has been ordered today -------------------------------
+    // Everything is paid for on the day it is ordered: the class is called up,
+    // the contracts are placed, and the men are out of the pool for the whole
+    // time they are training, which is exactly where they were.
+    for (const [power, wanted] of Object.entries(game.raising ?? {})) {
+      if (!wanted?.length) continue;
+      const books = economyFor(
+        world,
+        power,
+        game.day,
+        spentBy(game.replacements, power, game.day).stores,
+        game.sinkings,
+      );
+      const plant = capacityFor(world, power, game.day, game.raids, books.people);
+      let plantLeft = plant.plantDays;
+      let menOrdered = 0;
+      const spent = {};
+      for (const order of wanted) {
+        const template = TEMPLATE_INDEX[order?.template];
+        const why = mayRaise({
+          world,
+          power,
+          cell: order?.cell,
+          template,
+          day: game.day,
+          economy: books,
+          capacity: plantLeft,
+          replacements: game.replacements,
+          raisings: game.raisings,
+          spent,
+          ordered: menOrdered,
+        });
+        if (why) {
+          game.refused.push({ day: game.day, power, column: order?.template, why });
+          continue;
+        }
+        const men = menInTemplate(template);
+        const cost = costOf(template);
+        for (const [store, amount] of Object.entries(cost)) {
+          spent[store] = (spent[store] ?? 0) + amount;
+        }
+        plantLeft -= effortFor(template);
+        menOrdered += men;
+        const entry = {
+          day: game.day,
+          ready: game.day + template.days,
+          id: `raised:${power}:${template.id}:${game.day}:${game.raisings.length}`,
+          power,
+          template: template.id,
+          cell: order.cell,
+          name: nameFor(power, template, game.raisings),
+          men,
+          cost,
+          effort: effortFor(template),
+        };
+        game.raisings.push(entry);
+      }
+    }
+    // An order is for one day, like every other order here. Without this the
+    // same division is ordered again every morning for as long as the men hold
+    // out — which in the test was forty-one of them.
+    game.raising = {};
+
     // And last, the replacements — after the fighting and after the bombing,
     // so that a column cannot be rebuilt into the middle of the battle it is
     // losing, out of a factory that is on fire.
@@ -585,6 +684,7 @@ export function setOrders(
   sailing = null,
   embarking = null,
   landing = null,
+  raising = null,
 ) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   if (game.over) return { error: 'The war is over.' };
@@ -597,6 +697,7 @@ export function setOrders(
   if (sailing !== null) game.sailing[power] = sailing;
   if (embarking !== null) game.embarking[power] = embarking;
   if (landing !== null) game.landing[power] = landing;
+  if (raising !== null) game.raising[power] = raising;
   game.revision += 1;
   return {
     orders,
@@ -605,6 +706,7 @@ export function setOrders(
     sailing: game.sailing[power] ?? [],
     embarking: game.embarking[power] ?? [],
     landing: game.landing[power] ?? [],
+    raising: game.raising[power] ?? [],
   };
 }
 
@@ -642,6 +744,12 @@ function sendReplacements(game, world) {
     // to use it, which is most of what strategic bombing was for.
     const capacity = capacityFor(world, power, game.day, game.raids, economy.people);
     let plantDays = capacity.plantDays;
+    // And the third, which is the one that actually ran out. A replacement is a
+    // man, and the same pool pays for the divisions being raised — so bringing
+    // the army you have back up to strength and building a bigger one are not
+    // two budgets but one, which is what every general staff in the war spent
+    // it arguing about.
+    let menLeft = menAvailable(world, power, game.day, game.replacements, game.raisings);
     const running = {};
     for (const id of wanted) {
       const column = columns.get(id);
@@ -671,12 +779,22 @@ function sendReplacements(game, world) {
         refused.push({ day: game.day, power, column: id, why: 'the factories were full' });
         continue;
       }
+      if ((want.men ?? 0) > menLeft) {
+        refused.push({
+          day: game.day,
+          power,
+          column: id,
+          why: `no men left — ${Math.round(menLeft).toLocaleString()} in the depots, ${Math.round(want.men).toLocaleString()} wanted`,
+        });
+        continue;
+      }
       const short = canAfford(economy, want.cost, running);
       if (short) {
         refused.push({ day: game.day, power, column: id, why: short });
         continue;
       }
       plantDays -= want.effort;
+      menLeft -= want.men ?? 0;
       for (const [store, amount] of Object.entries(want.cost)) {
         running[store] = (running[store] ?? 0) + amount;
       }
@@ -766,6 +884,11 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     landing: viewer ? (game.landing[viewer] ?? []) : [],
     embarks: game.embarks,
     landings: game.landings,
+    // The whole raising record is public: a formation being stood up is not a
+    // secret from anybody who can count trains. What a seat means to order
+    // tomorrow is its own business, and is below.
+    raisings: game.raisings,
+    raising: viewer ? (game.raising[viewer] ?? []) : [],
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

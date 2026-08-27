@@ -49,6 +49,11 @@ export const ORDERS = [
     name: 'Land here',
     hint: 'Put an army ashore from a fleet offshore, into whatever is holding it.',
   },
+  {
+    id: 'raise',
+    name: 'Raise a formation',
+    hint: 'Call up a division here. It arrives months later, and the men are gone now.',
+  },
 ];
 
 /**
@@ -121,6 +126,16 @@ export function ordersFor({ power, day = 0, tile = null }) {
       return parties.some((party) => mayFight(day, power, party))
         ? null
         : `You are not at war with ${held}.`;
+    }
+
+    // Raising asks about the town rather than the front: a division is formed
+    // where there is somewhere to house and equip it, and then marched.
+    if (order.id === 'raise') {
+      if (!mine) return `This ground is ${held}’s.`;
+      if (!tile.city && !tile.works?.length) {
+        return 'There is no town or works here to raise a formation at.';
+      }
+      return null;
     }
 
     if (order.id === 'reinforce') {

@@ -32,10 +32,13 @@ import { Replacements } from './Replacements.jsx';
 import { Raid } from './Raid.jsx';
 import { Sail } from './Sail.jsx';
 import { Amphibious } from './Amphibious.jsx';
+import { Raise } from './Raise.jsx';
 import { Standings } from './Standings.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { fleetsAt } from '../game/naval.js';
 import { cargoAt } from '../game/amphibious.js';
+import { manpowerFor } from '../game/manpower.js';
+import { buildingOn, placementFor, readyBy } from '../game/raising.js';
 import { capacityFor, spentBy } from '../game/production.js';
 import {
   claimSeat,
@@ -109,6 +112,8 @@ export default function App() {
   const [raiding, setRaiding] = useState([]);
   const [sailAt, setSailAt] = useState(null);
   const [sailing, setSailing] = useState([]);
+  const [raiseAt, setRaiseAt] = useState(null);
+  const [raising, setRaising] = useState([]);
   const [shoreAt, setShoreAt] = useState(null);
   const [shoreMode, setShoreMode] = useState('embark');
   const [embarking, setEmbarking] = useState([]);
@@ -352,13 +357,24 @@ export default function App() {
     setSailing(game?.sailing ?? []);
     setEmbarking(game?.embarking ?? []);
     setLanding(game?.landing ?? []);
+    setRaising(game?.raising ?? []);
     setShoreAt(null);
+    setRaiseAt(null);
     setOrderError(null);
     setMarchTo(null);
     setRebuildAt(null);
     setBombAt(null);
     setSailAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleRaise = useCallback((template, cell) => {
+    setOrderError(null);
+    setRaising((current) =>
+      current.some((r) => r.template === template && r.cell === cell)
+        ? current.filter((r) => !(r.template === template && r.cell === cell))
+        : [...current, { template, cell }],
+    );
+  }, []);
 
   const toggleEmbark = useCallback((column, fleet, from) => {
     setOrderError(null);
@@ -431,6 +447,7 @@ export default function App() {
         sailing,
         embarking,
         landing,
+        raising,
       );
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
@@ -438,7 +455,9 @@ export default function App() {
       setSailing(state.sailing ?? []);
       setEmbarking(state.embarking ?? []);
       setLanding(state.landing ?? []);
+      setRaising(state.raising ?? []);
       setShoreAt(null);
+      setRaiseAt(null);
       setMarchTo(null);
       setRebuildAt(null);
       setBombAt(null);
@@ -448,7 +467,7 @@ export default function App() {
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders, rebuilding, raiding, sailing, embarking, landing]);
+  }, [session?.token, orders, rebuilding, raiding, sailing, embarking, landing, raising]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -502,6 +521,27 @@ export default function App() {
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, seat, fleets, ownershipVersion]);
+
+  // The formations the war has produced, put on the board as the record says
+  // they were finished. Idempotent, so replaying the whole list every time the
+  // record changes raises nobody twice.
+  const raisedCount = game?.raisings?.length ?? 0;
+  useEffect(() => {
+    if (!world?.garrisons?.raise) return;
+    let added = 0;
+    for (const entry of readyBy(game?.raisings ?? [], game?.day ?? 0)) {
+      if (world.garrisons.raise(placementFor(entry))) added += 1;
+    }
+    if (added) setMarchVersion((v) => v + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, raisedCount, game?.day]);
+
+  // What the depots have, which is the shortage that decides everything else.
+  const manpower = useMemo(() => {
+    if (!world?.ownership || !seat) return null;
+    return manpowerFor(world, seat, game?.day ?? 0, game?.replacements ?? [], game?.raisings ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [world, seat, game?.day, game?.replacements, game?.raisings, ownershipVersion]);
 
   // Who is presently riding a ship. This is what makes a column at sea findable
   // at all, since its position is the fleet's rather than any hex of ground.
@@ -698,7 +738,14 @@ export default function App() {
                       id: 'forces',
                       name: 'Forces',
                       note: 'the men, and the plant that puts them back',
-                      body: <Forces economy={economy} capacity={capacity} />,
+                      body: (
+                        <Forces
+                          economy={economy}
+                          capacity={capacity}
+                          manpower={manpower}
+                          building={buildingOn(game?.raisings ?? [], seat, game?.day ?? 0)}
+                        />
+                      ),
                     },
                   ]),
               {
@@ -821,6 +868,8 @@ export default function App() {
               setShoreMode('land');
               setShoreAt(selected?.index ?? null);
             }}
+            onRaise={() => setRaiseAt(selected?.index ?? null)}
+            raising={raising}
             raiding={raiding}
             sailing={sailing}
             embarking={embarking}
@@ -828,7 +877,25 @@ export default function App() {
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              shoreAt !== null && world ? (
+              raiseAt !== null && world ? (
+                <Raise
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={raiseAt}
+                  manpower={manpower}
+                  economy={economy}
+                  capacity={capacity}
+                  replacements={game?.replacements ?? []}
+                  raisings={game?.raisings ?? []}
+                  raising={raising}
+                  onToggle={toggleRaise}
+                  onSend={sendOrders}
+                  onCancel={() => setRaiseAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : shoreAt !== null && world ? (
                 <Amphibious
                   world={world}
                   power={seat}
