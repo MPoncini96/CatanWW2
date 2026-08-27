@@ -10,6 +10,7 @@ import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
+import { defeats, heldCells, standings, victory } from './victory.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -75,6 +76,12 @@ export function newGame() {
     // The largest single events on the board: one of these moves more hexes in
     // a morning than a month of fighting does.
     capitulations: [],
+    // Axis powers that are finished, in the order they finished. Derived from
+    // the board every day and written down once, because "when did Italy leave
+    // the war" should have one answer for ever after.
+    beaten: [],
+    // And the end of it: null while the war is still going.
+    over: null,
     // And the ones that were asked for and not sent, with the reason. The day
     // used to swallow these, which meant a player could ask for fifteen
     // columns, be given four, and never find out why — the most annoying kind
@@ -222,7 +229,23 @@ function capitulationText(fallen) {
   return `${parts.join(', and ')}.${stood}`;
 }
 
+/**
+ * Recompute the scoreboard.
+ *
+ * Called when the ground moves, not when somebody asks for it: it walks the map
+ * and the map changes once a day, while `publicState` goes out every time
+ * anybody does anything.
+ */
+export function refreshStandings(game, world) {
+  if (!world) return null;
+  game.standings = standings(world, game);
+  return game.standings;
+}
+
 export function advance(game, world = null, now = 0) {
+  // A finished war does not have another day in it.
+  if (game.over) return [];
+
   // The order of a day, and it matters: the marches happen, then whoever ends
   // up sharing a hex with somebody they are at war with fights over it, then
   // the beaten fall back — which is itself a march, stamped with the same day,
@@ -315,6 +338,58 @@ export function advance(game, world = null, now = 0) {
     game.battles.push(...flying.losses);
     game.raiding = {};
 
+    // Who is out of the war. Checked after the ground has finished moving, so
+    // that a capital taken this morning counts today rather than tomorrow.
+    const beaten = defeats(world, game);
+    for (const [power, state] of Object.entries(beaten)) {
+      if (!state.defeated) continue;
+      if (game.beaten.some((b) => b.power === power)) continue;
+      game.beaten.push({ power, day: game.day, why: state.why });
+      game.log.push({
+        id: `beaten:${power}`,
+        day: game.day,
+        name: `${displayName(power)} is beaten`,
+        text: `${state.why}. ${displayName(power)} is out of the war.`,
+      });
+
+      // Italy goes home. The armistice of 3 September 1943 did not hand Italy
+      // to anybody — it took Italy out, and left the ground for whoever wanted
+      // to walk onto it, which both sides then spent twenty months doing.
+      if (power === 'italy') {
+        const italian = heldCells(world, 'italy').map((cell) => ({
+          day: game.day,
+          cell,
+          to: 'neutral',
+          from: 'italy',
+          armistice: true,
+        }));
+        world.ownership.replay(italian);
+        game.captures.push(...italian);
+        game.log.push({
+          id: 'armistice:italy',
+          day: game.day,
+          name: 'The Italian armistice',
+          text:
+            `${italian.length} hexes of Italian ground pass out of the war altogether. ` +
+            'Nobody inherits it; both sides may walk onto it.',
+        });
+      }
+    }
+
+    refreshStandings(game, world);
+
+    // And whether that is the end.
+    const won = victory(world, game);
+    if (won) {
+      game.over = { ...won, day: game.day };
+      game.log.push({
+        id: 'victory',
+        day: game.day,
+        name: won.side === 'allies' ? 'The Allies have won' : 'The Axis has won',
+        text: `${won.why[0].toUpperCase()}${won.why.slice(1)}.`,
+      });
+    }
+
     // And last, the replacements — after the fighting and after the bombing,
     // so that a column cannot be rebuilt into the middle of the battle it is
     // losing, out of a factory that is on fire.
@@ -353,6 +428,10 @@ export function setOrders(
   sailing = null,
 ) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
+  if (game.over) return { error: 'The war is over.' };
+  if (game.beaten?.some((b) => b.power === power)) {
+    return { error: `${displayName(power)} is out of the war.` };
+  }
   game.orders[power] = orders;
   if (rebuilding !== null) game.rebuilding[power] = rebuilding;
   if (raiding !== null) game.raiding[power] = raiding;
@@ -509,6 +588,12 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     seaBattles: game.seaBattles,
     sinkings: game.sinkings,
     capitulations: game.capitulations,
+    beaten: game.beaten,
+    // How close the end is. Worked out when the board changes rather than when
+    // somebody asks — it costs a walk of the map, and the map only moves once a
+    // day, while this goes out on every broadcast.
+    standings: game.standings ?? null,
+    over: game.over,
     orders: viewer ? (game.orders[viewer] ?? []) : [],
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     raiding: viewer ? (game.raiding[viewer] ?? []) : [],

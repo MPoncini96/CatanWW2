@@ -2435,6 +2435,11 @@ button:disabled {
 .drawers__body {
   padding: 10px 12px 12px;
   border-top: 1px solid var(--panel-border);
+  /* The war panel is taller than the stores panel and taller than the rail, so
+     it scrolls inside itself rather than running off the bottom of the screen
+     with the Allied half of the scoreboard on it. */
+  max-height: min(46vh, 420px);
+  overflow-y: auto;
 }
 
 .drawers__note {
@@ -2470,4 +2475,112 @@ button:disabled {
   font-size: 10px;
   color: var(--muted);
   letter-spacing: 0.02em;
+}
+
+/* ---------------------------------------------------------- the end of it */
+
+/* A finished war is not a status line. It takes the top of the page, because
+   the one thing a player must never have to hunt for is whether the game is
+   over. */
+.verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 18px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.verdict strong {
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.verdict span {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.verdict.is-allies {
+  background: linear-gradient(90deg, rgba(63, 163, 77, 0.35), rgba(63, 163, 77, 0.08));
+}
+
+.verdict.is-axis {
+  background: linear-gradient(90deg, rgba(198, 202, 211, 0.3), rgba(198, 202, 211, 0.06));
+}
+
+.standings h5 {
+  margin: 12px 0 6px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.standings h5:first-child {
+  margin-top: 2px;
+}
+
+.standings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.standings__list li {
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 2px solid rgba(255, 255, 255, 0.12);
+}
+
+/* Something that has actually happened, as against something that might. */
+.standings__list li.is-done {
+  border-left-color: #3fa34d;
+  background: rgba(63, 163, 77, 0.12);
+}
+
+.standings__name {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.standings__state {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.standings__note {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+/* The individual lights inside a condition that needs all of them. */
+.standings__state em {
+  font-style: normal;
+  display: inline-block;
+  margin: 2px 4px 0 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.standings__state em.is-lost {
+  background: rgba(198, 90, 90, 0.28);
+  color: #ffd9d9;
+}
+
+.standings__over {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.45;
+  background: rgba(255, 255, 255, 0.06);
 }

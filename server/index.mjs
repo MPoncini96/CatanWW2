@@ -56,6 +56,8 @@ let game = load();
 // Put the armies where the record says they are and the ground where it says
 // it went, in case this is a resumed game.
 world.ownership.replay(game.captures ?? []);
+// And the scoreboard, which is stored rather than recomputed on every request.
+G.refreshStandings(game, world);
 world.march(game.moves ?? [], game.day, game.battles ?? [], game.replacements ?? []);
 
 function load() {

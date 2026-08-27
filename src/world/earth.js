@@ -9,6 +9,7 @@ import { territoryFor } from './territories.js';
 import { buildForces, tallyPlacements } from './forces.js';
 import { buildNavies } from './navies.js';
 import { buildConvoys } from './convoys.js';
+import { stampIslands } from './islands.js';
 import { positionsAt } from '../game/movement.js';
 import { strengthsAt } from '../game/combat.js';
 import { buildCountries } from './countries.js';
@@ -163,6 +164,10 @@ function pickLand({ lat, elev, tempC, veg, coastal, landFrac }) {
 export function buildWorld(landRaw, elevRaw, greenRaw) {
   const isLand = new Uint8Array(TILE_COUNT);
   for (let i = 0; i < TILE_COUNT; i += 1) isLand[i] = landRaw[i] >= 128 ? 1 : 0;
+  // The islands the baked map is too coarse to hold, stamped in before anything
+  // reads the land mask. Everything downstream — coastlines, terrain,
+  // population, resources, ownership — then treats them as ordinary ground.
+  const islands = stampIslands(isLand);
   const isOcean = findOcean(isLand, landRaw);
   const dist = distanceToCoast(isLand, isOcean);
 
@@ -194,8 +199,17 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
           break;
         }
       }
-      elevation[i] = elev;
-      biome[i] = pickLand({ lat, elev, tempC, veg, coastal, landFrac: landRaw[i] / 255 });
+      const island = islands.get(i);
+      if (island) {
+        // A stamped island says what it is rather than being guessed at: the
+        // greenness byte under it is an ocean reading, and every atoll in the
+        // Pacific would come out as desert.
+        elevation[i] = island.elevation;
+        biome[i] = island.terrain;
+      } else {
+        elevation[i] = elev;
+        biome[i] = pickLand({ lat, elev, tempC, veg, coastal, landFrac: landRaw[i] / 255 });
+      }
     } else {
       const wobble =
         (fbm3(

@@ -31,6 +31,7 @@ import { reportFor } from '../game/report.js';
 import { Replacements } from './Replacements.jsx';
 import { Raid } from './Raid.jsx';
 import { Sail } from './Sail.jsx';
+import { Standings } from './Standings.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { fleetsAt } from '../game/naval.js';
 import { capacityFor, spentBy } from '../game/production.js';
@@ -532,6 +533,16 @@ export default function App() {
 
   return (
     <div className="app">
+      {game?.over && (
+        <div className={`verdict is-${game.over.side}`}>
+          <strong>
+            {game.over.side === 'allies' ? 'The Allies have won' : 'The Axis has won'}
+          </strong>
+          <span>
+            {game.over.why} — {game.date}
+          </span>
+        </div>
+      )}
       <header className="topbar">
         <Link className="brand" href="/">
           <span className="brand__mark" style={{ background: player.color }} aria-hidden="true" />
@@ -645,6 +656,12 @@ export default function App() {
                       body: <Forces economy={economy} capacity={capacity} />,
                     },
                   ]),
+              {
+                id: 'war',
+                name: 'The war',
+                note: 'how it ends, and how close it is',
+                body: <Standings standings={game?.standings} over={game?.over} />,
+              },
               {
                 id: 'key',
                 name: 'Map key',

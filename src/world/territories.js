@@ -44,6 +44,8 @@ export const TERRITORIES_1939 = [
   { owner: 'usa', name: 'Hawaii', box: [-161, 18.5, -154.5, 22.5] },
   { owner: 'usa', name: 'Guam', box: [144.5, 13.2, 145.0, 13.7] },
   { owner: 'usa', name: 'Wake Island', box: [166.5, 19.2, 166.8, 19.4] },
+  // Midway had its own box the moment there was an island under it to claim.
+  { owner: 'usa', name: 'Midway', box: [-177.6, 28.0, -177.1, 28.4] },
   { owner: 'usa', name: 'Puerto Rico', box: [-67.3, 17.9, -65.6, 18.6] },
   { owner: 'usa', name: 'Panama Canal Zone', box: [-80.0, 8.6, -79.4, 9.5] },
   { owner: 'japan', name: 'Mariana Islands', box: [144.5, 14.0, 146.5, 20.6] },

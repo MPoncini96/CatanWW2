@@ -1517,6 +1517,32 @@ them — and close in, becomes the ships: a battleship, a carrier with its islan
 and an aeroplane on the deck, a submarine with its conning tower. A strength you
 are not allowed to know never becomes a silhouette; it stays a diamond.
 
+## The Pacific
+
+A hex is 4,455 km². Iwo Jima is 21 km², Tarawa is 31, Wake is 7, Midway is 6.
+
+So the entire Central Pacific rounded to open water. Of twenty-four places the
+Pacific war was decided at, **twenty-one came out of `earth.bin` as ocean** —
+Guadalcanal, Okinawa, Saipan, the Marianas, the Marshalls, the whole Aleutian
+chain, and Pearl Harbor, which was a stretch of empty sea with a fleet moored on
+it.
+
+The ownership tables had known about them all along and had nowhere to put them:
+Guam, Wake, the Marianas, the Carolines, the Marshalls, the Solomons and the
+Western Aleutians all had territory boxes claiming **zero hexes**, because a box
+can only claim ground that exists.
+
+`islands.js` puts the ground there — about fifty of them, stamped onto the
+nearest water cell before terrain, population, resources or ownership are worked
+out. Everything downstream then treats them as ordinary land, and **the 1939
+tables claimed them without a line changing**: Guadalcanal came out British in
+the Solomons, Saipan and Truk and Kwajalein Japanese in the South Seas Mandate,
+Attu and Kiska American in Alaska. Attu and Kiska matter: they were invaded in
+June 1942 and held for over a year, the only American soil occupied in the war.
+
+Sizes are real areas rounded up to a minimum of one hex, and deliberately not
+generous. Guadalcanal is one hex, and the point of it was never its size.
+
 ## When a government falls
 
 Every other rule here settles one hex at a time. That is the right model for a
@@ -1709,6 +1735,78 @@ Cut them all and the stores start falling in weeks rather than years, which is
 the pressure the real blockade applied, arriving at the right answer by a route
 the tonnage tables do not take.
 
+## How the war ends
+
+Until now it could not. Every other rule decides a hex, a day or a country; none
+of them decided the game, and a nation reduced to nothing simply held no hexes
+and went on being asked for orders.
+
+The shape is asymmetric, because the war was. **An Axis power is finished when
+its own capital falls. An Allied one is not** — losing London does not end
+Britain, and losing Moscow did not end the Soviet Union in any of the years it
+nearly happened.
+
+### The Allies win by beating all three
+
+| | is finished when |
+| --- | --- |
+| **Germany** | Berlin is held by the Allies |
+| **Italy** | every hex of **Sicily** is lost — or Germany goes first |
+| **Japan** | Tokyo is held — or the Asian mainland is gone *and* the cities are burnt |
+
+**Sicily rather than Rome**, because Sicily is what actually did it. Husky landed
+on 10 July 1943; Mussolini was deposed on the 25th and the armistice signed on 3
+September — with Rome still in German hands, and staying there another nine
+months. Rome was never the point.
+
+And when Italy goes, **its ground goes out of the war with it.** 875 hexes pass
+to nobody: an armistice is not a conquest, and both sides may then walk onto it,
+which is exactly what the next twenty months were.
+
+Italy following Germany is not a shortcut either. Italy was a junior partner
+whose war depended entirely on German strength, and it left the moment that
+strength stopped covering it.
+
+### Japan's second door
+
+Tokyo is one way. The other is the one that actually happened: **lose Manchukuo
+and occupied China, and lose 0.5% of the home islands' population to bombing.**
+
+That number is the historical one — roughly 400,000 civilians of about 72
+million. On this board the home islands hold 53 million, so the bar is **267,205
+dead**, which at twelve per bomber-through is about 22,000 bomber-sorties: two to
+three months of maximum effort, on top of a land campaign that has already taken
+the whole Asian mainland.
+
+It is measured against the **home islands**, not the empire. Summing everyone on
+Japanese ground gives 277 million — Korea, Formosa, Manchukuo, occupied China —
+and it would then *shrink* as Japan lost them, moving the bar while somebody was
+climbing it.
+
+There is a chain hidden in this, and it is the right one: a bomber goes ten
+hexes, so burning the Japanese cities means basing within ten hexes of them,
+which means holding the Marianas or Okinawa, which means the islands above.
+Saipan is why there is a B-29 campaign.
+
+### The Axis wins by finishing the job
+
+Either **Paris, London and Moscow all held *and* China erased**, or **San
+Francisco, Los Angeles and New York held**.
+
+China is the hard half, and it is a whole country rather than a capital on
+purpose: China's government had already lost its capital twice by 1939 and gone
+on fighting from further up the Yangtze. There is no one city whose loss ends
+China, which is precisely why Japan was still there in 1945.
+
+### What a player sees
+
+A **The war** panel in the rail, sent down from the server rather than worked out
+in the browser, so the scoreboard and the rule that ends the game are one answer
+and not two. It shows each Axis power's state, the dial on Japan's bombing bar,
+and a row of lights for each Allied losing condition. When it is over a banner
+takes the top of the page, a beaten power may give no more orders, and the day
+stops turning.
+
 ## Rendering
 
 The globe is WebGL 2; the names and city dots on top of it are a plain 2D canvas
@@ -1826,9 +1924,10 @@ verified.
 
 ## Not built yet
 
-The rest of a victory condition. Capitulation is the first half of one — a
-country can now be finished — but the seven great powers deliberately cannot be
-finished that way, so there is still no moment at which somebody has won.
+Garrisons for the new islands. Fifty Pacific islands went onto the board and
+almost none of them has anybody standing on it, because the order of battle was
+written when they were open water. Wake had five hundred Marines on it and
+should.
 
 Shipyards, which now have something to do: hulls can be lost, so they can be
 replaced, and the yards are the obvious next thing the factories should learn to

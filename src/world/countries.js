@@ -71,7 +71,10 @@ const TERRITORY_COUNTRY = {
   'Northern Italy': 'Italy',
   'Central Italy': 'Italy',
   'Southern Italy': 'Italy',
-  Sicily: 'Italy',
+  // Sicily is deliberately not folded into Italy. It is an island, it is the
+  // only part of Italy anybody had to mount an amphibious operation to take,
+  // and losing it is what ended Italy's war — so it is worth being able to
+  // point at on the map and to ask a question about.
   Sardinia: 'Italy',
   // --- The United States ---
   'New England': 'United States',

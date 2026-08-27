@@ -32,6 +32,28 @@ export const BOMBER_RANGE = 10;
 export const FIGHTER_RANGE = 3;
 
 /**
+ * People killed on the ground, per bomber that gets through.
+ *
+ * Bombing a factory in 1939-45 meant bombing the district around it, and every
+ * air force involved knew it. The number is set from the campaign that ended
+ * the Pacific war: roughly 33,000 B-29 sorties against the home islands killed
+ * something like 400,000 civilians, and the single worst night — Tokyo, 10
+ * March 1945 — killed a hundred thousand with 279 aircraft.
+ *
+ * Twelve per bomber sits between those two, nearer the campaign average than
+ * the worst night, because most raids were not the worst night.
+ */
+export const CIVILIANS_PER_BOMBER = 12;
+
+/**
+ * And never more than this share of a hex's people in one night.
+ *
+ * A cell holds up to 186,000 people, and without a cap a large enough raid on a
+ * small enough town would kill more of them than live there.
+ */
+export const WORST_CIVILIAN_SHARE = 0.03;
+
+/**
  * What a defender is worth against a bomber.
  *
  * A fighter is worth rather more than a gun, and there were far fewer of them.
@@ -232,6 +254,14 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
       days: out,
       works: works.map((w) => w.name),
       output: works.reduce((n, w) => n + w.output, 0),
+      // And what it cost the people who lived there, which is a separate number
+      // from what it cost the factory and is the one that ends wars.
+      killed: Math.round(
+        Math.min(
+          through * CIVILIANS_PER_BOMBER,
+          (world.population?.[target] ?? 0) * WORST_CIVILIAN_SHARE,
+        ),
+      ),
     });
 
     losses.push({
@@ -248,4 +278,22 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
     });
   }
   return { raids, losses };
+}
+
+/**
+ * Everyone a nation has lost to bombing, up to a given day.
+ *
+ * Summed from the raid record rather than taken out of `world.population`,
+ * because the population is built once from the baked map and everything else
+ * on this board is replayed. A number that can be recomputed from the log is a
+ * number two clients cannot disagree about.
+ */
+export function civilianDead(raids, nation, day = Infinity) {
+  let dead = 0;
+  for (const raid of raids ?? []) {
+    if (raid.day > day) continue;
+    if (raid.against !== nation) continue;
+    dead += raid.killed ?? 0;
+  }
+  return dead;
 }

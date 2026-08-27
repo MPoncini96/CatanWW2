@@ -118,6 +118,19 @@ import {
 } from '../src/game/capitulation.js';
 import { capitalCell } from '../src/world/capitals.js';
 import { UNPLAYED } from '../src/game/players.js';
+import {
+  JAPAN_BOMBING_TOLL,
+  cityCell,
+  countryHexes,
+  defeats,
+  heldCells,
+  hexesHeld,
+  peopleOf,
+  standings,
+  victory,
+} from '../src/game/victory.js';
+import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
+import { ISLANDS_1939 } from '../src/world/islands.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -2822,6 +2835,206 @@ section('capitulation');
   );
   eq(displayName('france'), 'France', 'governments are named the way a person would name them');
   eq(displayName('uk'), 'United Kingdom', 'not by their ids');
+}
+
+
+// ------------------------------------------------------------ the islands
+section('the Pacific');
+{
+  const world = board();
+
+  // The whole Central Pacific used to round to open water at 67 km to the hex.
+  // These are the places the war out there was actually decided at, and every
+  // one of them has to be somewhere a soldier can stand.
+  const ashore = [];
+  const adrift = [];
+  for (const [name, lat, lon] of [
+    ['Guadalcanal', -9.4, 160.0],
+    ['Midway', 28.2, -177.4],
+    ['Wake', 19.3, 166.6],
+    ['Iwo Jima', 24.8, 141.3],
+    ['Okinawa', 26.3, 127.8],
+    ['Saipan', 15.2, 145.7],
+    ['Tarawa', 1.35, 173.0],
+    ['Kwajalein', 9.2, 167.5],
+    ['Truk', 7.4, 151.8],
+    ['Attu', 52.9, 173.2],
+    ['Kiska', 51.98, 177.5],
+    ['Pearl Harbor', 21.35, -157.95],
+    ['Rabaul', -4.2, 152.2],
+    ['Corregidor', 14.4, 120.6],
+  ]) {
+    const cell = cellFor(lat, lon);
+    (TERRAIN[world.biome[cell]].water ? adrift : ashore).push(name);
+  }
+  eq(adrift.length, 0, `every Pacific battlefield is on land — ${ashore.length} of them`);
+
+  // And the ownership tables, which knew about them all along and had nowhere
+  // to put them, now have somewhere.
+  const owns = (lat, lon) => {
+    const cell = cellFor(lat, lon);
+    return NATIONS[world.ownership.owner[cell]]?.id ?? null;
+  };
+  eq(owns(21.35, -157.95), 'usa', 'Pearl Harbor is American');
+  eq(owns(13.45, 144.75), 'usa', 'Guam is American');
+  eq(owns(52.9, 173.2), 'usa', 'and Attu, which is what made it worth invading');
+  eq(owns(15.2, 145.7), 'japan', 'Saipan is Japanese, as the mandate says');
+  eq(owns(9.2, 167.5), 'japan', 'and Kwajalein');
+  eq(owns(-9.5, 160.1), 'uk', 'Guadalcanal is in the British Solomons');
+
+  // Nothing was paved over: an island only lands on water.
+  ok(ISLANDS_1939.length > 40, `${ISLANDS_1939.length} islands were put on the board`);
+  ok(
+    ISLANDS_1939.every((i) => !TERRAIN[world.biome[cellFor(i.lat, i.lon)]].water),
+    'and every one of them is land now',
+  );
+}
+
+// ------------------------------------------------------------ and how it ends
+section('victory');
+{
+  const world = freshBoard();
+  const game = { raids: [] };
+
+  // ---- everything the rules have to be able to find ------------------------
+  for (const [what, cell] of [
+    ['Berlin', capitalCell('germany')],
+    ['Tokyo', capitalCell('japan')],
+    ['Paris', capitalCell('france')],
+    ['London', capitalCell('uk')],
+    ['Moscow', capitalCell('ussr')],
+    ['San Francisco', cityCell(world, 'San Francisco')],
+    ['Los Angeles', cityCell(world, 'Los Angeles')],
+    ['New York', cityCell(world, 'New York')],
+  ]) {
+    ok(cell !== null && cell !== undefined, `${what} is a hex the rules can point at`);
+  }
+  ok(countryHexes(world, 'Sicily').length > 0, 'Sicily is its own country, not folded into Italy');
+  ok(countryHexes(world, 'Manchukuo').length > 100, 'Manchukuo is on the board');
+  ok(countryHexes(world, 'Occupied China').length > 100, 'and occupied China');
+
+  eq(victory(world, game), null, 'nobody has won on the first morning');
+  const opening = defeats(world, game);
+  ok(
+    !opening.germany.defeated && !opening.italy.defeated && !opening.japan.defeated,
+    'and nobody is beaten either',
+  );
+
+  // ---- the bar Japan has to be held to ------------------------------------
+  // Measured against the home islands rather than the empire. Summing everyone
+  // on Japanese ground gives 277 million — Korea, Formosa, Manchukuo and
+  // occupied China — and it would shrink as Japan lost them, moving the bar
+  // while somebody was climbing it.
+  const home = peopleOf(world, 'Japan');
+  const all = heldCells(world, 'japan').reduce((n, c) => n + world.population[c], 0);
+  ok(home > 40e6 && home < 90e6, `the home islands hold ${(home / 1e6).toFixed(0)} million`);
+  ok(all > home * 3, 'and the empire holds several times that, which is why it is not counted');
+  const needed = home * JAPAN_BOMBING_TOLL;
+  const sorties = needed / CIVILIANS_PER_BOMBER;
+  ok(sorties > 10000 && sorties < 60000, `${Math.round(sorties)} bomber-sorties would do it`);
+
+  eq(civilianDead([], 'japan'), 0, 'nobody has been bombed yet');
+  eq(
+    civilianDead([{ day: 1, against: 'japan', killed: 500 }], 'japan'),
+    500,
+    'and the dead are counted off the raid record, like everything else',
+  );
+  eq(
+    civilianDead([{ day: 9, against: 'japan', killed: 500 }], 'japan', 3),
+    0,
+    'including only up to the day being asked about',
+  );
+
+  // ---- Italy goes first, on Sicily ----------------------------------------
+  const play = G.newGame();
+  G.claim(play, 'uk', 'uk', 'A');
+  const turn = () => {
+    G.setReady(play, 'uk', true);
+    G.advance(play, world);
+  };
+  const take = (cell, to) => {
+    world.ownership.set(cell, to, { day: play.day + 1, reason: 'test' });
+    play.captures.push({ day: play.day + 1, cell, to });
+  };
+  turn();
+
+  const italyWas = hexesHeld(world, 'italy');
+  ok(italyWas > 500, `Italy holds ${italyWas} hexes to begin with`);
+  for (const cell of countryHexes(world, 'Sicily')) take(cell, 'uk');
+  turn();
+
+  ok(play.beaten.some((b) => b.power === 'italy'), 'take Sicily and Italy is out of the war');
+  ok(
+    play.beaten.find((b) => b.power === 'italy').why.includes('Sicily'),
+    'and the record says why',
+  );
+  eq(hexesHeld(world, 'italy'), 0, 'every hex of Italian ground passes out of the war');
+  ok(
+    hexesHeld(world, 'germany') < 200,
+    'and none of it to Germany — an armistice is not a conquest',
+  );
+  ok(
+    play.log.some((e) => e.id === 'armistice:italy'),
+    'the armistice is written down',
+  );
+  ok(
+    G.setOrders(play, 'italy', []).error?.includes('out of the war'),
+    'and Italy may not give another order',
+  );
+  eq(victory(world, play), null, 'but the war is not over — there are two of them left');
+
+  // ---- then Germany, and Italy would have gone with it --------------------
+  take(capitalCell('germany'), 'uk');
+  turn();
+  ok(play.beaten.some((b) => b.power === 'germany'), 'Berlin falls and Germany is beaten');
+  ok(!play.over, 'and still nobody has won, because Japan is untouched');
+
+  // ---- and Japan ends it ---------------------------------------------------
+  take(capitalCell('japan'), 'uk');
+  turn();
+  ok(play.over, 'Tokyo falls and the war is over');
+  eq(play.over.side, 'allies', 'the Allies have won');
+  eq(play.over.day, play.day, 'on the day it happened');
+  ok(play.log.some((e) => e.id === 'victory'), 'and it is the last thing in the log');
+
+  const stopped = play.day;
+  turn();
+  eq(play.day, stopped, 'a finished war has no further days in it');
+  ok(G.setOrders(play, 'uk', []).error?.includes('over'), 'and takes no more orders');
+
+  // ---- the other way it could have gone -----------------------------------
+  const other = freshBoard();
+  const axis = G.newGame();
+  G.claim(axis, 'germany', 'germany', 'A');
+  const push = () => {
+    G.setReady(axis, 'germany', true);
+    G.advance(axis, other);
+  };
+  const seize = (cell) => {
+    other.ownership.set(cell, 'germany', { day: axis.day + 1, reason: 'test' });
+    axis.captures.push({ day: axis.day + 1, cell, to: 'germany' });
+  };
+  push();
+  for (const who of ['france', 'uk', 'ussr']) seize(capitalCell(who));
+  push();
+  ok(!axis.over, 'three capitals is not enough while China is still fighting');
+  ok(hexesHeld(other, 'china') > 1000, `China still holds ${hexesHeld(other, 'china')} hexes`);
+
+  for (const cell of heldCells(other, 'china')) seize(cell);
+  push();
+  ok(axis.over, 'and China going is what finishes it');
+  eq(axis.over.side, 'axis', 'the Axis has won');
+
+  // ---- what a player is shown ---------------------------------------------
+  const board2 = freshBoard();
+  const view = standings(board2, { raids: [] });
+  eq(view.axis.germany.defeated, false, 'the scoreboard knows Germany is still in it');
+  eq(view.allies.capitals.length, 3, 'three capitals to lose');
+  ok(view.allies.capitals.every((c) => !c.lost), 'none of them lost yet');
+  eq(view.allies.cities.length, 3, 'and three American cities');
+  ok(view.allies.china > 0, 'and China is still there');
+  ok(view.axis.japan.needed > 0, 'the bombing bar is a number a player can see');
+  eq(view.over, null, 'and nobody has won');
 }
 
 console.log(
