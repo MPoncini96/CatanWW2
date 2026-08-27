@@ -200,6 +200,31 @@ export const PORTS_1939 = [
   ['Port Arthur', 38.85, 121.27],
   ['Karafuto', 46.96, 142.74],
   ['Petropavlovsk', 53.02, 158.65],
+
+  // The island harbours, added with the island garrisons that need them.
+  //
+  // Every one of these is somewhere a ship could tie up and unload, which in
+  // this model is the whole test: a coast with a name on it feeds an army and
+  // a beach does not. Without them the eleven small colonial garrisons put onto
+  // the Pacific and the Indies starved on the first morning — which the supply
+  // suite said so within a minute of their being placed.
+  ['Koror', 7.34, 134.48],
+  ['Kwajalein', 9.2, 167.48],
+  ['Naha', 26.21, 127.68],
+  ['Tulagi', -9.1, 160.15],
+  ['Pago Pago', -14.28, -170.7],
+  ['Apia', -13.83, -171.77],
+  ['Papeete', -17.53, -149.57],
+  ['Tarawa', 1.35, 173.0],
+  ['Medan', 3.6, 98.67],
+  ['Balikpapan', -1.24, 116.83],
+  ['Ambon', -3.7, 128.18],
+  ['Namlea', -3.24, 127.1],
+  ['Makassar', -5.13, 119.41],
+  ['Hamilton', 32.29, -64.78],
+  ['Port Louis', -20.16, 57.5],
+  ['Stanley', -51.7, -57.85],
+  ['Trincomalee', 8.59, 81.21],
 ];
 
 let cache = null;

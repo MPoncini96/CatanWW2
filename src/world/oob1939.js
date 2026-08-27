@@ -1679,11 +1679,16 @@ export const FORMATIONS = [
   {
     id: 'uk-fortress-garrisons',
     name: 'Fortress garrisons',
-    // Gibraltar, Malta and Aden are all smaller than a 67 km hex, so each of
-    // these garrisons is placed on the nearest land the board has — which for
-    // Malta is Sicily and for Gibraltar is Spain. They are fed by sea from
-    // ground the map cannot give them, so they are marked as standing on
-    // somebody else's soil, which is exactly what they are doing.
+    // Gibraltar and Aden are smaller than a 67 km hex, so those two garrisons
+    // are placed on the nearest land the board has — which for Gibraltar is
+    // Spain. They are fed by sea from ground the map cannot give them, so they
+    // are marked as standing on somebody else's soil, which is exactly what
+    // they are doing.
+    //
+    // Malta used to be in the same position and was deployed onto Sicily. It is
+    // not any more: Malta was one of the islands stamped onto the board when
+    // the Mediterranean and the Pacific turned out to be missing most of their
+    // rocks, and the garrison went to it without a line here changing.
     foreign: true,
     nation: 'uk',
     type: 'fortress',
@@ -2972,5 +2977,137 @@ export const FORMATIONS = [
     quality: 0.3,
     mobility: 0.6,
     source: 'the armour of every other neutral, pooled',
+  },
+  // ------------------------------------------------- the island stations
+  //
+  // Fifty islands went onto the board when the Pacific turned out to be empty
+  // water, and the order of battle had nothing to say about any of them,
+  // because when it was written they did not exist.
+  //
+  // What goes on them is small, and deliberately so. **Most of these places
+  // were held by a district officer and a police sergeant.** Wake had Pan
+  // American Airways and a construction gang; the Marine detachment did not
+  // arrive until August 1941. The Aleutians had nothing at all — Dutch Harbor
+  // was not begun until 1940, and Attu had forty-five Aleuts and a
+  // schoolteacher. The Japanese mandate was forbidden fortification by the
+  // treaty it was held under, and the fortifying began in 1940.
+  //
+  // So the empty islands stay empty. That is not an omission. It is why a
+  // battalion could take one, and why the Pacific war looked the way it did.
+  {
+    id: 'uk-island-stations',
+    name: 'Island stations',
+    nation: 'uk',
+    type: 'security',
+    echelon: 'command',
+    theater: 'imperial',
+    // Colombo, Suva, Bermuda, Kingston, Port Louis, Stanley.
+    sites: [
+      [6.93, 79.86, 1.0],
+      [-18.14, 178.44, 0.5],
+      [32.3, -64.75, 0.4],
+      [17.97, -76.79, 0.5],
+      [-20.16, 57.5, 0.25],
+      [-51.7, -57.85, 0.1],
+    ],
+    strength: { infantry: 8300, artillery: 40 },
+    quality: 0.4,
+    mobility: 0.15,
+    source: 'the Ceylon, Fiji, Bermuda, Jamaica, Mauritius and Falklands defence forces',
+  },
+  {
+    id: 'uk-pacific-mandate',
+    name: 'The Pacific mandate',
+    nation: 'uk',
+    type: 'security',
+    echelon: 'division',
+    theater: 'far-east',
+    // Rabaul, Port Moresby, Tulagi. The New Guinea Volunteer Rifles were about
+    // five hundred men across a territory the size of Spain, and the British
+    // Solomons were administered from Tulagi by a resident commissioner with a
+    // constabulary. Two years later this is where the war was.
+    sites: [[-4.4, 152.1, 1.0], [-9.44, 147.18, 0.8], [-9.1, 160.15, 0.3]],
+    strength: { infantry: 1400, artillery: 4 },
+    quality: 0.3,
+    mobility: 0.2,
+    source: 'the New Guinea Volunteer Rifles and the Solomons constabulary',
+  },
+  {
+    id: 'us-pacific-outposts',
+    name: 'Pacific outposts',
+    nation: 'usa',
+    type: 'security',
+    echelon: 'division',
+    theater: 'pacific',
+    // Guam, Midway, Pago Pago. Guam had 153 Marines and 247 men of the Insular
+    // Force Guard, and the Naval Act of 1939 had just refused to fortify it on
+    // the grounds that doing so would provoke Japan. It fell in two days.
+    sites: [[13.45, 144.75, 1.0], [28.2, -177.37, 0.4], [-14.28, -170.7, 0.9]],
+    strength: { infantry: 980, artillery: 8 },
+    quality: 0.5,
+    mobility: 0.1,
+    source: 'the Guam, Midway and Samoa naval stations',
+  },
+  {
+    id: 'fr-pacific-garrisons',
+    name: 'Pacific colonial troops',
+    nation: 'france',
+    type: 'security',
+    echelon: 'division',
+    theater: 'imperial',
+    // Noumea and Papeete.
+    sites: [[-22.28, 166.46, 1.0], [-17.53, -149.57, 0.3]],
+    strength: { infantry: 1300, artillery: 4 },
+    quality: 0.35,
+    mobility: 0.2,
+    source: 'the New Caledonia and Tahiti colonial garrisons',
+  },
+  {
+    id: 'jp-mandate-garrison',
+    name: 'The South Seas mandate',
+    nation: 'japan',
+    type: 'security',
+    echelon: 'division',
+    theater: 'pacific',
+    // Truk, Saipan, Palau, Kwajalein, Okinawa. Deliberately tiny: the Class C
+    // mandate Japan held these under forbade fortification, and the surveys
+    // that led to the airfields and the coast guns did not begin until 1940.
+    // In September 1939 the 4th Fleet was setting up house at Truk and there
+    // was almost nothing behind it.
+    sites: [
+      [7.42, 151.78, 1.0],
+      [15.2, 145.75, 0.7],
+      [7.5, 134.55, 0.6],
+      [9.2, 167.48, 0.3],
+      [26.33, 127.8, 1.2],
+    ],
+    strength: { infantry: 3500, artillery: 20 },
+    quality: 0.5,
+    mobility: 0.15,
+    source: 'the 4th Fleet base staff and the Okinawa garrison',
+  },
+  {
+    id: 'nl-east-indies',
+    name: 'The Netherlands East Indies army',
+    nation: 'neutral',
+    type: 'field',
+    echelon: 'command',
+    theater: 'far-east',
+    // Batavia, Surabaya, Medan, Balikpapan, Ambon. The KNIL was a colonial army
+    // of about 35,000, most of it Javanese and Ambonese, and it was the only
+    // thing standing between the oil of Sumatra and Borneo and anybody who
+    // wanted it. Its absence from the board was the largest hole left in the
+    // Far East once the East Indies became somewhere worth taking.
+    sites: [
+      [-6.2, 106.85, 1.0],
+      [-7.25, 112.75, 0.8],
+      [3.6, 98.67, 0.5],
+      [-1.24, 116.83, 0.3],
+      [-3.7, 128.18, 0.3],
+    ],
+    strength: { infantry: 35000, artillery: 120 },
+    quality: 0.35,
+    mobility: 0.3,
+    source: 'the Koninklijk Nederlandsch-Indisch Leger',
   },
 ];

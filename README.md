@@ -1586,6 +1586,63 @@ June 1942 and held for over a year, the only American soil occupied in the war.
 Sizes are real areas rounded up to a minimum of one hex, and deliberately not
 generous. Guadalcanal is one hex, and the point of it was never its size.
 
+### Who is on them
+
+Small garrisons, and **34 of the 50 islands have nobody at all**.
+
+That is not an omission. On 1 September 1939 most of these places were held by a
+district officer and a police sergeant. **Wake** had Pan American Airways and a
+construction gang; the Marine detachment did not arrive until August 1941.
+**Attu** had forty-five Aleuts and a schoolteacher, and Dutch Harbor was not
+begun until 1940. The Japanese mandate was *forbidden fortification* by the
+treaty it was held under, so Truk has the 4th Fleet setting up house and very
+little behind it — the fortifying started in 1940. Guam had 153 Marines and 247
+men of the Insular Force Guard, and the Naval Act of 1939 had just declined to
+fortify it on the grounds that doing so would provoke Japan. It fell in two days.
+
+An empty island is why a battalion could take one, and why the Pacific war looked
+the way it did.
+
+What did go on: the Ceylon, Fiji, Bermuda, Jamaica, Mauritius and Falklands
+defence forces; the New Guinea Volunteer Rifles and the Solomons constabulary;
+the Guam, Midway and Samoa naval stations; the New Caledonia and Tahiti
+colonials; the 4th Fleet base staff and Okinawa. And **the Netherlands East
+Indies army** — 35,000 men of the KNIL, which was missing entirely and was the
+only thing standing between the oil of Sumatra and Borneo and anybody who wanted
+it.
+
+### Three flags the map had wrong
+
+Filling in the Pacific meant fifty new pieces of land arrived unclaimed, and the
+country layer assigns unclaimed ground to the nearest thing that *is* claimed.
+Mostly that worked: the Aleutians came out American, Rabaul Australian, the
+Carolines Japanese. Three did not.
+
+**Tarawa and Makin came out Japanese**, because the South Seas Mandate was the
+nearest claim — but in 1939 they were the Gilbert and Ellice Islands Colony, and
+Japan did not take them until December 1941. Tarawa is remembered as a Japanese
+fortress; it was a British one first, and briefly. **Tahiti** was handed to Fiji,
+four thousand kilometres away and British. **Ascension** was handed to Liberia.
+All three now have their own boxes, along with Nauru, Mauritius and both halves
+of Samoa — which was split in 1899, the western islands eventually to New Zealand
+and Tutuila with its harbour at Pago Pago to the United States.
+
+### And a garrison standing in the sea
+
+The island stations were garrisoning **Mauritius from a hex of open ocean**,
+because Mauritius is 2,040 km² — half a hex — and had never been stamped. Worse,
+the starvation rule did not complain, because it had *just* been taught that a
+column standing on water is a column on a ship and therefore fed.
+
+Two lessons, both now tests. Mauritius is on the board. And the suite asserts
+directly that **not one formation anywhere is deployed onto water** — a garrison
+in the sea is a data bug, not a convoy, and the ship guard must not be allowed
+to hide one.
+
+The eleven garrisons that then starved on their first morning did so because a
+beach is not a harbour. Koror, Kwajalein, Naha, Tulagi, Pago Pago, Papeete,
+Namlea, Makassar and the rest went into the ports table after them.
+
 ## When a government falls
 
 Every other rule here settles one hex at a time. That is the right model for a
@@ -2024,11 +2081,6 @@ how the grid, the world build, the territory probes and the camera maths are all
 verified.
 
 ## Not built yet
-
-Garrisons for the new islands. Fifty Pacific islands went onto the board and
-almost none of them has anybody standing on it, because the order of battle was
-written when they were open water. Wake had five hundred Marines on it and
-should — and now that an army can be put ashore on one, it matters.
 
 Shipyards, which now have something to do: hulls can be lost, so they can be
 replaced, and the yards are the obvious next thing the factories should learn to

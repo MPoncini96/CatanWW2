@@ -55,6 +55,28 @@ export const TERRITORIES_1939 = [
   { owner: 'france', name: 'New Caledonia', box: [163.5, -22.8, 168.2, -20.0] },
   { owner: 'uk', name: 'Fiji', box: [176.8, -19.3, 180, -16.1] },
   { owner: 'uk', name: 'Solomon Islands', box: [155.5, -11.0, 167.0, -5.0] },
+  // The islands the board had no land for until the Pacific was filled in, and
+  // which the nearest-neighbour rule then handed to whoever was closest. Three
+  // of them went to the wrong flag entirely.
+  //
+  // The Gilberts are the one that matters. Tarawa and Makin came out Japanese,
+  // because the South Seas Mandate was the nearest thing claimed — but in
+  // September 1939 they were the Gilbert and Ellice Islands Colony, and Japan
+  // did not take them until December 1941. Tarawa is remembered as a Japanese
+  // fortress; it was a British one first, and briefly.
+  { owner: 'uk', name: 'Gilbert Islands', box: [172.0, 0.5, 177.5, 4.2] },
+  { owner: 'uk', name: 'Nauru', box: [166.8, -0.65, 167.1, -0.4] },
+  // Tahiti had gone to Fiji, which is four thousand kilometres away and British.
+  { owner: 'france', name: 'French Polynesia', box: [-152.0, -18.5, -148.0, -16.0] },
+  // And Samoa was split down the middle in 1899: the western islands to
+  // Germany and then, after 1919, to New Zealand; Tutuila and its magnificent
+  // harbour at Pago Pago to the United States, which still has it.
+  { owner: 'usa', name: 'American Samoa', box: [-171.2, -14.65, -169.2, -13.85] },
+  { owner: 'uk', name: 'Western Samoa', box: [-172.95, -14.15, -171.25, -13.3] },
+  // Ascension had gone to Liberia, which is a thousand miles away and was not
+  // in the habit of annexing British cable stations.
+  { owner: 'uk', name: 'Ascension', box: [-14.55, -8.15, -14.15, -7.75] },
+  { owner: 'uk', name: 'Mauritius', box: [57.2, -20.6, 57.9, -19.9] },
 
   // Small holdings that sit inside a much larger box and would otherwise be
   // swallowed by it: Ceylon by India, Aden and British Somaliland by the

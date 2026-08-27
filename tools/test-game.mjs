@@ -2899,6 +2899,87 @@ section('the Pacific');
     ISLANDS_1939.every((i) => !TERRAIN[world.biome[cellFor(i.lat, i.lon)]].water),
     'and every one of them is land now',
   );
+
+  // ---- nobody is standing in the sea ---------------------------------------
+  //
+  // The invariant that would have found Mauritius in one line. The island
+  // stations were garrisoning it from a hex of open ocean, and the starvation
+  // rule did not complain because it had just been taught that a column on
+  // water is a column on a ship and therefore fed. A garrison deployed into the
+  // sea is a data bug, not a convoy, and this is where it gets caught.
+  const paddling = world.garrisons.opening.filter(
+    (c) => world.ownership.owner[c.cell] === SEA || TERRAIN[world.biome[c.cell]].water,
+  );
+  for (const c of paddling.slice(0, 5)) {
+    console.error(`        ${c.id} at ${c.cell}`);
+  }
+  eq(paddling.length, 0, 'not one formation on the board is deployed onto water');
+
+  // ---- the flags the nearest-neighbour rule got wrong ----------------------
+  const flagOf = (lat, lon) => NATIONS[world.ownership.owner[cellFor(lat, lon)]]?.id ?? null;
+  const nameOfPlace = (lat, lon) => {
+    const id = world.countryOf?.[cellFor(lat, lon)] ?? -1;
+    return id >= 0 ? world.countries[id].name : null;
+  };
+  eq(flagOf(1.35, 173.0), 'uk', 'Tarawa is British in 1939, not Japanese');
+  eq(nameOfPlace(1.35, 173.0), 'Gilbert Islands', 'and it is in the Gilberts');
+  eq(flagOf(3.37, 172.9), 'uk', 'and so is Makin');
+  eq(flagOf(-17.65, -149.45), 'france', 'Tahiti is French, not four thousand miles of British');
+  eq(flagOf(-14.3, -170.7), 'usa', 'Tutuila is American — Samoa was split in 1899');
+  eq(flagOf(-13.8, -172.0), 'uk', 'and the western islands are not');
+  eq(flagOf(-7.95, -14.37), 'uk', 'Ascension is British rather than Liberian');
+  eq(flagOf(-20.2, 57.5), 'uk', 'and Mauritius exists at all');
+
+  // ---- who is actually on them ---------------------------------------------
+  const byCell = new Map();
+  for (const c of world.garrisons.opening) {
+    if (!byCell.has(c.cell)) byCell.set(c.cell, []);
+    byCell.get(c.cell).push(c);
+  }
+  const menOn = (lat, lon) =>
+    (byCell.get(cellFor(lat, lon)) ?? []).reduce((n, c) => n + (c.strength.infantry ?? 0), 0);
+
+  ok(menOn(13.45, 144.75) > 300 && menOn(13.45, 144.75) < 900, 'Guam has a few hundred men');
+  ok(menOn(7.42, 151.78) > 0, 'Truk has the 4th Fleet setting up house');
+  ok(menOn(-17.8, 178.0) > 1000, 'Fiji has its defence force');
+  // By country rather than by a guessed coordinate: a site snaps to the nearest
+  // land it can find, and Noumea itself is a hex of water.
+  const menIn = (country) => {
+    let n = 0;
+    for (const c of world.garrisons.opening) {
+      const id = world.countryOf?.[c.cell] ?? -1;
+      if (id >= 0 && world.countries[id].name === country) n += c.strength.infantry ?? 0;
+    }
+    return n;
+  };
+  ok(menIn('New Caledonia') > 500, 'and New Caledonia its colonial infantry');
+  ok(menIn('Netherlands East Indies') > 20000, 'the KNIL is on the board, which it was not before');
+
+  // Small. The mandate was forbidden fortification by the treaty it was held
+  // under, and the fortifying did not begin until 1940.
+  ok(menOn(7.42, 151.78) < 2000, 'and Truk is a base staff rather than a fortress');
+
+  // ---- and the ones that are empty on purpose ------------------------------
+  //
+  // Wake had Pan American Airways and a construction gang; the Marines arrived
+  // in August 1941. Attu had forty-five Aleuts and a schoolteacher. These are
+  // not omissions — they are why a battalion could take an island, and why the
+  // Pacific war looked the way it did.
+  eq(menOn(19.28, 166.65), 0, 'Wake is held by nobody in September 1939');
+  eq(menOn(52.9, 173.2), 0, 'and Attu by nobody at all');
+  eq(menOn(51.98, 177.5), 0, 'and Kiska');
+
+  // ---- and everybody eats --------------------------------------------------
+  // The island garrisons went on the board and eleven of them starved on the
+  // first morning, because a beach is not a harbour. The harbours went in after
+  // them.
+  const fed = starvation({
+    world,
+    day: 0,
+    positions: positionsAt(world.garrisons.opening, [], 0),
+    strengths: strengthsAt(world.garrisons.opening, [], 0, []),
+  });
+  eq(fed.length, 0, 'and not one island garrison goes hungry on the first morning');
 }
 
 // ------------------------------------------------------------ and how it ends

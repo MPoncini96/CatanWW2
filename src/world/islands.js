@@ -83,6 +83,9 @@ export const ISLANDS_1939 = [
   { name: 'New Caledonia', lat: -21.5, lon: 165.5, hexes: 2, ...VOLCANIC },
   { name: 'Fiji', lat: -17.8, lon: 178.0, hexes: 2, ...VOLCANIC },
   { name: 'Samoa', lat: -13.8, lon: -172.0, hexes: 1, ...VOLCANIC },
+  // Tutuila separately from Western Samoa, because they were two countries with
+  // two flags and the naval station at Pago Pago was one of them.
+  { name: 'Tutuila', lat: -14.3, lon: -170.7, hexes: 1, ...VOLCANIC },
   { name: 'Tahiti', lat: -17.65, lon: -149.45, hexes: 1, ...VOLCANIC },
   { name: 'Nauru', lat: -0.53, lon: 166.93, hexes: 1, ...ATOLL },
   { name: 'Canton', lat: -2.8, lon: -171.7, hexes: 1, ...ATOLL },
@@ -92,6 +95,10 @@ export const ISLANDS_1939 = [
   { name: 'Ceylon', lat: 7.6, lon: 80.7, hexes: 2, terrain: T.jungle, elevation: 0.03 },
   { name: 'Andaman Islands', lat: 12.0, lon: 92.8, hexes: 1, ...VOLCANIC },
   { name: 'Diego Garcia', lat: -7.3, lon: 72.4, hexes: 1, ...ATOLL },
+  // Mauritius, which the island stations were garrisoning from a hex of open
+  // ocean until somebody checked. 2,040 km2 is half a hex and it is still a
+  // place, and it was where the eastbound convoys watered.
+  { name: 'Mauritius', lat: -20.2, lon: 57.5, hexes: 1, ...VOLCANIC },
   { name: 'Ascension', lat: -7.95, lon: -14.37, hexes: 1, ...VOLCANIC },
   { name: 'Bermuda', lat: 32.3, lon: -64.75, hexes: 1, ...ATOLL },
   { name: 'Azores', lat: 38.6, lon: -28.0, hexes: 1, ...VOLCANIC },
