@@ -2,13 +2,14 @@ import { PLAYER_IDS, isPlayer } from './players.js';
 import { eventsOn, nextEventAfter } from './events.js';
 import { formatDate } from './calendar.js';
 import { entersOn, isActive, warSummary } from './belligerence.js';
-import { executeOrders, positionsAt } from './movement.js';
+import { arrivalsAt, executeOrders, positionsAt } from './movement.js';
 import { resolveDay, strengthsAt } from './combat.js';
 import { resolveRaids } from './bombing.js';
 import { canAfford, capacityFor, replacementFor, spentBy } from './production.js';
 import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { collisionsAt } from './combat.js';
+import { cargoAt, carriedBy, mayEmbark, mayLand, ridingMoves } from './amphibious.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
 import { applyCapitulation, capitulationsOn, displayName } from './capitulation.js';
 import { defeats, heldCells, standings, victory } from './victory.js';
@@ -73,6 +74,13 @@ export function newGame() {
     // economy reads this directly, so a lane cut this morning stops paying
     // into the stores this morning.
     sinkings: [],
+    // Armies going aboard ships, and armies coming off them onto a beach.
+    // Between the two a column has the position of the fleet carrying it, which
+    // is how it crosses water at all.
+    embarking: {},
+    landing: {},
+    embarks: [],
+    landings: [],
     // Orders that did not happen because somebody was coming the other way.
     // Kept so a player who ordered an attack and got a defence is told why.
     collisions: [],
@@ -300,12 +308,131 @@ export function advance(game, world = null, now = 0) {
     game.sinkings.push(...sea.sinkings);
     game.sailing = {};
 
+    // An army caught at sea goes down with the ships carrying it. This is the
+    // whole risk of an amphibious operation and the reason one was never
+    // mounted without command of the water first: a division on a transport
+    // cannot shoot back, cannot dig in, and cannot run.
+    const atSea = cargoAt(game.embarks, game.landings, game.day - 1);
+    for (const action of sea.battles) {
+      const drowned = [];
+      for (const fleetId of action.losers) {
+        drowned.push(...carriedBy(fleetId, atSea));
+      }
+      if (!drowned.length) continue;
+      game.battles.push({
+        day: game.day,
+        cell: action.cell,
+        drowned: true,
+        losers: drowned,
+        loserShare: action.loserShare,
+        winners: [],
+        winnerShare: 0,
+      });
+    }
+
+    // Who went aboard this morning. Before the fleets sail, because a column
+    // that embarks today sails today — the alternative is a day spent sitting
+    // in a harbour for no reason anybody could explain.
+    //
+    // Checked here rather than taken on trust. The browser and the server both
+    // check too, for the sake of a decent error message, but a rule that only
+    // lives at the door is not a rule: an unchecked order would put an army
+    // aboard a submarine flotilla that cannot lift a man of it.
+    const beforeSailing = fleetsAt(world, game, game.day).filter((f) => f.afloat);
+    const holds = cargoAt(game.embarks, game.landings, game.day - 1);
+    const shipColumns = new Map(world.garrisons.opening.map((p) => [p.id, p]));
+    const shipStrengths = strengthsAt(
+      world.garrisons.opening,
+      game.battles,
+      game.day - 1,
+      game.replacements,
+    );
+    const boardingPositions = positionsAt(world.garrisons.opening, game.moves, game.day);
+    const boardingArrivals = arrivalsAt(game.moves, game.day);
+    const boarding = [];
+    for (const [power, orders] of Object.entries(game.embarking ?? {})) {
+      for (const order of orders ?? []) {
+        const column = shipColumns.get(order?.column);
+        const fleet = beforeSailing.find((f) => f.id === order?.fleet);
+        const why = mayEmbark({
+          world,
+          column,
+          fleet,
+          power,
+          day: game.day,
+          positions: boardingPositions,
+          arrivals: boardingArrivals,
+          aboard: holds,
+          strengths: shipStrengths,
+          columns: shipColumns,
+          ordered: new Set(),
+        });
+        if (why) {
+          game.refused.push({ day: game.day, power, column: order?.column, why });
+          continue;
+        }
+        holds.set(column.id, fleet.id);
+        boarding.push({
+          day: game.day,
+          power,
+          column: column.id,
+          fleet: fleet.id,
+          from: boardingPositions.get(column.id),
+        });
+      }
+    }
+    game.embarks.push(...boarding);
+    game.embarking = {};
+
     const afloat = fleetsAt(world, game, game.day).filter((f) => f.afloat);
     const navy = {
       fleets: afloat,
       positions: new Map(afloat.map((f) => [f.id, f.cell])),
       engaged: engagedCells(sea.battles),
     };
+
+    // Everybody at sea rides with the ship. One move a day each, so that the
+    // nine lines of `positionsAt` go on being the only answer to where anything
+    // is.
+    const aboard = cargoAt(game.embarks, game.landings, game.day);
+    game.moves.push(
+      ...ridingMoves({
+        day: game.day,
+        fleets: afloat,
+        aboard,
+        positions: positionsAt(world.garrisons.opening, game.moves, game.day),
+      }),
+    );
+
+    // And who goes over the side onto a beach. A landing is a march that
+    // started from the water, so it is recorded as one and the day resolves it
+    // as an attack like any other — with the assault paying for the privilege.
+    const landed = new Set();
+    const wentAshore = [];
+    for (const [power, orders] of Object.entries(game.landing ?? {})) {
+      for (const order of orders ?? []) {
+        const fleet = afloat.find((f) => f.id === order?.fleet);
+        const why = mayLand({ world, fleet, to: order?.to, power, day: game.day, aboard });
+        if (why) {
+          game.refused.push({ day: game.day, power, column: order?.fleet, why });
+          continue;
+        }
+        for (const column of carriedBy(order.fleet, aboard)) {
+          wentAshore.push({ day: game.day, power, column, fleet: order.fleet, to: order.to, from: fleet.cell });
+          game.moves.push({
+            day: game.day,
+            power,
+            column,
+            from: fleet.cell,
+            to: order.to,
+            landing: order.fleet,
+          });
+          landed.add(column);
+        }
+      }
+    }
+    game.landings.push(...wentAshore);
+    game.landing = {};
 
     const { battles, retreats, captures } = resolveDay({
       world,
@@ -315,6 +442,7 @@ export function advance(game, world = null, now = 0) {
       replacements: game.replacements,
       navy,
       meetings,
+      landed,
     });
     game.battles.push(...battles);
     game.moves.push(...retreats);
@@ -455,6 +583,8 @@ export function setOrders(
   rebuilding = null,
   raiding = null,
   sailing = null,
+  embarking = null,
+  landing = null,
 ) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   if (game.over) return { error: 'The war is over.' };
@@ -465,12 +595,16 @@ export function setOrders(
   if (rebuilding !== null) game.rebuilding[power] = rebuilding;
   if (raiding !== null) game.raiding[power] = raiding;
   if (sailing !== null) game.sailing[power] = sailing;
+  if (embarking !== null) game.embarking[power] = embarking;
+  if (landing !== null) game.landing[power] = landing;
   game.revision += 1;
   return {
     orders,
     rebuilding: game.rebuilding[power] ?? [],
     raiding: game.raiding[power] ?? [],
     sailing: game.sailing[power] ?? [],
+    embarking: game.embarking[power] ?? [],
+    landing: game.landing[power] ?? [],
   };
 }
 
@@ -628,6 +762,10 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     rebuilding: viewer ? (game.rebuilding[viewer] ?? []) : [],
     raiding: viewer ? (game.raiding[viewer] ?? []) : [],
     sailing: viewer ? (game.sailing[viewer] ?? []) : [],
+    embarking: viewer ? (game.embarking[viewer] ?? []) : [],
+    landing: viewer ? (game.landing[viewer] ?? []) : [],
+    embarks: game.embarks,
+    landings: game.landings,
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

@@ -190,8 +190,13 @@ export function starvation({ world, day, positions, strengths }) {
     // model punishing the data for telling the truth.
     if (column.formation.foreign) continue;
 
-    if (!maps.has(nation)) maps.set(nation, supplyMap(world, nation, day));
     const cell = positions.get(column.id) ?? column.cell;
+    // On a ship, and therefore fed. A column at sea has the position of the
+    // fleet carrying it, which is water; the supply map covers ground, so
+    // without this every army afloat would starve on the crossing.
+    if (world.ownership.owner[cell] === SEA) continue;
+
+    if (!maps.has(nation)) maps.set(nation, supplyMap(world, nation, day));
     if (maps.get(nation)[cell]) continue;
     out.push({
       day,

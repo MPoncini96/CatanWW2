@@ -9,6 +9,8 @@ import { TILE_COUNT } from '../src/world/sphere.js';
 import { arrivalsAt, mayMarch, positionsAt } from '../src/game/movement.js';
 import { mayRaid } from '../src/game/bombing.js';
 import { fleetsAt, fleetsOf, mayShip } from '../src/game/naval.js';
+import { cargoAt, mayEmbark, mayLand } from '../src/game/amphibious.js';
+import { strengthsAt } from '../src/game/combat.js';
 
 // The one game.
 //
@@ -88,6 +90,10 @@ function load() {
       saved.sinkings ??= [];
       saved.capitulations ??= [];
       saved.collisions ??= [];
+      saved.embarking ??= {};
+      saved.landing ??= {};
+      saved.embarks ??= [];
+      saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
       console.log(`resumed a game on day ${saved.day} (${saved.log.length} events so far)`);
@@ -196,7 +202,7 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding, raiding, sailing } = await readBody(req);
+    const { orders, rebuilding, raiding, sailing, embarking, landing } = await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
     if (rebuilding !== undefined && !Array.isArray(rebuilding)) {
@@ -216,6 +222,15 @@ async function api(req, res, url) {
     }
     if ((sailing?.length ?? 0) > 100) {
       return json(res, 400, { error: 'too many fleets to sail in one day' });
+    }
+    if (embarking !== undefined && !Array.isArray(embarking)) {
+      return json(res, 400, { error: 'embarking must be a list of columns' });
+    }
+    if (landing !== undefined && !Array.isArray(landing)) {
+      return json(res, 400, { error: 'landing must be a list of fleets' });
+    }
+    if ((embarking?.length ?? 0) > 200 || (landing?.length ?? 0) > 100) {
+      return json(res, 400, { error: 'too many amphibious orders for one day' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -294,7 +309,47 @@ async function api(req, res, url) {
       sails.push({ fleet: order.fleet, to: order.to });
     }
 
-    G.setOrders(game, seat, accepted, rebuild, flights, sails);
+    // And the armies going aboard, and coming off. Checked here for the sake of
+    // a decent message; the day checks again, because the day is where the rule
+    // actually lives.
+    const aboard = cargoAt(game.embarks, game.landings, game.day);
+    const shipping = strengthsAt(world.garrisons.opening, game.battles, game.day, game.replacements);
+    const boarded = new Set();
+    const loads = [];
+    for (const order of embarking ?? []) {
+      const why = mayEmbark({
+        world,
+        column: columns.get(order?.column),
+        fleet: afloat.find((f) => f.id === order?.fleet),
+        power: seat,
+        day: game.day,
+        positions,
+        arrivals,
+        aboard,
+        strengths: shipping,
+        columns,
+        ordered: boarded,
+      });
+      if (why) return json(res, 409, { error: why, column: order?.column });
+      boarded.add(order.column);
+      loads.push({ column: order.column, fleet: order.fleet, from: positions.get(order.column) });
+    }
+
+    const beaches = [];
+    for (const order of landing ?? []) {
+      const why = mayLand({
+        world,
+        fleet: afloat.find((f) => f.id === order?.fleet),
+        to: order?.to,
+        power: seat,
+        day: game.day,
+        aboard,
+      });
+      if (why) return json(res, 409, { error: why, fleet: order?.fleet });
+      beaches.push({ fleet: order.fleet, to: order.to });
+    }
+
+    G.setOrders(game, seat, accepted, rebuild, flights, sails, loads, beaches);
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));
   }

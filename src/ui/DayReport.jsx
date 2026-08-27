@@ -101,6 +101,32 @@ export function DayReport({ report, date, onClose }) {
               </section>
             )}
 
+            {(report.ashore?.length > 0 || report.embarked?.length > 0) && (
+              <section>
+                <h3>Across the water</h3>
+                <ul className="report__list">
+                  {(report.ashore ?? []).map((a, n) => (
+                    <li key={`a${n}`} className="is-won">
+                      <span className="report__where">{a.where}</span>
+                      <span className="report__what">
+                        <strong>
+                          {a.columns.length} formation{a.columns.length === 1 ? '' : 's'} went
+                          ashore
+                        </strong>
+                      </span>
+                      <span className="report__cost">{a.columns.join(', ')}</span>
+                    </li>
+                  ))}
+                  {(report.embarked ?? []).map((e, n) => (
+                    <li key={`e${n}`}>
+                      <span className="report__where">{e.where}</span>
+                      <span className="report__what">{e.column} went aboard</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
             {report.stopped?.length > 0 && (
               <section>
                 <h3>Orders that did not happen</h3>

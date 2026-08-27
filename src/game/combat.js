@@ -57,6 +57,21 @@ export const TERRAIN_DEFENCE = {
   beach: 0.9,
 };
 
+/**
+ * What an assaulting force is worth on the day it lands.
+ *
+ * Not much. Everything that makes a division formidable is on a different ship
+ * from the men, arrives late, or is at the bottom of the sea: at Omaha almost
+ * every tank launched offshore sank before it reached the beach, and at Tarawa
+ * the landing craft grounded on a reef five hundred yards out and the marines
+ * waded the rest. A landing is the one operation where the attacker is weaker
+ * than the defender by construction, and the game should say so.
+ */
+export const LANDING_STRENGTH = 0.45;
+
+/** And its heavy equipment is worth nearly nothing until the beach is held. */
+export const LANDING_HEAVY = 0.15;
+
 /** A town is worth more than the field it stands in. Ask Stalingrad. */
 const CITY_DEFENCE = 1.3;
 
@@ -99,14 +114,21 @@ export function luckAt(day, cell) {
  * and an army out of it is the difference between the Wehrmacht in June 1941
  * and the same army in December.
  */
-export function strengthOf(columns, mode, strengths, supplied = null) {
+export function strengthOf(columns, mode, strengths, supplied = null, landed = null) {
   let total = 0;
   for (const column of columns) {
     const have = strengths?.get(column.id) ?? column.strength;
     const quality = column.formation.quality ?? 0.5;
     const fed = supplied === null || supplied.has(column.id) ? 1 : UNSUPPLIED_STRENGTH;
+    // Came ashore this morning, and is fighting with what it could carry.
+    const ashore = landed?.has(column.id) ?? false;
     for (const [arm, rating] of Object.entries(RATINGS)) {
-      total += (have[arm] ?? 0) * rating[mode] * quality * fed;
+      let worth = (have[arm] ?? 0) * rating[mode] * quality * fed;
+      if (ashore) {
+        worth *= LANDING_STRENGTH;
+        if (arm === 'tanks' || arm === 'artillery') worth *= LANDING_HEAVY;
+      }
+      total += worth;
     }
   }
   return total;
@@ -314,13 +336,15 @@ export function fight({
   supplied,
   support = null,
   meeting = false,
+  landed = null,
 }) {
   const [luckA, luckD] = luckAt(day, cell);
   // Guns offshore are added before the dice and before the ground bonus: a
   // battleship's broadside is worth what it is worth whether the hex it lands
   // on is a marsh or a ridge, which is the one thing about naval gunfire that
   // is simpler than everything else in this function.
-  const attack = (strengthOf(attackers, 'attack', strengths, supplied) + (support?.attack ?? 0)) * luckA;
+  const attack =
+    (strengthOf(attackers, 'attack', strengths, supplied, landed) + (support?.attack ?? 0)) * luckA;
   // A meeting engagement gives the ground to nobody. Both sides were moving,
   // neither is dug in, and the hex this is recorded on is an accident of which
   // index happened to be lower.
@@ -431,6 +455,7 @@ export function resolveDay({
   replacements = [],
   navy = null,
   meetings = [],
+  landed = null,
 }) {
   const positions = positionsAt(world.garrisons.opening, moves, day);
   const strengths = strengthsAt(world.garrisons.opening, past, day - 1, replacements);
@@ -459,6 +484,10 @@ export function resolveDay({
     const have = strengths.get(column.id);
     if (!have || Object.values(have).every((n) => n === 0)) continue;
     const cell = positions.get(column.id);
+    // A column riding a ship has the ship's position, which is water. It is not
+    // standing on ground, cannot fight for ground, and cannot take any: what
+    // happens to it at sea is the navy's business and is settled there.
+    if (world.ownership.owner[cell] === SEA) continue;
     if (!onCell.has(cell)) onCell.set(cell, []);
     onCell.get(cell).push(column);
   }
@@ -529,6 +558,7 @@ export function resolveDay({
       fromCell,
       supplied,
       support,
+      landed,
     });
     const record = {
       day,

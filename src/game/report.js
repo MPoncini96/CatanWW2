@@ -296,6 +296,27 @@ export function reportFor({ world, game, seat, day }) {
     else if (entry.by === seat) raided.push({ ...line, from: entry.power });
   }
 
+  // ---- across the water ----------------------------------------------------
+  // A landing is the largest single thing a seat can order and it would
+  // otherwise appear only as an ordinary attack on a hex, with nothing to say
+  // the men came off a ship.
+  const ashore = [];
+  for (const entry of game.landings ?? []) {
+    if (entry.day !== day || entry.power !== seat) continue;
+    const spot = ashore.find((x) => x.cell === entry.to) ?? {
+      cell: entry.to,
+      where: placeOf(world, entry.to),
+      columns: [],
+    };
+    if (!ashore.includes(spot)) ashore.push(spot);
+    spot.columns.push(nameOf(entry.column));
+  }
+  const embarked = [];
+  for (const entry of game.embarks ?? []) {
+    if (entry.day !== day || entry.power !== seat) continue;
+    embarked.push({ column: nameOf(entry.column), where: placeOf(world, entry.from) });
+  }
+
   // ---- orders that never happened ------------------------------------------
   // A player who ordered an attack and got a defence is owed a sentence about
   // why. Both halves of a collision get one: the column that was ridden over
@@ -370,6 +391,8 @@ export function reportFor({ world, game, seat, day }) {
     raided,
     fell,
     stopped,
+    ashore,
+    embarked,
     taken,
     lost,
     starving,
@@ -379,6 +402,8 @@ export function reportFor({ world, game, seat, day }) {
     gains,
     quiet:
       battles.length === 0 &&
+      ashore.length === 0 &&
+      embarked.length === 0 &&
       stopped.length === 0 &&
       fell.length === 0 &&
       actions.length === 0 &&

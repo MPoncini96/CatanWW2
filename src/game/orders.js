@@ -39,6 +39,16 @@ export const ORDERS = [
     name: 'Sail here',
     hint: 'Send a fleet to this water, and fight whatever it finds on it.',
   },
+  {
+    id: 'embark',
+    name: 'Put to sea',
+    hint: 'Load what is standing here onto a fleet in the water beside it.',
+  },
+  {
+    id: 'landing',
+    name: 'Land here',
+    hint: 'Put an army ashore from a fleet offshore, into whatever is holding it.',
+  },
 ];
 
 /**
@@ -93,6 +103,24 @@ export function ordersFor({ power, day = 0, tile = null }) {
     // occupied by whoever is currently floating on it.
     if (order.id === 'sail') {
       return tile.terrain?.water ? null : 'A ship cannot go inland.';
+    }
+
+    // The two halves of an amphibious operation, both asked about the coast
+    // rather than about the water: you click the beach, and the panel says what
+    // can leave it or arrive on it. Loading needs your own ground under your
+    // own troops; landing needs somebody else's, or your own to reinforce.
+    if (order.id === 'embark') {
+      if (tile.terrain?.water) return 'An army embarks from a beach, not from the sea.';
+      return mine ? null : `This ground is ${held}’s — your troops are not standing on it.`;
+    }
+
+    if (order.id === 'landing') {
+      if (tile.terrain?.water) return 'There is no beach here to land on.';
+      if (mine) return null;
+      if (!parties.length) return 'Nothing on this hex answers to anybody.';
+      return parties.some((party) => mayFight(day, power, party))
+        ? null
+        : `You are not at war with ${held}.`;
     }
 
     if (order.id === 'reinforce') {

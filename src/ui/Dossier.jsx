@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, march, battles, rebuilding, raiding, sailing }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, onEmbark, onLanding, march, battles, rebuilding, raiding, sailing, embarking, landing }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -94,6 +94,14 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                 {sailing.length} fleet{sailing.length === 1 ? '' : 's'} sailing
               </span>
             )}
+            {embarking?.length > 0 && (
+              <span className="dossier__given">{embarking.length} going aboard</span>
+            )}
+            {landing?.length > 0 && (
+              <span className="dossier__given">
+                {landing.length} landing{landing.length === 1 ? '' : 's'}
+              </span>
+            )}
             {given && <span className="dossier__given">{given} — not yet sent</span>}
             <button
               type="button"
@@ -125,6 +133,8 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                       else if (order.id === 'replacements') onRebuild?.();
                       else if (order.id === 'bomb') onBomb?.();
                       else if (order.id === 'sail') onSail?.();
+                      else if (order.id === 'embark') onEmbark?.();
+                      else if (order.id === 'landing') onLanding?.();
                       else setGiven(order.name);
                     }}
                   >

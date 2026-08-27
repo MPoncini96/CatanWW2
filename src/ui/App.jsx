@@ -31,9 +31,11 @@ import { reportFor } from '../game/report.js';
 import { Replacements } from './Replacements.jsx';
 import { Raid } from './Raid.jsx';
 import { Sail } from './Sail.jsx';
+import { Amphibious } from './Amphibious.jsx';
 import { Standings } from './Standings.jsx';
 import { strengthsAt } from '../game/combat.js';
 import { fleetsAt } from '../game/naval.js';
+import { cargoAt } from '../game/amphibious.js';
 import { capacityFor, spentBy } from '../game/production.js';
 import {
   claimSeat,
@@ -107,6 +109,10 @@ export default function App() {
   const [raiding, setRaiding] = useState([]);
   const [sailAt, setSailAt] = useState(null);
   const [sailing, setSailing] = useState([]);
+  const [shoreAt, setShoreAt] = useState(null);
+  const [shoreMode, setShoreMode] = useState('embark');
+  const [embarking, setEmbarking] = useState([]);
+  const [landing, setLanding] = useState([]);
   const [orders, setOrders] = useState([]);
   const [orderError, setOrderError] = useState(null);
   const [sending, setSending] = useState(false);
@@ -344,12 +350,33 @@ export default function App() {
     setRebuilding(game?.rebuilding ?? []);
     setRaiding(game?.raiding ?? []);
     setSailing(game?.sailing ?? []);
+    setEmbarking(game?.embarking ?? []);
+    setLanding(game?.landing ?? []);
+    setShoreAt(null);
     setOrderError(null);
     setMarchTo(null);
     setRebuildAt(null);
     setBombAt(null);
     setSailAt(null);
   }, [game?.day, game?.you]);
+
+  const toggleEmbark = useCallback((column, fleet, from) => {
+    setOrderError(null);
+    setEmbarking((current) =>
+      current.some((e) => e.column === column)
+        ? current.filter((e) => e.column !== column)
+        : [...current, { column, fleet, from }],
+    );
+  }, []);
+
+  const toggleLanding = useCallback((fleet, to) => {
+    setOrderError(null);
+    setLanding((current) =>
+      current.some((l) => l.fleet === fleet)
+        ? current.filter((l) => l.fleet !== fleet)
+        : [...current, { fleet, to }],
+    );
+  }, []);
 
   const toggleSail = useCallback((id, to) => {
     setOrderError(null);
@@ -396,11 +423,22 @@ export default function App() {
     setSending(true);
     setOrderError(null);
     try {
-      const state = await setOrdersOnServer(session.token, orders, rebuilding, raiding, sailing);
+      const state = await setOrdersOnServer(
+        session.token,
+        orders,
+        rebuilding,
+        raiding,
+        sailing,
+        embarking,
+        landing,
+      );
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
       setRaiding(state.raiding ?? []);
       setSailing(state.sailing ?? []);
+      setEmbarking(state.embarking ?? []);
+      setLanding(state.landing ?? []);
+      setShoreAt(null);
       setMarchTo(null);
       setRebuildAt(null);
       setBombAt(null);
@@ -410,7 +448,7 @@ export default function App() {
     } finally {
       setSending(false);
     }
-  }, [session?.token, orders, rebuilding, raiding, sailing]);
+  }, [session?.token, orders, rebuilding, raiding, sailing, embarking, landing]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
   // layer, so it stays right when territory changes hands.
@@ -464,6 +502,13 @@ export default function App() {
     return totals;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, seat, fleets, ownershipVersion]);
+
+  // Who is presently riding a ship. This is what makes a column at sea findable
+  // at all, since its position is the fleet's rather than any hex of ground.
+  const aboard = useMemo(
+    () => cargoAt(game?.embarks ?? [], game?.landings ?? [], game?.day ?? 0),
+    [game?.embarks, game?.landings, game?.day],
+  );
 
   // Hand the globe the fleets. Deliberately down here, below where `fleets` is
   // worked out: an effect placed with the other view setters would read the
@@ -768,12 +813,43 @@ export default function App() {
             onRebuild={() => setRebuildAt(selected?.index ?? null)}
             onBomb={() => setBombAt(selected?.index ?? null)}
             onSail={() => setSailAt(selected?.index ?? null)}
+            onEmbark={() => {
+              setShoreMode('embark');
+              setShoreAt(selected?.index ?? null);
+            }}
+            onLanding={() => {
+              setShoreMode('land');
+              setShoreAt(selected?.index ?? null);
+            }}
             raiding={raiding}
             sailing={sailing}
+            embarking={embarking}
+            landing={landing}
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              sailAt !== null && world ? (
+              shoreAt !== null && world ? (
+                <Amphibious
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={shoreAt}
+                  mode={shoreMode}
+                  fleets={fleets}
+                  positions={positions}
+                  strengths={strengths}
+                  arrivals={arrivals}
+                  aboard={aboard}
+                  embarking={embarking}
+                  landing={landing}
+                  onToggleEmbark={toggleEmbark}
+                  onToggleLanding={toggleLanding}
+                  onSend={sendOrders}
+                  onCancel={() => setShoreAt(null)}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : sailAt !== null && world ? (
                 <Sail
                   world={world}
                   power={seat}

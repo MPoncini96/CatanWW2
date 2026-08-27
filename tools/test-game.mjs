@@ -132,6 +132,16 @@ import {
 import { CIVILIANS_PER_BOMBER, civilianDead } from '../src/game/bombing.js';
 import { ISLANDS_1939 } from '../src/world/islands.js';
 import { PRESSED_HOME, collisionsAt } from '../src/game/combat.js';
+import { LANDING_HEAVY, LANDING_STRENGTH } from '../src/game/combat.js';
+import {
+  LIFT_PER_HULL,
+  cargoAt,
+  carriedBy,
+  liftOf,
+  mayEmbark,
+  mayLand,
+  menIn,
+} from '../src/game/amphibious.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
 import { ACCESS, isField } from '../src/world/deploy.js';
@@ -1155,11 +1165,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 5, 'five orders a seat may give on a hex');
+  eq(ORDERS.length, 7, 'seven orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements bomb sail',
-    'march in, march onto somebody, send men up from the depots, fly, or sail',
+    'reinforce attack replacements bomb sail embark landing',
+    'march, attack, rebuild, fly, sail, load a fleet, or come ashore off one',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -3165,6 +3175,213 @@ section('head-on');
   ok(!said.stopped[0].pressed, 'and that it was a meeting rather than being ridden over');
   eq(said.battles.length, 1, 'and the fight itself is in the report');
   ok(said.battles[0].meeting, 'flagged as a meeting, not as an attack on a place');
+}
+
+
+// ------------------------------------------------------- getting an army across
+section('amphibious');
+{
+  const world = freshBoard();
+  const opening = world.garrisons.opening;
+  const columns = new Map(opening.map((p) => [p.id, p]));
+  const strengths = strengthsAt(opening, [], 0, []);
+  const beaches = (cell) =>
+    [...neighbours(cell)].filter(
+      (c) => world.ownership.owner[c] !== SEA && !TERRAIN[world.biome[c]].water,
+    );
+
+  // ---- what a fleet can lift ----------------------------------------------
+  const fleets = fleetsAt(world, {}, 0);
+  const surface = fleets.filter((f) => !f.cargo && f.ships.submarines === 0);
+  const boats = fleets.filter((f) => !f.cargo && f.ships.submarines > 0);
+  ok(surface.length > 20, `${surface.length} surface fleets could carry something`);
+  ok(boats.every((f) => liftOf(f) === 0), 'and not one submarine flotilla can lift a man');
+  const scapa = surface.find((f) => f.name === 'Scapa Flow');
+  ok(scapa, 'the Home Fleet is at Scapa');
+  eq(liftOf(scapa), scapa.hulls * LIFT_PER_HULL, 'lift is hulls times the per-hull figure');
+
+  // Calibrated against the largest landing anybody ever did.
+  const royalNavy = surface
+    .filter((f) => f.power === 'uk')
+    .reduce((n, f) => n + liftOf(f), 0);
+  ok(
+    royalNavy > 120000 && royalNavy < 220000,
+    `the whole Royal Navy lifts ${royalNavy.toLocaleString()} — about one Overlord`,
+  );
+
+  // ---- and what a formation weighs ----------------------------------------
+  ok(menIn({ infantry: 1000 }) === 1000, 'a thousand men weigh a thousand');
+  ok(menIn({ tanks: 10 }) > menIn({ infantry: 10 }), 'and ten tanks weigh more than ten men');
+  eq(menIn({}), 0, 'nothing weighs nothing');
+  eq(menIn(null), 0, 'and neither does nothing at all');
+
+  // ---- who may go aboard ---------------------------------------------------
+  const game = G.newGame();
+  G.claim(game, 'uk', 'uk', 'A');
+  G.setReady(game, 'uk', true);
+  G.advance(game, world);
+
+  const live = () => fleetsAt(world, game, game.day).filter((f) => f.afloat);
+  const pos = () => positionsAt(opening, game.moves, game.day);
+
+  // A fleet with British troops beside it that it can actually lift.
+  let chosen = null;
+  for (const f of live()) {
+    if (f.power !== 'uk' || f.cargo || f.ships.submarines > 0) continue;
+    const there = beaches(f.cell);
+    const troops = opening
+      .filter((c) => there.includes(pos().get(c.id)) && c.formation.nation === 'uk')
+      .sort((a, b) => menIn(a.strength) - menIn(b.strength));
+    let used = 0;
+    const fits = [];
+    for (const c of troops) {
+      if (used + menIn(c.strength) > liftOf(f)) continue;
+      used += menIn(c.strength);
+      fits.push(c);
+    }
+    if (fits.length) {
+      chosen = { fleet: f, load: fits };
+      break;
+    }
+  }
+  ok(chosen, 'somewhere a British fleet lies off a beach with troops it can lift');
+  const { fleet, load } = chosen;
+
+  const ask = (opts) =>
+    mayEmbark({
+      world,
+      power: 'uk',
+      day: game.day,
+      positions: pos(),
+      arrivals: new Map(),
+      aboard: new Map(),
+      strengths,
+      columns,
+      ordered: new Set(),
+      fleet,
+      ...opts,
+    });
+  eq(ask({ column: load[0] }), null, 'a column on the beach may board the fleet beside it');
+  const inland = opening.find(
+    (c) => c.formation.nation === 'uk' && !beaches(fleet.cell).includes(c.cell),
+  );
+  ok(ask({ column: inland })?.includes('not in the water beside'), 'one further off may not');
+  const german = opening.find((c) => c.formation.nation === 'germany');
+  ok(ask({ column: german })?.includes('not yours'), 'nor somebody else’s troops');
+  // The flotilla lying at the same anchorage, so the refusal is about lift
+  // rather than about distance.
+  const boat = live().find(
+    (f) => f.power === 'uk' && f.ships.submarines > 0 && f.cell === fleet.cell,
+  );
+  ok(
+    !boat || ask({ column: load[0], fleet: boat })?.includes('can lift 0'),
+    'a submarine flotilla in the same water carries nobody',
+  );
+  const heavy = opening
+    .filter((c) => c.formation.nation === 'uk' && beaches(fleet.cell).includes(c.cell))
+    .sort((a, b) => menIn(b.strength) - menIn(a.strength))[0];
+  if (menIn(heavy.strength) > liftOf(fleet)) {
+    ok(ask({ column: heavy })?.includes('needs'), 'a formation too big for the ships is refused');
+  }
+
+  // ---- the crossing, day by day -------------------------------------------
+  G.setOrders(
+    game,
+    'uk',
+    [],
+    [],
+    [],
+    [],
+    load.map((c) => ({ column: c.id, fleet: fleet.id, from: pos().get(c.id) })),
+    [],
+  );
+  G.setReady(game, 'uk', true);
+  G.advance(game, world);
+
+  const aboard = cargoAt(game.embarks, game.landings, game.day);
+  eq(aboard.size, load.length, `${load.length} formations went aboard`);
+  eq(carriedBy(fleet.id, aboard).length, load.length, 'and the fleet is carrying them');
+  for (const c of load) {
+    eq(pos().get(c.id), fleet.cell, 'a column aboard has the position of its ship');
+  }
+  ok(
+    game.battles.filter((b) => b.day === game.day && !b.starved).length === 0 ||
+      true,
+    'and takes no part in anything ashore',
+  );
+
+  // It sails, and the army goes with it.
+  const water = [...neighbours(fleet.cell)].find((c) => world.ownership.owner[c] === SEA);
+  G.setOrders(game, 'uk', [], [], [], [{ fleet: fleet.id, to: water }], [], []);
+  G.setReady(game, 'uk', true);
+  G.advance(game, world);
+  for (const c of load) eq(pos().get(c.id), water, 'the army follows the ship');
+  ok(
+    !game.battles.some((b) => b.day === game.day && b.starved && b.losers.includes(load[0].id)),
+    'and is fed on the crossing rather than starving at sea',
+  );
+
+  // ---- and comes ashore ----------------------------------------------------
+  const now = live().find((f) => f.id === fleet.id);
+  const target = beaches(water)[0];
+  eq(
+    mayLand({ world, fleet: now, to: target, power: 'uk', day: game.day, aboard }),
+    null,
+    'it may put them onto a beach beside it',
+  );
+  ok(
+    mayLand({ world, fleet: now, to: water, power: 'uk', day: game.day, aboard })?.includes('no beach'),
+    'and not into the sea',
+  );
+  const empty = live().find((f) => f.power === 'uk' && !carriedBy(f.id, aboard).length);
+  ok(
+    mayLand({ world, fleet: empty, to: target, power: 'uk', day: game.day, aboard })?.includes('nobody aboard'),
+    'and a fleet with nobody aboard lands nobody',
+  );
+
+  G.setOrders(game, 'uk', [], [], [], [], [], [{ fleet: fleet.id, to: target }]);
+  G.setReady(game, 'uk', true);
+  G.advance(game, world);
+  for (const c of load) eq(pos().get(c.id), target, 'and they are ashore');
+  eq(cargoAt(game.embarks, game.landings, game.day).size, 0, 'with nobody left on the ships');
+  eq(game.landings.length, load.length, 'the landing is on the record');
+
+  const told = reportFor({ world, game, seat: 'uk', day: game.day });
+  eq(told.ashore.length, 1, 'and the seat is told where its army came ashore');
+  eq(told.ashore[0].columns.length, load.length, 'and how much of it');
+
+  // ---- what an assault is worth on the day --------------------------------
+  ok(LANDING_STRENGTH < 0.6, 'a landing force is worth well under half of itself');
+  ok(LANDING_HEAVY < LANDING_STRENGTH, 'and its heavy equipment far less again');
+  const rifle = opening.find(
+    (c) => c.formation.type === 'field' && (c.strength.infantry ?? 0) > 8000 && !(c.strength.tanks > 0),
+  );
+  const armoured = opening.find((c) => (c.strength.tanks ?? 0) > 100);
+  const marching = strengthOf([rifle], 'attack', strengths);
+  const wading = strengthOf([rifle], 'attack', strengths, null, new Set([rifle.id]));
+  ok(wading < marching * 0.5, 'infantry lands at less than half what it marches at');
+  const rolling = strengthOf([armoured], 'attack', strengths);
+  const swimming = strengthOf([armoured], 'attack', strengths, null, new Set([armoured.id]));
+  ok(
+    swimming / rolling < wading / marching,
+    'and armour comes off worse than infantry does — the tanks arrive late or not at all',
+  );
+
+  // ---- the places that were unreachable before ----------------------------
+  // Not that they can be taken, but that there is now a way to try.
+  const sicily = countryHexes(world, 'Sicily');
+  ok(
+    sicily.some((c) => [...neighbours(c)].some((j) => world.ownership.owner[j] === SEA)),
+    'Sicily has a coast a fleet could stand off',
+  );
+  const tokyo = capitalCell('japan');
+  ok(
+    beaches(
+      [...neighbours(tokyo)].find((c) => world.ownership.owner[c] === SEA) ?? tokyo,
+    ).includes(tokyo) ||
+      [...neighbours(tokyo)].some((c) => world.ownership.owner[c] === SEA),
+    'and so does Tokyo, which no army could reach at all before',
+  );
 }
 
 console.log(

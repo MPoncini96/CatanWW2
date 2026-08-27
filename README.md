@@ -1654,6 +1654,64 @@ marched, *all* of Poland goes to Germany. The 17 September entry declares a war;
 it does not move any ground. Stalin's share of Poland has to be taken, and there
 are ten days to do it in.
 
+## Getting an army across water
+
+Land units marched between adjacent land hexes and nothing else, and the
+consequences of that were much larger than they looked.
+
+**Tokyo sat on a 55-hex island and London on a 47-hex one, so neither could ever
+be taken.** Sicily had four hexes and not one was walkable from the Italian
+mainland, so Italy could only be beaten by beating Germany first. San Francisco,
+Los Angeles and New York were on another continent. **Both Axis victory
+conditions were therefore unreachable** — each needs a sea crossing — and of the
+fifty Pacific islands, 46 were isolated single hexes that nothing could reach.
+
+A fleet now lifts columns. They **embark** from a coast onto a fleet in the water
+beside it, they ride while it steams, and they **land** onto a coast beside
+wherever it has got to, into whatever is standing there.
+
+### How a column crosses
+
+A column aboard is given a move record each day mirroring the ship, so its
+position *is* the ship's position. That is the whole trick, and it is why
+nothing downstream had to be rewritten: `positionsAt` is nine lines, knows
+nothing about ships, and goes on being the single answer to where everything is.
+
+What it costs is three guards. A column at sea **takes no part in a land
+battle** — it is standing on water and cannot fight for ground. It **captures
+nothing**. And it **does not starve**, because it is on a ship with the rations,
+where without the guard every army afloat would starve on the crossing.
+
+### What a fleet can lift
+
+Six hundred men a hull, submarines excepted. That is set from the largest
+landing anybody ever did: the Royal Navy's 265 surface hulls come to about
+159,000 men and Overlord put 156,000 ashore on the first day. So **the whole of
+one navy, concentrated, is one Normandy** — and Portsmouth on its own lifts
+14,400, which is enough for an anti-aircraft command and not nearly enough for
+the BEF. A squadron does not carry an army.
+
+Tanks weigh forty men each and guns twelve, which is why the first wave was never
+an armoured division.
+
+### What a landing is worth
+
+Almost nothing on the day. An assault fights at **45%** of its strength, and its
+tanks and artillery at 15% of that again — at Omaha nearly every tank launched
+offshore sank before it reached the beach, and at Tarawa the landing craft
+grounded on a reef and the marines waded the rest. In practice infantry comes
+ashore at 38% of what it marches at and armour at 18%, so **an assault needs
+about four to one to match a defender on the beach**.
+
+Shore bombardment, which has existed since the navy was built, does exactly what
+it was for: anything of yours lying offshore and not itself in action fires in
+support.
+
+And an army caught at sea goes down with the ships carrying it. That is the whole
+risk of the operation and the reason nobody mounted one without command of the
+water first: a division on a transport cannot shoot back, cannot dig in, and
+cannot run.
+
 ## The war at sea
 
 For a long time the fleets were furniture. They sat at sixty-five anchorages,
@@ -1970,7 +2028,7 @@ verified.
 Garrisons for the new islands. Fifty Pacific islands went onto the board and
 almost none of them has anybody standing on it, because the order of battle was
 written when they were open water. Wake had five hundred Marines on it and
-should.
+should — and now that an army can be put ashore on one, it matters.
 
 Shipyards, which now have something to do: hulls can be lost, so they can be
 replaced, and the yards are the obvious next thing the factories should learn to
