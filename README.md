@@ -1640,6 +1640,133 @@ through, but that it made coming up to meet them unaffordable.
 A fighter group is turned round the next day like any other, and a group carrying
 both fighters and bombers does both jobs on the same flight.
 
+## The yards
+
+A fleet could be sunk and nothing on this board could replace it. Six of the
+seven seats had among the largest shipbuilding industries on earth and the game
+did not know they existed, so every hull lost was lost for good and the sea was
+a resource that only ever ran down.
+
+That is exactly the wrong shape for this war. The naval war of 1939 was fought
+by fleets built before it; the naval war of 1944 was fought almost entirely by
+ships that did not exist when it started.
+
+**A yard is a place.** Thirty-four of them, on the hexes they were actually on,
+which is the whole reason for putting them on the map rather than giving each
+power a build queue. A yard can be bombed and a yard can be taken.
+
+| | yards | slips | of them capital |
+| --- | --- | --- | --- |
+| United States | 8 | 41 | 30 |
+| United Kingdom | 8 | 32 | 23 |
+| Japan | 5 | 23 | 16 |
+| Germany | 4 | 21 | 18 |
+| Italy | 5 | 17 | 8 |
+| Soviet Union | 4 | 15 | 9 |
+| China | 0 | 0 | 0 |
+
+China has none, and had none: what there was went down at Jiangyin in 1937,
+scuttled across the Yangtze to block it.
+
+Four pairs land on one hex and are merged, because at sixty-seven kilometres
+across they are honestly the same place — Kearny is across the Hudson from the
+New York Navy Yard, Newport News across Hampton Roads from Norfolk. The larger
+gives the merged yard its name and the panel says the rest: *Hamburg · with
+Bremen*. And a dockyard's coordinates are the quay, which at this scale usually
+falls in the water: nine of the thirty-eight landed at sea on the first attempt
+and Leningrad landed in Finland, so each one walks outward to the nearest hex
+that is dry, held by the power that built it, and on the coast.
+
+### The slip is the constraint
+
+Not steel, and not money. You could build as many hulls at once as you had
+berths to build them on, and a berth holding a battleship for three years is a
+berth not holding twelve destroyers. That trade is the decision the whole system
+exists to offer, and it is the argument every naval staff in the war actually
+had — the one Germany lost before it started, because Plan Z needed berths that
+did not exist.
+
+| | hulls | days | slips | steel | plant-days | crew |
+| --- | --- | --- | --- | --- | --- | --- |
+| Battleship | 1 | 1,200 | 4 · capital | 47 kt | 51,900 | 1,900 |
+| Fleet Carrier | 1 | 900 | 3 · capital | 30 kt | 42,000 | 2,000 |
+| Cruiser | 1 | 600 | 2 | 13 kt | 14,800 | 800 |
+| Destroyer Flotilla | 4 | 330 | 2 | 35 kt | 44,000 | 4,000 |
+| Submarine Flotilla | 4 | 220 | 1 | 15 kt | 20,800 | 800 |
+
+Destroyers and submarines come in flotillas because that is how they were
+ordered — nobody laid down one destroyer — and because one order ought to be one
+decision worth making.
+
+**A capital ship needs a capital berth**, and there were far fewer of those.
+Germany can lay down a battleship at three places on earth and Italy at two.
+
+The most striking number in that table is the steel, and it is meant to be:
+**a battleship is about one day of British steel output and three and a half
+years of a slip.** Steel never binds. What made a capital ship expensive was
+armour plate, gun mountings, turbines and the men who could fit them — capacity,
+not tonnage — and the model says so by making the berth the thing you run out
+of.
+
+Filling every slip a nation has with one type gives this, which is the check
+the numbers were set against:
+
+| | battleships/yr | carriers/yr | cruisers/yr | destroyers/yr | submarines/yr |
+| --- | --- | --- | --- | --- | --- |
+| United States | 2 | 4 | 12 | 88 | 272 |
+| United Kingdom | 2 | 3 | 10 | 71 | 212 |
+| Japan | 1 | 2 | 7 | 49 | 153 |
+| Germany | 1 | 2 | 6 | 44 | 139 |
+
+Germany's 139 U-boats a year sits between what it actually launched in 1940 (50)
+and in 1941 (199), which is about right for a country that has decided to build
+nothing else. Britain's 71 destroyers is against a real wartime average nearer
+40 — but a nation that spends every berth on destroyers should beat what it
+managed while also building cruisers and carriers.
+
+### What happens to a finished hull
+
+**It joins the nearest fleet of its own power** and then has to steam wherever
+it is wanted, like everything else here. There is no new fleet and no new marker
+— an anchorage is a permanent identity and hulls flow into and out of it, so a
+station sunk to nothing is brought back to life by the yard that feeds it.
+
+**A submarine joins the flotilla, not the battle fleet.** Same reason the
+flotilla is a separate fleet in the first place: if the only thing you can order
+at Wilhelmshaven is "Wilhelmshaven", sending the U-boats into the Atlantic sends
+the capital ships with them.
+
+The one subtle thing in the whole system is that **commissionings and actions
+have to be folded in date order**. A fleet's strength is its opening ships, plus
+every hull the yards have handed it, minus a share for every action it has been
+in. Put all the commissionings on at the end and a cruiser launched in 1943 is
+spared every loss the fleet took before it existed; put them on at the start and
+it is sunk before it was built. Ties go to the yard: a ship commissioned on the
+morning of a battle was not in it.
+
+### And the bombers can reach them
+
+A shipyard is a works that happens to make ships, and it is bombed for the same
+reason and to the same effect. **A yard that has been raided has no berths at
+all** until it is repaired — harsher than a steel works, which goes on making
+some steel, and deliberately so: a slipway with a hole in it launches nothing.
+
+That is why Bomber Command spent four years over Kiel and Hamburg, and it is now
+a thing a player can do about a U-boat campaign other than build destroyers.
+
+### One bug worth writing down
+
+The first version refused a submarine flotilla at a five-slip yard that had just
+taken a four-slip battleship. Every accepted keel is pushed onto the record
+inside the loop that accepts it, and both `slipsFree` and `menAvailable` read
+the record — so the running total the loop also kept charged the same berth
+twice.
+
+The formation loop had been doing exactly the same thing with men since it was
+written, quietly halving what a nation could raise in a day. Both are gone, and
+a test now lays a battleship and a flotilla into the same five slips and checks
+that neither is refused.
+
 ## Close support
 
 Aircraft could do exactly three things on this board and none of them was
@@ -2343,6 +2470,7 @@ src/
            oob1939.js deploy.js  forces.js    — the order of battle, and
                                                  where each formation stands
            navies.js                            — the fleets of 1939
+           shipyards.js                         — and the places that replace them
            economy.js                            — stores, income and upkeep
            countries.js  leanings.js              — countries, colours, sympathies
   render/  globe.js  globeCamera.js  layers.js    — WebGL globe
@@ -2372,6 +2500,7 @@ src/
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
            bombing.js                            — the works, and the flak
+           shipbuilding.js                       — the slips, and what fills them
            production.js                         — the factories, and putting
                                                    the men back
            supply.js                             — and getting it forward
@@ -2388,12 +2517,6 @@ verified.
 
 ## Not built yet
 
-**Shipyards.** This is the sharpest gap left. A fleet can be sunk, a convoy can
-be sunk, and the yards of six naval powers sit on the board doing nothing —
-`raising.js` can put six kinds of formation into the field and not one of them
-floats. Every hull lost in this war is lost for good, which makes the sea a
-resource that only ever runs down.
-
 **Blockade of the coasts**, as against of the trade routes. Sea supply is still
 assumed rather than earned, so East Prussia and Libya feed themselves across
 water nobody controls. The convoys model the Atlantic and the map models who
@@ -2402,9 +2525,15 @@ holds each port; nothing yet joins the two.
 **Fuel**, which is the one thing a fleet needs that this does not model. A ship
 steams six hexes a day for ever and never puts into port.
 
-**Naval air**, which is the other half of the carrier. A carrier has an
-attack rating in a fleet action and its aircraft cannot fly a mission, so it is
-a battleship with worse guns.
+**Naval air**, which is the other half of the carrier. A carrier has an attack
+rating in a fleet action and its aircraft cannot fly a mission, so it is a
+battleship with worse guns — and now that anyone can build one, that gap is
+wider than it was.
+
+**Yard expansion.** The slip counts are what existed in 1939 and they never
+change, which understates exactly one country: the United States did not
+out-build the world because it had more berths in 1939, it out-built the world
+because it spent 1940 and 1941 building the berths.
 
 The board carries terrain, movement cost (`TERRAIN[].move`), population, six
 resource outputs and an owner per hex, exposes `neighbours()` for pathfinding —

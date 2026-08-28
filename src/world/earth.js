@@ -8,6 +8,7 @@ import { NATION_INDEX, NEUTRAL, SEA, Ownership } from './nations.js';
 import { territoryFor } from './territories.js';
 import { buildForces, tallyPlacements } from './forces.js';
 import { buildNavies } from './navies.js';
+import { buildYards } from './shipyards.js';
 import { buildConvoys } from './convoys.js';
 import { stampIslands } from './islands.js';
 import { positionsAt } from '../game/movement.js';
@@ -397,6 +398,9 @@ export function buildWorld(landRaw, elevRaw, greenRaw) {
 
   // And the fleets, which sit on the water rather than over the ground.
   world.navies = buildNavies(world);
+  // And the yards that will replace them, which sit on the ground and are the
+  // only reason a navy is not simply a number that falls.
+  world.shipyards = buildYards(world, sphere, world.navies.stations);
   // And the trade, which sits on the water and does not stay anywhere at all.
   world.convoys = buildConvoys(world);
   return world;

@@ -161,6 +161,7 @@ export class GlobeView {
       // this is the thing that makes replacements, that can be taken, and that
       // a bomber would come for.
       works: (this.world.works ?? []).filter((w) => w.cell === index),
+      yard: (this.world.shipyards ?? []).find((y) => y.cell === index) ?? null,
       forces:
         this.world.forces && known
           ? UNITS.map((u, n) => ({ ...u, count: this.world.forces[n][index] })).filter(

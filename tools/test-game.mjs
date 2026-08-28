@@ -87,6 +87,17 @@ import {
 import { DEPOTS_1939, PORTS_1939 } from '../src/world/depots.js';
 import { placeOf, reportFor } from '../src/game/report.js';
 import { drawOrders } from '../src/render/orders.js';
+import { YARDS_1939, yardsOf } from '../src/world/shipyards.js';
+import {
+  HULLS,
+  HULL_INDEX,
+  costOf as hullCost,
+  mayLay,
+  menIn as crewOf,
+  onTheStocks,
+  slipsFree,
+  yardOut,
+} from '../src/game/shipbuilding.js';
 import {
   BOMBER_RANGE,
   ESCORT_WEIGHT,
@@ -1186,11 +1197,11 @@ section('what a seat may order on a hex');
   // rather than decided in the button: the war table says whom you may attack
   // and ownership says whose ground you may stand on. Nothing moves yet — the
   // turn engine takes no orders — but the refusals are already the real ones.
-  eq(ORDERS.length, 9, 'nine orders a seat may give on a hex');
+  eq(ORDERS.length, 10, 'ten orders a seat may give on a hex');
   eq(
     ORDERS.map((o) => o.id).join(' '),
-    'reinforce attack replacements bomb sail embark landing strike raise',
-    'march, attack, rebuild, bomb a works, sail, load, land, strike an army, or raise one',
+    'reinforce attack replacements bomb sail embark landing strike raise lay',
+    'march, attack, rebuild, bomb, sail, load, land, strike, raise a formation, lay down a hull',
   );
   ok(
     !ORDERS.some((o) => /retreat/i.test(o.name)),
@@ -4102,6 +4113,236 @@ section('close support');
     }),
     null,
     'and against an army, which is the same flight',
+  );
+}
+
+
+// ------------------------------------------------------------------ the yards
+//
+// The one system that turns the sea from a resource that only ever falls into
+// one a nation can argue about.
+{
+  console.log('the yards');
+  const world = board();
+
+  // ---- where they are ------------------------------------------------------
+  ok(world.shipyards.length >= 30, `${world.shipyards.length} shipyards on the board`);
+  ok(YARDS_1939.length >= world.shipyards.length, 'and never more of them than were declared');
+
+  let onWater = 0;
+  let foreign = 0;
+  let landlocked = 0;
+  let berthless = 0;
+  for (const yard of world.shipyards) {
+    if (TERRAIN[world.biome[yard.cell]].water) onWater += 1;
+    if (NATIONS[world.ownership.owner[yard.cell]]?.id !== yard.power) foreign += 1;
+    if (![...neighbours(yard.cell)].some((j) => TERRAIN[world.biome[j]].water)) landlocked += 1;
+    if (!yard.berth) berthless += 1;
+  }
+  eq(onWater, 0, 'not one of them is in the sea');
+  eq(foreign, 0, 'and every one stands on the ground of the power that built it');
+  eq(landlocked, 0, 'and on the coast, a yard that cannot reach the water being a factory');
+  eq(berthless, 0, 'and every one has an anchorage to hand a finished ship to');
+
+  // Two yards on one hex would mean a lookup by cell that silently returns the
+  // first and loses the other's berths.
+  const cells = new Set(world.shipyards.map((y) => y.cell));
+  eq(cells.size, world.shipyards.length, 'no two yards share a hex');
+
+  // ---- and who has them ----------------------------------------------------
+  const slips = (power) => yardsOf(world, power).reduce((n, y) => n + y.slips, 0);
+  ok(slips('usa') > slips('uk'), `America has ${slips('usa')} slips against Britain's ${slips('uk')}`);
+  ok(slips('uk') > slips('japan'), 'and Britain more than Japan');
+  ok(slips('japan') > slips('italy'), 'and Japan more than Italy');
+  eq(slips('china'), 0, 'and China none at all — what it had went down at Jiangyin in 1937');
+  ok(
+    yardsOf(world, 'germany').every((y) => y.berth),
+    'every German yard hands its ships to an anchorage',
+  );
+  // A U-boat joins the flotilla and not the battle fleet.
+  const kiel = yardsOf(world, 'germany').find((y) => y.name === 'Kiel');
+  ok(kiel, 'Kiel is a yard');
+  ok(
+    kiel.boatBerth !== kiel.berth && kiel.boatBerth.includes('flotilla'),
+    'and a boat built there joins the U-boat flotilla, not the battle fleet',
+  );
+
+  // ---- what a hull costs ---------------------------------------------------
+  const bb = HULL_INDEX.battleships;
+  const dd = HULL_INDEX.destroyers;
+  ok(bb.days > dd.days * 3, `a battleship is ${bb.days} days against a flotilla's ${dd.days}`);
+  ok(bb.slips > dd.slips, 'and holds more of the yard while it does it');
+  ok(bb.capital && !dd.capital, 'and needs a berth a destroyer does not');
+  // The trade the whole system exists to offer, in one line.
+  const flotillas = Math.floor((bb.slips * bb.days) / (dd.slips * dd.days));
+  ok(
+    flotillas >= 4,
+    `a battleship berth is ${flotillas} destroyer flotillas — ${flotillas * dd.hulls} ships — in the same time`,
+  );
+  ok(
+    hullCost(bb).steel < 60,
+    `and it is only ${Math.round(hullCost(bb).steel)} kt of steel, which is why steel is never the answer`,
+  );
+  ok(crewOf(bb) > crewOf(dd) / 3, 'a capital ship is a great many men');
+
+  // ---- what may be laid down ----------------------------------------------
+  const ask = (opts) =>
+    mayLay({
+      world,
+      power: 'germany',
+      day: 3,
+      keels: [],
+      raids: [],
+      replacements: [],
+      raisings: [],
+      ...opts,
+    });
+  eq(ask({ cell: kiel.cell, hull: bb }), null, 'Germany may lay down a battleship at Kiel');
+  const stettin = yardsOf(world, 'germany').find((y) => !y.capital);
+  ok(stettin, 'and has a yard with no capital berth');
+  ok(
+    ask({ cell: stettin.cell, hull: bb })?.includes('long enough'),
+    'which is told exactly why it cannot take one',
+  );
+  eq(ask({ cell: stettin.cell, hull: HULL_INDEX.submarines }), null, 'though it may take boats');
+  const clyde = yardsOf(world, 'uk')[0];
+  ok(
+    ask({ cell: clyde.cell, hull: dd })?.includes('not yours'),
+    'and not build in somebody else’s yard',
+  );
+  ok(
+    ask({ cell: cellFor(52.5, 13.4), hull: dd })?.includes('no shipyard'),
+    'nor in Berlin, which is not on the sea',
+  );
+
+  // Slips are the constraint, and they are counted.
+  eq(slipsFree(world, kiel, [], 3, []), kiel.slips, 'an empty yard has all its slips');
+  const busy = [{ yard: kiel.id, day: 0, ready: 900, slips: kiel.slips - 1 }];
+  eq(slipsFree(world, kiel, busy, 3, []), 1, 'and a yard with hulls on it has what is left');
+  ok(
+    ask({ cell: kiel.cell, hull: bb, keels: busy })?.includes('slips are free'),
+    'so a battleship is refused a yard with one berth open, and told the count',
+  );
+  eq(onTheStocks(busy, kiel.id, 3).length, 1, 'what is on the stocks is what is on the stocks');
+  eq(onTheStocks(busy, kiel.id, 2000).length, 0, 'and not what has already floated');
+
+  // ---- a raid shuts the yard ----------------------------------------------
+  const bombed = [{ cell: kiel.cell, day: 2, until: 9 }];
+  eq(yardOut(bombed, kiel.cell, 3), 9, 'a bombed yard is out until the day it is not');
+  eq(yardOut(bombed, kiel.cell, 9), 0, 'and working again on that day');
+  eq(slipsFree(world, kiel, [], 3, bombed), 0, 'and has no berths at all while it is out');
+  ok(
+    ask({ cell: kiel.cell, hull: dd, raids: bombed })?.includes('bombed out'),
+    'so nothing is laid down on a slipway with a hole in it',
+  );
+  ok(
+    mayRaid({
+      world,
+      column: { id: 'x', formation: { nation: 'uk', name: 'Bomber Command' }, strength: { bombers: 100 }, cell: kiel.cell },
+      target: kiel.cell,
+      power: 'uk',
+      day: 3,
+      positions: new Map([['x', kiel.cell]]),
+      raids: [],
+      ordered: new Set(),
+    }) === null,
+    'and a yard is a target bombers may be sent to, works or no works',
+  );
+}
+
+// ------------------------------------------------------- and what floats off
+{
+  console.log('what the yards launch');
+  const world = freshBoard();
+  const kiel = yardsOf(world, 'germany').find((y) => y.name === 'Kiel');
+  const boats = HULL_INDEX.submarines;
+
+  const before = fleetsAt(world, {}, 0).find((f) => f.id === kiel.boatBerth);
+  ok(before, 'the Kiel U-boat flotilla is a fleet');
+
+  const game = G.newGame();
+  G.claim(game, 'germany', 'germany', 'A');
+  G.setStanding(game, 'germany', false);
+  G.setOrders(game, 'germany', [], [], [], [], [], [], [], [], [
+    { hull: boats.id, cell: kiel.cell },
+    { hull: boats.id, cell: kiel.cell },
+  ]);
+  G.setReady(game, 'germany', true);
+  G.advance(game, world);
+
+  eq(game.keels.length, 2, 'two flotillas go on the stocks');
+
+  // Nothing is charged twice. An accepted keel goes straight onto the record,
+  // and `slipsFree` and `menAvailable` both read the record — so the loop that
+  // accepts them must not also keep a running total. It did, and a battleship
+  // and one flotilla ordered at a five-slip yard came out as eight slips used.
+  const mixed = G.newGame();
+  G.claim(mixed, 'germany', 'germany', 'A');
+  G.setStanding(mixed, 'germany', false);
+  G.setOrders(mixed, 'germany', [], [], [], [], [], [], [], [], [
+    { hull: 'battleships', cell: kiel.cell },
+    { hull: 'submarines', cell: kiel.cell },
+  ]);
+  G.setReady(mixed, 'germany', true);
+  G.advance(mixed, world);
+  eq(
+    mixed.keels.length,
+    2,
+    `a battleship and a flotilla both fit ${kiel.slips} slips — ${mixed.refused.map((r) => r.why).join('; ') || 'and neither was refused'}`,
+  );
+  eq(slipsFree(world, kiel, mixed.keels, mixed.day, []), 0, 'and they fill the yard exactly');
+  const keel = game.keels[0];
+  eq(keel.ready, keel.day + boats.days, `and float ${boats.days} days after the keel was laid`);
+  eq(keel.fleet, kiel.boatBerth, 'and are handed to the flotilla at Kiel');
+  eq(keel.men, crewOf(boats), 'the crews are entered the day the keel is laid');
+
+  // Nothing has changed at sea yet.
+  const during = fleetsAt(world, game, game.day).find((f) => f.id === kiel.boatBerth);
+  eq(during.ships.submarines, before.ships.submarines, 'and nothing is afloat while they build');
+
+  // And on the day they commission, they are simply there.
+  const after = fleetsAt(world, game, keel.ready).find((f) => f.id === kiel.boatBerth);
+  eq(
+    after.ships.submarines,
+    before.ships.submarines + boats.hulls * 2,
+    `${boats.hulls * 2} boats join the flotilla on the day they are commissioned`,
+  );
+  eq(
+    fleetsAt(world, game, keel.ready - 1).find((f) => f.id === kiel.boatBerth).ships.submarines,
+    before.ships.submarines,
+    'and not the day before',
+  );
+
+  // ---- a ship built after a battle was not in it --------------------------
+  //
+  // The one subtle thing in the whole system: commissionings and actions have
+  // to be folded in date order. Put them all on at the end and a cruiser
+  // launched in 1943 is spared every loss the fleet ever took; put them on at
+  // the start and it is sunk before it was built.
+  const early = { day: 10, losers: [kiel.boatBerth], loserShare: 0.5, winners: [], winnerShare: 0 };
+  const late = { day: keel.ready + 10, losers: [kiel.boatBerth], loserShare: 0.5, winners: [], winnerShare: 0 };
+  const with1 = { ...game, seaBattles: [early] };
+  const with2 = { ...game, seaBattles: [early, late] };
+  const halved = before.ships.submarines / 2;
+  eq(
+    Math.round(fleetsAt(world, with1, keel.ready).find((f) => f.id === kiel.boatBerth).ships.submarines),
+    Math.round(halved + boats.hulls * 2),
+    'a battle before the launch takes nothing from the boats that were not there',
+  );
+  eq(
+    Math.round(fleetsAt(world, with2, late.day).find((f) => f.id === kiel.boatBerth).ships.submarines),
+    Math.round((halved + boats.hulls * 2) / 2),
+    'and one after it takes its share of them like everything else',
+  );
+
+  // ---- and the record says where it came from and where it went -----------
+  ok(
+    game.keels.every((k) => k.yardName === 'Kiel' && k.fleetName?.includes('Kiel')),
+    'the record says which yard built it and which fleet it joined',
+  );
+  ok(
+    game.log.some((e) => e.id.startsWith('commissioned:')) === false,
+    'and nothing is announced on the day it was ordered',
   );
 }
 

@@ -153,7 +153,12 @@ export function mayRaid({ world, column, target, power, day, positions, raids, o
   }
 
   const works = (world.works ?? []).filter((w) => w.cell === target);
-  if (!works.length) return 'There is no works on that hex to put out of action.';
+  // Or a shipyard, which is a works that makes ships and is bombed for the
+  // same reason and to the same effect: everything on its stocks stops.
+  const yard = (world.shipyards ?? []).some((y) => y.cell === target);
+  if (!works.length && !yard) {
+    return 'There is no works or yard on that hex to put out of action.';
+  }
 
   const reach = hexesApart(from, target);
   if (reach > BOMBER_RANGE) {
@@ -310,6 +315,7 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
     const out = Math.min(LONGEST_SHUTDOWN, Math.round(through / BOMBERS_PER_DAY));
 
     const works = (world.works ?? []).filter((w) => w.cell === target);
+    const yard = (world.shipyards ?? []).find((y) => y.cell === target) ?? null;
     raids.push({
       day,
       cell: target,
@@ -330,6 +336,10 @@ export function resolveRaids({ world, day, raiding, positions, strengths, past }
       days: out,
       works: works.map((w) => w.name),
       output: works.reduce((n, w) => n + w.output, 0),
+      // And the yard, if this was one. A raid on Kiel stops nothing coming out
+      // of a blast furnace and everything coming off a slipway.
+      yard: yard?.name ?? null,
+      slips: yard?.slips ?? 0,
       // And what it cost the people who lived there, which is a separate number
       // from what it cost the factory and is the one that ends wars.
       killed: Math.round(

@@ -59,6 +59,11 @@ export const ORDERS = [
     name: 'Raise a formation',
     hint: 'Call up a division here. It arrives months later, and the men are gone now.',
   },
+  {
+    id: 'lay',
+    name: 'Lay down a hull',
+    hint: 'Put a ship on the stocks here. It floats years later, and the slip is gone until it does.',
+  },
 ];
 
 /**
@@ -149,6 +154,15 @@ export function ordersFor({ power, day = 0, tile = null }) {
         : `You are not at war with ${held}.`;
     }
 
+    // Building a ship asks about the yard and nothing else. There are
+    // thirty-four of them on earth and they do not move, which is what makes
+    // this the most fixed decision on the board.
+    if (order.id === 'lay') {
+      if (!tile.yard) return 'There is no shipyard on this hex.';
+      if (!mine) return `${tile.yard.name} is ${held}’s.`;
+      return null;
+    }
+
     // Raising asks about the town rather than the front: a division is formed
     // where there is somewhere to house and equip it, and then marched.
     if (order.id === 'raise') {
@@ -177,7 +191,13 @@ export function ordersFor({ power, day = 0, tile = null }) {
     // it: a works, held by somebody you are fighting, within reach of an
     // aerodrome of yours.
     if (order.id === 'bomb') {
-      if (!tile.works?.length) return 'There is no works here to put out of action.';
+      // A shipyard counts. It is a factory that happens to make ships, it is
+      // on the coast where the bombers can reach it, and putting one out of
+      // action stops every hull on its stocks — which is why Bomber Command
+      // spent four years over Kiel and Hamburg.
+      if (!tile.works?.length && !tile.yard) {
+        return 'There is no works or yard here to put out of action.';
+      }
       if (mine) return 'That is your own factory.';
       if (!parties.length) return 'Nothing on this hex answers to anybody.';
       return parties.some((party) => mayFight(day, power, party))

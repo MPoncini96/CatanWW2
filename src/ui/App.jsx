@@ -33,6 +33,7 @@ import { Raid } from './Raid.jsx';
 import { Sail } from './Sail.jsx';
 import { Amphibious } from './Amphibious.jsx';
 import { Raise } from './Raise.jsx';
+import { Shipyard } from './Shipyard.jsx';
 import { Strike } from './Strike.jsx';
 import { Standings } from './Standings.jsx';
 import { strengthsAt } from '../game/combat.js';
@@ -118,6 +119,8 @@ export default function App() {
   const [striking, setStriking] = useState([]);
   const [raiseAt, setRaiseAt] = useState(null);
   const [raising, setRaising] = useState([]);
+  const [layAt, setYardAt] = useState(null);
+  const [laying, setLaying] = useState([]);
   const [shoreAt, setShoreAt] = useState(null);
   const [shoreMode, setShoreMode] = useState('embark');
   const [embarking, setEmbarking] = useState([]);
@@ -388,6 +391,8 @@ export default function App() {
     setLanding(game?.landing ?? []);
     setRaising(game?.raising ?? []);
     setStriking(game?.striking ?? []);
+    setLaying(game?.laying ?? []);
+    setYardAt(null);
     setStrikeAt(null);
     setShoreAt(null);
     setRaiseAt(null);
@@ -404,6 +409,23 @@ export default function App() {
       current.some((s) => s.column === id)
         ? current.filter((s) => s.column !== id)
         : [...current, { column: id, target }],
+    );
+  }, []);
+
+  /**
+   * A hull on or off the stocks.
+   *
+   * Keyed by both, unlike a formation, because a yard is a place with a
+   * limited number of berths: two destroyer flotillas at Clydebank and one at
+   * Barrow are three different orders and only the first two compete for the
+   * same slips.
+   */
+  const toggleLay = useCallback((hull, cell) => {
+    setOrderError(null);
+    setLaying((current) =>
+      current.some((k) => k.hull === hull && k.cell === cell)
+        ? current.filter((k) => !(k.hull === hull && k.cell === cell))
+        : [...current, { hull, cell }],
     );
   }, []);
 
@@ -561,6 +583,7 @@ export default function App() {
         landing,
         raising,
         striking,
+        laying,
       );
       setOrders(state.orders ?? []);
       setRebuilding(state.rebuilding ?? []);
@@ -570,6 +593,8 @@ export default function App() {
       setLanding(state.landing ?? []);
       setRaising(state.raising ?? []);
       setStriking(state.striking ?? []);
+      setLaying(state.laying ?? []);
+      setYardAt(null);
       setStrikeAt(null);
       setShoreAt(null);
       setRaiseAt(null);
@@ -596,6 +621,7 @@ export default function App() {
     landing,
     raising,
     striking,
+    laying,
   ]);
 
   // Land tiles per power, largest first, neutrals last. Follows the ownership
@@ -668,7 +694,14 @@ export default function App() {
   // What the depots have, which is the shortage that decides everything else.
   const manpower = useMemo(() => {
     if (!world?.ownership || !seat) return null;
-    return manpowerFor(world, seat, game?.day ?? 0, game?.replacements ?? [], game?.raisings ?? []);
+    return manpowerFor(
+      world,
+      seat,
+      game?.day ?? 0,
+      game?.replacements ?? [],
+      game?.raisings ?? [],
+      game?.keels ?? [],
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world, seat, game?.day, game?.replacements, game?.raisings, ownershipVersion]);
 
@@ -999,7 +1032,9 @@ export default function App() {
             }}
             onRaise={() => setRaiseAt(selected?.index ?? null)}
             onStrike={() => setStrikeAt(selected?.index ?? null)}
+            onLay={() => setYardAt(selected?.index ?? null)}
             raising={raising}
+            laying={laying}
             striking={striking}
             raiding={raiding}
             sailing={sailing}
@@ -1008,7 +1043,27 @@ export default function App() {
             battles={dispatches}
             rebuilding={rebuilding}
             march={
-              strikeAt !== null && world ? (
+              layAt !== null && world ? (
+                <Shipyard
+                  world={world}
+                  power={seat}
+                  day={game?.day ?? 0}
+                  cell={layAt}
+                  keels={game?.keels ?? []}
+                  raids={game?.raids ?? []}
+                  manpower={manpower}
+                  economy={economy}
+                  capacity={capacity}
+                  replacements={game?.replacements ?? []}
+                  raisings={game?.raisings ?? []}
+                  laying={laying}
+                  onToggle={toggleLay}
+                  onSend={sendOrders}
+                  onCancel={giveUp(setYardAt, [setLaying, game?.laying])}
+                  busy={sending}
+                  error={orderError}
+                />
+              ) : strikeAt !== null && world ? (
                 <Strike
                   world={world}
                   power={seat}
@@ -1035,6 +1090,7 @@ export default function App() {
                   capacity={capacity}
                   replacements={game?.replacements ?? []}
                   raisings={game?.raisings ?? []}
+                  keels={game?.keels ?? []}
                   raising={raising}
                   onToggle={toggleRaise}
                   onSend={sendOrders}

@@ -312,12 +312,43 @@ export function fleetPositionsAt(world, sailings, day) {
   return at;
 }
 
-/** And what each has left, after everything it has been in. */
-export function fleetShipsAt(world, seaBattles, day) {
+/**
+ * And what each has left, after everything it has been in — and everything the
+ * yards have handed it.
+ *
+ * The two have to be worked through **in date order**, which is the only
+ * subtle thing here. A battle takes a share of what a fleet has, so a cruiser
+ * commissioned in 1943 must not be standing in the line for a battle fought in
+ * 1940; folding all the commissionings on at the end would spare them every
+ * loss the fleet ever took, and folding them on at the start would sink them
+ * before they were built.
+ */
+export function fleetShipsAt(world, seaBattles, day, keels) {
   const left = new Map();
   for (const fleet of fleetsOf(world)) left.set(fleet.id, { ...fleet.ships });
+
+  const events = [];
   for (const battle of seaBattles ?? []) {
     if (battle.day > day) continue;
+    events.push({ day: battle.day, order: 0, battle });
+  }
+  for (const keel of keels ?? []) {
+    if (!keel?.fleet || keel.ready > day) continue;
+    events.push({ day: keel.ready, order: 1, keel });
+  }
+  // A ship commissioned on the morning of a battle was not in it: ties put the
+  // yard second.
+  events.sort((a, b) => a.day - b.day || a.order - b.order);
+
+  for (const event of events) {
+    if (event.keel) {
+      const have = left.get(event.keel.fleet);
+      if (have && have[event.keel.ship] !== undefined) {
+        have[event.keel.ship] += event.keel.hulls ?? 0;
+      }
+      continue;
+    }
+    const battle = event.battle;
     const take = (ids, share) => {
       for (const id of ids) {
         const have = left.get(id);
@@ -347,9 +378,9 @@ export function lanesOut(sinkings, day) {
  * Every fleet as it stands on `day`: where, with what, and whether it is there
  * at all. This is the one call the rest of the game makes.
  */
-export function fleetsAt(world, { sailings, seaBattles, sinkings }, day) {
+export function fleetsAt(world, { sailings, seaBattles, sinkings, keels }, day) {
   const at = fleetPositionsAt(world, sailings, day);
-  const ships = fleetShipsAt(world, seaBattles, day);
+  const ships = fleetShipsAt(world, seaBattles, day, keels);
   const shut = lanesOut(sinkings, day);
   const sphere = grid();
   const out = [];
@@ -383,7 +414,7 @@ export function fleetsAt(world, { sailings, seaBattles, sinkings }, day) {
  * gone, and the lane behind it stops delivering until a new one is made up,
  * which is the only reason any of this is here.
  */
-export function resolveNavalDay({ world, day, sailing = {}, sailings = [], seaBattles = [], sinkings = [] }) {
+export function resolveNavalDay({ world, day, sailing = {}, sailings = [], seaBattles = [], sinkings = [], keels = [] }) {
   const ordered = [];
   const arrivedToday = new Set();
   for (const [power, orders] of Object.entries(sailing)) {
@@ -398,7 +429,7 @@ export function resolveNavalDay({ world, day, sailing = {}, sailings = [], seaBa
   }
 
   const after = [...sailings, ...ordered];
-  const fleets = fleetsAt(world, { sailings: after, seaBattles, sinkings }, day).filter(
+  const fleets = fleetsAt(world, { sailings: after, seaBattles, sinkings, keels }, day).filter(
     (f) => f.afloat,
   );
   const positions = new Map(fleets.map((f) => [f.id, f.cell]));

@@ -99,6 +99,8 @@ function load() {
       saved.standing ??= {};
       saved.striking ??= {};
       saved.strikes ??= [];
+      saved.laying ??= {};
+      saved.keels ??= [];
       saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
@@ -217,7 +219,7 @@ async function api(req, res, url) {
 
   if (url.pathname === '/api/orders' && req.method === 'POST') {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
-    const { orders, rebuilding, raiding, sailing, embarking, landing, raising, striking } =
+    const { orders, rebuilding, raiding, sailing, embarking, landing, raising, striking, laying } =
       await readBody(req);
     if (!Array.isArray(orders)) return json(res, 400, { error: 'orders must be a list' });
     if (orders.length > 400) return json(res, 400, { error: 'too many orders for one day' });
@@ -259,6 +261,12 @@ async function api(req, res, url) {
     }
     if ((striking?.length ?? 0) > 100) {
       return json(res, 400, { error: 'too many strikes for one day' });
+    }
+    if (laying !== undefined && !Array.isArray(laying)) {
+      return json(res, 400, { error: 'laying must be a list of hulls' });
+    }
+    if ((laying?.length ?? 0) > 40) {
+      return json(res, 400, { error: 'too many keels for one day' });
     }
 
     // Checked here and not only in the browser. Each order is checked against
@@ -413,6 +421,7 @@ async function api(req, res, url) {
       beaches,
       raising ?? [],
       strikes,
+      laying ?? [],
     );
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));

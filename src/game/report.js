@@ -239,7 +239,7 @@ export function reportFor({ world, game, seat, day }) {
     const entry = {
       cell: raid.cell,
       where: placeOf(world, raid.cell),
-      works: raid.works,
+      works: raid.yard ? [...raid.works, `${raid.yard} yard`] : raid.works,
       bombers: raid.bombers,
       through: raid.through,
       share: raid.share,

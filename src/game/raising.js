@@ -200,6 +200,7 @@ export function mayRaise({
   capacity,
   replacements,
   raisings,
+  keels,
   spent,
   ordered,
 }) {
@@ -218,7 +219,7 @@ export function mayRaise({
 
   // The men, which is the shortage that matters.
   const need = menIn(template);
-  const have = menAvailable(world, power, day, replacements, raisings) - (ordered ?? 0);
+  const have = menAvailable(world, power, day, replacements, raisings, keels) - (ordered ?? 0);
   if (need > have) {
     return `${Math.round(have).toLocaleString()} men are available; this needs ${need.toLocaleString()}.`;
   }

@@ -115,29 +115,30 @@ export function menCalledUp(world, power, day) {
  * to bring a formation back up, and men found for a formation that did not
  * exist before.
  */
-export function menSpent(power, day, replacements = [], raisings = []) {
+export function menSpent(power, day, ...ledgers) {
   let spent = 0;
-  for (const entry of replacements) {
-    if (entry.power !== power || entry.day > day) continue;
-    spent += entry.men ?? 0;
-  }
-  for (const entry of raisings) {
-    if (entry.power !== power || entry.day > day) continue;
-    spent += entry.men ?? 0;
+  // Any number of ledgers, because the list of things that take men keeps
+  // growing: replacements, then formations raised, then ships' companies. They
+  // all draw on the same population and the argument between them is the point.
+  for (const ledger of ledgers) {
+    for (const entry of ledger ?? []) {
+      if (entry.power !== power || entry.day > day) continue;
+      spent += entry.men ?? 0;
+    }
   }
   return spent;
 }
 
 /** What is left to give out today. */
-export function menAvailable(world, power, day, replacements = [], raisings = []) {
-  return Math.max(0, menCalledUp(world, power, day) - menSpent(power, day, replacements, raisings));
+export function menAvailable(world, power, day, ...ledgers) {
+  return Math.max(0, menCalledUp(world, power, day) - menSpent(power, day, ...ledgers));
 }
 
 /** The whole picture, for a panel that has to explain itself. */
-export function manpowerFor(world, power, day, replacements = [], raisings = []) {
+export function manpowerFor(world, power, day, ...ledgers) {
   const perDay = recruitsPerDay(world, power);
   const calledUp = menCalledUp(world, power, day);
-  const spent = menSpent(power, day, replacements, raisings);
+  const spent = menSpent(power, day, ...ledgers);
   return {
     perDay,
     calledUp,

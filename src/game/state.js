@@ -25,6 +25,16 @@ import {
   nameFor,
   placementFor,
 } from './raising.js';
+import {
+  HULL_INDEX,
+  berthFor,
+  costOf as hullCost,
+  effortFor as hullEffort,
+  mayLay,
+  menIn as menInHull,
+  nameFor as hullName,
+} from './shipbuilding.js';
+import { yardAt } from '../world/shipyards.js';
 
 // The game itself: what day it is, who is playing, and who has finished.
 //
@@ -97,6 +107,11 @@ export function newGame() {
     // took — so the manpower it consumed can be replayed like everything else.
     raising: {},
     raisings: [],
+    // And the hulls. `laying` is what a seat wants laid down tomorrow; `keels`
+    // is the record of every one that has been, and a fleet's strength on any
+    // day is its opening ships plus these minus every action it has been in.
+    laying: {},
+    keels: [],
     // Armies going aboard ships, and armies coming off them onto a beach.
     // Between the two a column has the position of the fleet carrying it, which
     // is how it crosses water at all.
@@ -362,6 +377,7 @@ export function advance(game, world = null, now = 0) {
       sailings: game.sailings,
       seaBattles: game.seaBattles,
       sinkings: game.sinkings,
+      keels: game.keels,
     });
     game.sailings.push(...sea.sailings);
     game.seaBattles.push(...sea.battles);
@@ -652,6 +668,22 @@ export function advance(game, world = null, now = 0) {
       }
     }
 
+    // ---- what the yards have launched ----------------------------------
+    // No hull to place: `fleetShipsAt` reads the record and the ships are
+    // simply in the fleet from the day they commission. This is only the
+    // announcement, which is the part a player would otherwise miss entirely.
+    for (const keel of game.keels) {
+      if (keel.ready !== game.day) continue;
+      game.log.push({
+        id: `commissioned:${keel.id}`,
+        day: game.day,
+        name: `${keel.name} commissions`,
+        text:
+          `${keel.hulls} ${keel.hulls === 1 ? 'ship' : 'ships'} laid down at ${keel.yardName} on day ` +
+          `${keel.day} join ${displayName(keel.power)}'s ${keel.fleetName}.`,
+      });
+    }
+
     // ---- and what has been ordered today -------------------------------
     // Everything is paid for on the day it is ordered: the class is called up,
     // the contracts are placed, and the men are out of the pool for the whole
@@ -667,8 +699,11 @@ export function advance(game, world = null, now = 0) {
       );
       const plant = capacityFor(world, power, game.day, game.raids, books.people);
       let plantLeft = plant.plantDays;
-      let menOrdered = 0;
       const spent = {};
+      // No running total of men, for the reason written out over the keels
+      // below: an accepted formation goes straight onto `game.raisings` and
+      // `menAvailable` reads that, so counting it here as well charged every
+      // division's men twice and halved what a nation could raise in a day.
       for (const order of wanted) {
         const template = TEMPLATE_INDEX[order?.template];
         const why = mayRaise({
@@ -681,8 +716,8 @@ export function advance(game, world = null, now = 0) {
           capacity: plantLeft,
           replacements: game.replacements,
           raisings: game.raisings,
+          keels: game.keels,
           spent,
-          ordered: menOrdered,
         });
         if (why) {
           game.refused.push({ day: game.day, power, column: order?.template, why });
@@ -694,7 +729,6 @@ export function advance(game, world = null, now = 0) {
           spent[store] = (spent[store] ?? 0) + amount;
         }
         plantLeft -= effortFor(template);
-        menOrdered += men;
         const entry = {
           day: game.day,
           ready: game.day + template.days,
@@ -714,6 +748,86 @@ export function advance(game, world = null, now = 0) {
     // same division is ordered again every morning for as long as the men hold
     // out — which in the test was forty-one of them.
     game.raising = {};
+
+    // ---- and the keels laid down today ---------------------------------
+    // After the formations, so that a nation which has spent its steel on an
+    // army finds the yards empty rather than the other way round. That is an
+    // arbitrary order and it is the honest one to be arbitrary about: both are
+    // drawing on the same day's plant, and something has to be asked first.
+    for (const [power, wanted] of Object.entries(game.laying ?? {})) {
+      if (!wanted?.length) continue;
+      const books = economyFor(
+        world,
+        power,
+        game.day,
+        spentBy(game.replacements, power, game.day).stores,
+        game.sinkings,
+      );
+      const plant = capacityFor(world, power, game.day, game.raids, books.people);
+      let plantLeft = plant.plantDays;
+      const spent = {};
+      // No running total of slips or men here, and that is deliberate. Every
+      // accepted keel is pushed onto the record inside this loop, and both
+      // `slipsFree` and `menAvailable` read the record — so an accumulator
+      // would charge the same berth and the same crew twice. It did: a
+      // battleship and one submarine flotilla went to a five-slip yard, and
+      // the boats were refused because four slips had been counted as eight.
+      //
+      // The stores and the plant are different and do need one, because the
+      // books were drawn once before the loop and know nothing about today.
+      for (const order of wanted) {
+        const hull = HULL_INDEX[order?.hull];
+        const yard = yardAt(world, order?.cell);
+        const why = mayLay({
+          world,
+          power,
+          cell: order?.cell,
+          hull,
+          day: game.day,
+          keels: game.keels,
+          raids: game.raids,
+          economy: books,
+          capacity: plantLeft,
+          replacements: game.replacements,
+          raisings: game.raisings,
+          spent,
+        });
+        if (why) {
+          game.refused.push({ day: game.day, power, column: order?.hull, why });
+          continue;
+        }
+        const men = menInHull(hull);
+        const cost = hullCost(hull);
+        for (const [store, amount] of Object.entries(cost)) {
+          spent[store] = (spent[store] ?? 0) + amount;
+        }
+        plantLeft -= hullEffort(hull);
+        const fleet = berthFor(yard, hull);
+        game.keels.push({
+          day: game.day,
+          ready: game.day + hull.days,
+          id: `keel:${power}:${hull.id}:${game.day}:${game.keels.length}`,
+          power,
+          hull: hull.id,
+          ship: hull.id,
+          hulls: hull.hulls,
+          slips: hull.slips,
+          yard: yard.id,
+          yardName: yard.name,
+          cell: yard.cell,
+          fleet,
+          fleetName:
+            hull.id === 'submarines'
+              ? (yard.boatBerthName ?? yard.berthName)
+              : yard.berthName,
+          name: hullName(power, hull, game.keels),
+          men,
+          cost,
+          effort: hullEffort(hull),
+        });
+      }
+    }
+    game.laying = {};
 
     // And last, the replacements — after the fighting and after the bombing,
     // so that a column cannot be rebuilt into the middle of the battle it is
@@ -756,6 +870,11 @@ export function setOrders(
   landing = null,
   raising = null,
   striking = null,
+  // Appended rather than slotted in beside `raising`, which is where it
+  // belongs by subject. Ten positional arguments is already too many and
+  // inserting one in the middle silently reassigns every caller's last
+  // argument — which it did, and the strike tests caught it.
+  laying = null,
 ) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   if (game.over) return { error: 'The war is over.' };
@@ -769,6 +888,7 @@ export function setOrders(
   if (embarking !== null) game.embarking[power] = embarking;
   if (landing !== null) game.landing[power] = landing;
   if (raising !== null) game.raising[power] = raising;
+  if (laying !== null) game.laying[power] = laying;
   if (striking !== null) game.striking[power] = striking;
   game.revision += 1;
   return {
@@ -779,6 +899,7 @@ export function setOrders(
     embarking: game.embarking[power] ?? [],
     landing: game.landing[power] ?? [],
     raising: game.raising[power] ?? [],
+    laying: game.laying[power] ?? [],
     striking: game.striking[power] ?? [],
   };
 }
@@ -836,7 +957,7 @@ function sendReplacements(game, world) {
     // the army you have back up to strength and building a bigger one are not
     // two budgets but one, which is what every general staff in the war spent
     // it arguing about.
-    let menLeft = menAvailable(world, power, game.day, game.replacements, game.raisings);
+    let menLeft = menAvailable(world, power, game.day, game.replacements, game.raisings, game.keels);
     const running = {};
     for (const id of wanted) {
       const column = columns.get(id);
@@ -976,6 +1097,12 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     // tomorrow is its own business, and is below.
     raisings: game.raisings,
     raising: viewer ? (game.raising[viewer] ?? []) : [],
+    // The keels are public for the same reason the raisings are: a hull on the
+    // stocks is not a secret. It is a thing on a slipway that everybody's
+    // attachés could count, and counting them is most of what naval
+    // intelligence was between the wars.
+    keels: game.keels,
+    laying: viewer ? (game.laying[viewer] ?? []) : [],
     strikes: game.strikes,
     striking: viewer ? (game.striking[viewer] ?? []) : [],
     // Whether this seat's armies walk to the fighting by themselves. On unless

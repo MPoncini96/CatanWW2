@@ -32,6 +32,7 @@ export function Raise({
   capacity,
   replacements,
   raisings,
+  keels,
   raising,
   onToggle,
   onSend,
@@ -69,12 +70,13 @@ export function Raise({
         capacity: plant,
         replacements,
         raisings,
+        keels,
         spent,
         ordered: men,
       }),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [world, power, cell, day, economy, capacity, replacements, raisings, picked]);
+  }, [world, power, cell, day, economy, capacity, replacements, raisings, keels, picked]);
 
   const building = useMemo(
     () => buildingOn(raisings, power, day).sort((a, b) => a.ready - b.ready),

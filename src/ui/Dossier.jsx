@@ -20,7 +20,7 @@ import { SHIPS } from '../world/navies.js';
  * it. It is the dossier on a hex, and the map is what you look at while
  * deciding which hex to open one on.
  */
-export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, onEmbark, onLanding, onRaise, onStrike, march, battles, rebuilding, raiding, sailing, embarking, landing, raising, striking }) {
+export function Dossier({ tile, open, onToggle, master, layer, power, day, orders, marchTo, onMarch, onRebuild, onBomb, onSail, onEmbark, onLanding, onRaise, onStrike, onLay, march, battles, rebuilding, raiding, sailing, embarking, landing, raising, striking, laying }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [given, setGiven] = useState(null);
   // A different hex is a different decision, so the menu shuts and whatever was
@@ -147,6 +147,7 @@ export function Dossier({ tile, open, onToggle, master, layer, power, day, order
                       else if (order.id === 'landing') onLanding?.();
                       else if (order.id === 'raise') onRaise?.();
                       else if (order.id === 'strike') onStrike?.();
+                      else if (order.id === 'lay') onLay?.();
                       else setGiven(order.name);
                     }}
                   >

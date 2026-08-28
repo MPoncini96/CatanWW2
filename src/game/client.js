@@ -88,10 +88,11 @@ export function setOrders(
   landing = [],
   raising = [],
   striking = [],
+  laying = [],
 ) {
   return call('/api/orders', {
     method: 'POST',
-    body: { orders, rebuilding, raiding, sailing, embarking, landing, raising, striking },
+    body: { orders, rebuilding, raiding, sailing, embarking, landing, raising, striking, laying },
     token,
   });
 }
