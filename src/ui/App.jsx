@@ -572,6 +572,11 @@ export default function App() {
       setRebuildAt(null);
       setBombAt(null);
       setSailAt(null);
+      // And let go of the hex. Saving is the end of what you were doing with
+      // it, so leaving it ringed in gold with its dossier open says the
+      // opposite. Cancel deliberately does not do this: giving up on one panel
+      // is usually the prelude to opening another on the same ground.
+      viewRef.current?.clearSelection();
     } catch (err) {
       setOrderError(err.message);
     } finally {

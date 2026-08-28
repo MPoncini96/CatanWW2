@@ -400,6 +400,22 @@ export class GlobeView {
     this.needsDraw = true;
   }
 
+  /**
+   * Drop the selection from outside the map.
+   *
+   * The hex is held here rather than in React — it is what `drawSelection`
+   * paints gold and it has to survive a camera move without a re-render — so
+   * a panel that has finished with a hex cannot let go of it on its own. It
+   * calls this, and the same handler fires as if the player had clicked the
+   * hex a second time.
+   */
+  clearSelection() {
+    if (this.selected === -1) return;
+    this.selected = -1;
+    this.handlers.onSelect?.(null);
+    this.needsDraw = true;
+  }
+
   zoomBy(factor) {
     this.camera.zoomBy(factor);
     this.needsDraw = true;

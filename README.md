@@ -2316,10 +2316,15 @@ its name promised: it shut the panel and left every box that had been ticked
 still ticked, so a panel opened by mistake put orders on the map behind it.
 
 There is now one confirming button — **Save & close**, which sends the orders to
-the server and shuts — and **Cancel**, which puts back what the server last
-confirmed and then shuts. The server's copy is the only truth about what has
-been ordered, which is why it is what gets restored rather than a snapshot taken
-on opening.
+the server, shuts the panel and lets go of the hex — and **Cancel**, which puts
+back what the server last confirmed and shuts, keeping the hex. The server's
+copy is the only truth about what has been ordered, which is why it is what gets
+restored rather than a snapshot taken on opening.
+
+The asymmetry over the hex is deliberate. Saving is the end of what you were
+doing with that ground, so leaving it ringed in gold with its dossier open says
+the opposite. Giving up on a panel usually means you are about to open a
+different one on the same hex.
 
 Clicking the selected hex a second time deselects it. The way out of a selection
 used to be finding somewhere you did not care about and clicking that, which is
