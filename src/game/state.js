@@ -10,6 +10,13 @@ import { supplyFor } from './supply.js';
 import { economyFor } from '../world/economy.js';
 import { collisionsAt } from './combat.js';
 import { advanceOrders } from './frontward.js';
+import {
+  depotOrders,
+  forcesNeedingStaff,
+  raisingOrders,
+  staffDay,
+  staffOrders,
+} from './staff.js';
 import { resolveStrikes } from './strike.js';
 import { cargoAt, carriedBy, mayEmbark, mayLand, ridingMoves } from './amphibious.js';
 import { engagedCells, fleetsAt, resolveNavalDay } from './naval.js';
@@ -112,6 +119,10 @@ export function newGame() {
     // day is its opening ships plus these minus every action it has been in.
     laying: {},
     keels: [],
+    // Whether a power nobody is sitting at plays itself. On by default,
+    // because a board that never acts is not an opponent — and off for a table
+    // that would rather rotate through the empty seats by hand.
+    staffed: true,
     // Armies going aboard ships, and armies coming off them onto a beach.
     // Between the two a column has the position of the fleet carrying it, which
     // is how it crosses water at all.
@@ -314,14 +325,15 @@ export function advance(game, world = null, now = 0) {
   // so two armies walking into each other are caught by the same rule as two
   // armies ordered into each other.
   let advanced = 0;
+  let staffMoves = 0;
   if (world) {
     const positions = positionsAt(world.garrisons.opening, game.moves, game.day);
     const arrivals = arrivalsAt(game.moves, game.day);
     const aboard = cargoAt(game.embarks, game.landings, game.day - 1);
     const taken = ordered.map((m) => m.column);
     for (const power of PLAYER_IDS) {
-      // Somebody has to be sitting there. An empty seat does nothing on this
-      // board and this is not the rule that starts it playing itself.
+      // A seated power gets the standing order and nothing else: the player is
+      // there, and everything beyond walking to the front is theirs to decide.
       if (!game.seats[power]) continue;
       if (game.standing?.[power] === false) continue;
       const steps = advanceOrders({
@@ -338,6 +350,81 @@ export function advance(game, world = null, now = 0) {
         taken.push(step.column);
       }
       advanced += steps.length;
+    }
+
+    // And the powers nobody is sitting at, plus every neutral country actually
+    // in the war, which get a staff instead: they mass on a frontier and go
+    // forward when the weight is enough. Every order goes through the same gate
+    // a ticked box does, so there is no move here a player could not have made.
+    const strengths = strengthsAt(
+      world.garrisons.opening,
+      game.battles,
+      game.day,
+      game.replacements,
+    );
+    const onDuty = game.staffed === false ? [] : forcesNeedingStaff(world, game, game.day);
+    // Where everything is standing, and each nation's supply, worked out once
+    // for all of them rather than once each.
+    const shared = onDuty.length ? staffDay(world, positions, game.day) : null;
+    for (const force of onDuty) {
+      const { moves } = staffOrders({
+        world,
+        power: force.power,
+        country: force.country,
+        party: force.party,
+        day: game.day,
+        positions,
+        arrivals,
+        strengths,
+        taken,
+        aboard,
+        shared,
+      });
+      for (const move of moves) {
+        ordered.push(move);
+        taken.push(move.column);
+      }
+      staffMoves += moves.length;
+
+      // And the two things that are not marching. An army that can only ever
+      // get smaller is not an opponent for long: the depots put men back into
+      // what is worn, and once there are four divisions' worth spare the staff
+      // stands a new one up. Both are only proposals — the day's own rules do
+      // the refusing, exactly as they do for a player.
+      const wants = depotOrders({
+        world,
+        power: force.power,
+        country: force.country,
+        day: game.day,
+        positions,
+        strengths,
+        fed: shared?.supplied.get(force.power),
+      });
+      if (wants.length) {
+        // Accumulated rather than assigned: the thirty neutral countries share
+        // one nation and one queue, and the last one round the loop must not
+        // wipe out the rest.
+        game.rebuilding[force.power] = [...(game.rebuilding[force.power] ?? []), ...wants];
+      }
+      const stand = raisingOrders({
+        world,
+        power: force.power,
+        day: game.day,
+        manpower:
+          force.country >= 0
+            ? 0
+            : menAvailable(
+                world,
+                force.power,
+                game.day,
+                game.replacements,
+                game.raisings,
+                game.keels,
+              ),
+      });
+      if (stand.length) {
+        game.raising[force.power] = [...(game.raising[force.power] ?? []), ...stand];
+      }
     }
   }
 
@@ -839,6 +926,7 @@ export function advance(game, world = null, now = 0) {
     game.rebuilding = {};
   }
   void advanced;
+  void staffMoves;
   for (const id of PLAYER_IDS) {
     if (game.seats[id]) game.seats[id].ready = false;
   }
@@ -913,6 +1001,18 @@ export function setOrders(
  * position an army by hand should be able to stop the board doing it for them
  * without stopping it for everybody.
  */
+/**
+ * Whether the empty seats play themselves.
+ *
+ * A table setting rather than a seat one: it decides what kind of game this is,
+ * and it would be strange for one player to be able to switch off everybody
+ * else's opponent while another could not.
+ */
+export function setStaffing(game, on) {
+  game.staffed = Boolean(on);
+  return { staffed: game.staffed };
+}
+
 export function setStanding(game, power, on) {
   if (!isPlayer(power)) return { error: `${power} is not a seat at this table` };
   game.standing[power] = Boolean(on);
@@ -1110,6 +1210,7 @@ export function publicState(game, viewer, limit = DAY_LENGTH_MS) {
     // Whether this seat's armies walk to the fighting by themselves. On unless
     // it has said otherwise.
     standing: viewer ? game.standing?.[viewer] !== false : null,
+    staffed: game.staffed !== false,
     next: nextEventAfter(game.day),
     waitingOn: voting.filter((id) => !game.seats[id].ready),
   };

@@ -1823,6 +1823,110 @@ were largely bombers and torpedo planes. What a deck cannot take is a heavy, and
 seventy-two places and four hexes of reach already say that without a rule about
 types.
 
+## The opponent
+
+Everything above this was built for a table of seven people who all turn up. An
+unseated power did nothing whatever — it never marched, never attacked, never
+asked the depots for a man. What it *did* do was defend: a garrison fights when
+it is attacked, flak fires, fighters come up, and a fleet fights anybody who
+sails into it. So the board defended itself competently and never once acted,
+which made a solo game a march against a statue.
+
+A power nobody is sitting at now gets **a staff**.
+
+### It plays by the rules a player plays by
+
+Every order goes through `mayMarch`, the same gate a ticked box goes through,
+and anything it refuses the staff does not do. There is no path to a move a
+human could not have made, and a test walks every order of an opening day back
+through that gate to prove it. That property is what makes the thing safe to
+leave running.
+
+### It masses, then attacks
+
+The standing order already walked idle divisions towards the fighting and
+stopped them at the line — that is what puts weight on a frontier. The staff
+adds the other half: when the weight on a hex is enough, it goes forward.
+
+**Enough is two to one**, attacking strength against defending strength with the
+ground already counted. That number was measured rather than argued, by playing
+the board against itself for twenty-five days and counting how the attacks a
+staff chose actually went:
+
+| odds wanted | attacks made | won | cost to the attacker |
+| --- | --- | --- | --- |
+| 1.5 | 68 | 84% | 8.2% |
+| 2 | 71 | 83% | 8.0% |
+| 3 | 53 | 85% | 7.2% |
+
+The surprise is how flat that is. Raising the bar buys almost nothing and costs
+a third of the attacks, which says the win rate is decided by the great majority
+of attacks being onto weakly-held ground rather than by the marginal one. Two is
+the middle, and an army that will not attack until it is certain never attacks
+at all.
+
+### And three things it will not do
+
+**It does not move anything but divisions and armour.** The first version moved
+everything, and marching the depots forward broke the supply web behind the army
+that needed it — forty-three island garrisons starved on the first morning. Air
+groups belong on aerodromes and rear-area security is holding the rear areas.
+All of it still defends the hex it is standing on, which is what it was for.
+
+**It does not march out of its own supply.** An attack may go anywhere — you
+take the hex and the depots follow — but walking to the front may not. Without
+that rule one column in six was starving by the fortieth day on ground nobody
+had fought over.
+
+**It does not attack while it is starving.** This is the rule that stops a front
+running away from its own depots for ever: outrun the supply and the attacks
+stop, and they start again when it catches up. It also weighs itself honestly —
+telling `strengthOf` which of its own columns are being fed, which the first
+version did not, so it attacked at odds it did not have.
+
+It does not fly, sail, or land, either. Those are the three things an automaton
+looks stupid doing, and leaving them out is honest: an unseated navy sitting in
+port is defensible, one blundering into the Atlantic is not.
+
+### The countries, not only the seats
+
+For a solo German game the opponent that matters on the first morning is Poland,
+which is not a seat at all — it is one of thirty-odd countries inside the pooled
+`neutral` nation, sharing one ownership index. A staff scoped to nations would
+have walked a Polish division towards the Finnish frontier.
+
+So a staff can be scoped to a **country** instead: its ground is what is both
+neutral-held and its own, and its formations are the ones raised on it —
+`countryOf` is the map of 1939 and never moves, so a Polish division that has
+fallen back over its own border is still Polish.
+
+Only countries that are **actually in the war and still hold ground** get one.
+Both halves matter: most country names on this board belong to a seated nation
+('Germany' the country is held by 'germany' the nation), and a country with no
+neutral ground has nothing to move. Leaving them all in put sixty-one forces on
+duty where five had an army, and spent the difference walking the whole board
+for each of them.
+
+### What it comes to
+
+A board with nobody sitting at any seat, left to run:
+
+> **Poland is overrun in about twenty days**, against the thirty-five it took in
+> 1939. The war does not stop there and does not run away with itself — a
+> hundred and twenty days in, three to six hundred battles a day are still being
+> fought, and the fronts have found places to sit.
+
+A day of that costs about a second against about half a second for a board where
+nothing at all is happening. Most of the difference is the war, not the staff.
+
+### And a table can switch it off
+
+**Empty seats play themselves** is a table setting rather than a seat one — it
+decides what kind of game this is, and it would be odd for one player to be able
+to switch off everybody else's opponent while another could not. Off, and the
+empty chairs go back to doing nothing, which is the right game for a table that
+means to fill every seat.
+
 ## Close support
 
 Aircraft could do exactly three things on this board and none of them was
@@ -2564,6 +2668,9 @@ src/
            supply.js                             — and getting it forward
            report.js                             — what the day brought
            players.js  state.js                  — the seven seats and the turn
+           frontward.js                          — walking to the war
+           staff.js                              — and what runs a seat nobody
+                                                   is sitting at
 tools/     build-earth.mjs  preview-earth.mjs     — data baking
 ```
 

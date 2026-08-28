@@ -71,6 +71,17 @@ export function setStanding(token, advance) {
 }
 
 /**
+ * And whether the seats nobody is sitting at play themselves.
+ *
+ * A table setting rather than a seat one, which is why it takes no power: it
+ * decides what kind of game this is, and it would be odd for one player to be
+ * able to switch off everybody else's opponent while another could not.
+ */
+export function setStaffing(token, staffed) {
+  return call('/api/staffing', { method: 'POST', body: { staffed }, token });
+}
+
+/**
  * Give this seat's marching orders for tomorrow.
  *
  * The whole day's list every time, replacing whatever was there: cancelling a

@@ -151,12 +151,22 @@ const CACHE = new WeakMap();
 
 /** The supply map, worked out once and kept until something moves. */
 export function supplyFor(world, nation, day) {
+  // One entry per nation, thrown away whole the moment the day or the map
+  // changes. The first version kept a single slot for the entire board, which
+  // was right when one nation asked per day and useless once several did: eight
+  // nations asking in turn missed every time and flooded a hundred and fourteen
+  // thousand cells eight times over, at a hundred and forty milliseconds a day.
+  const stamp = `${day}|${world.ownership.version}`;
   let per = CACHE.get(world);
-  const stamp = `${nation}|${day}|${world.ownership.version}`;
-  if (per?.stamp === stamp) return per.map;
-  per = { stamp, map: supplyMap(world, nation, day) };
-  CACHE.set(world, per);
-  return per.map;
+  if (per?.stamp !== stamp) {
+    per = { stamp, maps: new Map() };
+    CACHE.set(world, per);
+  }
+  const already = per.maps.get(nation);
+  if (already) return already;
+  const map = supplyMap(world, nation, day);
+  per.maps.set(nation, map);
+  return map;
 }
 
 /** Can this nation get anything to this hex today? */

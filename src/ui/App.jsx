@@ -50,6 +50,7 @@ import {
   savedSession,
   setOrders as setOrdersOnServer,
   setReady,
+  setStaffing as setStaffingOnServer,
   setStanding as setStandingOnServer,
   watch,
 } from '../game/client.js';
@@ -166,6 +167,24 @@ export default function App() {
     if (!session || !game) return;
     if (game.forToken === session.token && game.you === null) setSession(null);
   }, [game, session]);
+
+  const declareStaffing = useCallback(
+    async (on) => {
+      setBusy(true);
+      setSeatError(null);
+      try {
+        setGame({
+          ...(await setStaffingOnServer(session.token, on)),
+          forToken: session.token,
+        });
+      } catch (err) {
+        setSeatError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session?.token],
+  );
 
   const takeSeat = useCallback(async (which, name) => {
     setSeatError(null);
@@ -868,6 +887,7 @@ export default function App() {
               onClaim={takeSeat}
               onLeave={logOut}
               onStanding={declareStanding}
+              onStaffing={declareStaffing}
               busy={busy}
               error={seatError}
             />

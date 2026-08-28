@@ -15,7 +15,7 @@ const BY_ID = Object.fromEntries(PLAYERS.map((p) => [p.id, p]));
  * saying so plainly is better than showing a control that would be refused.
  */
 
-export function WarRoom({ power, state, onClaim, onLeave, onStanding, busy, error }) {
+export function WarRoom({ power, state, onClaim, onLeave, onStanding, onStaffing, busy, error }) {
   const [name, setName] = useState('');
   const player = BY_ID[power];
   if (!player) return null;
@@ -147,6 +147,26 @@ export function WarRoom({ power, state, onClaim, onLeave, onStanding, busy, erro
             <span>
               Advance to the front
               <em>Idle divisions walk towards the fighting and stop at the line.</em>
+            </span>
+          </label>
+
+          {/* The other one, and it is about the table rather than about this
+              seat: whether the six chairs nobody is in play themselves. Off,
+              and they do nothing whatever — which is a game for a table that
+              means to fill every seat, and a walkover for anybody else. */}
+          <label className="war__standing">
+            <input
+              type="checkbox"
+              checked={state?.staffed !== false}
+              disabled={busy}
+              onChange={(e) => onStaffing?.(e.target.checked)}
+            />
+            <span>
+              Empty seats play themselves
+              <em>
+                A power nobody is sitting at masses on its frontiers, attacks when the weight is
+                there, and asks the depots for men.
+              </em>
             </span>
           </label>
 

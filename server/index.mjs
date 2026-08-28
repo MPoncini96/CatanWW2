@@ -101,6 +101,7 @@ function load() {
       saved.strikes ??= [];
       saved.laying ??= {};
       saved.keels ??= [];
+      saved.staffed ??= true;
       saved.landings ??= [];
       saved.beaten ??= [];
       saved.over ??= null;
@@ -199,6 +200,15 @@ async function api(req, res, url) {
     if (!seat) return json(res, 401, { error: 'take a seat first' });
     const { advance } = await readBody(req);
     const result = G.setStanding(game, seat, advance !== false);
+    if (result.error) return json(res, 409, result);
+    broadcast();
+    return json(res, 200, G.publicState(game, seat, DAY_MS));
+  }
+
+  if (url.pathname === '/api/staffing' && req.method === 'POST') {
+    if (!seat) return json(res, 401, { error: 'take a seat first' });
+    const { staffed } = await readBody(req);
+    const result = G.setStaffing(game, staffed !== false);
     if (result.error) return json(res, 409, result);
     broadcast();
     return json(res, 200, G.publicState(game, seat, DAY_MS));

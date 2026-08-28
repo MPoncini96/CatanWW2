@@ -98,6 +98,19 @@ import {
 } from '../src/game/amphibious.js';
 import { CARRIER_RANGE, reachFrom } from '../src/game/bombing.js';
 import {
+  MANOEUVRE,
+  ODDS,
+  QUEUE,
+  WORN,
+  attackOrders,
+  depotOrders,
+  forcesNeedingStaff,
+  holdings,
+  marchOrders,
+  partyHolding,
+  staffOrders,
+} from '../src/game/staff.js';
+import {
   HULLS,
   HULL_INDEX,
   costOf as hullCost,
@@ -196,6 +209,21 @@ let failures = 0;
 // The finished board — terrain, people, output, armies and fleets. Two sections
 // need all of it and it takes a second to build, so it is built once and only
 // when something asks for it.
+/**
+ * A game with the empty seats sitting still.
+ *
+ * Everything below was written against a board where a power nobody was
+ * sitting at did nothing at all, and almost every one of these tests wants
+ * exactly that: one thing moving, so that one thing can be watched. The staff
+ * that now runs the empty seats gets its own section at the end, which is the
+ * only place that calls `G.newGame()` and lets it play.
+ */
+function still() {
+  const game = G.newGame();
+  G.setStaffing(game, false);
+  return game;
+}
+
 let WORLD = null;
 function board() {
   if (WORLD) return WORLD;
@@ -375,7 +403,7 @@ section('entering the war');
 // -------------------------------------------------------------- the turn engine
 section('the turn engine');
 {
-  const game = G.newGame();
+  const game = still();
   G.openingEvents(game);
   eq(game.day, 0, 'a new game opens on 1 September');
   eq(game.log.length, 2, 'and both opening dispatches are waiting');
@@ -429,7 +457,7 @@ section('the turn engine');
   eq(view.waitingOn, ['uk'], 'and who the table is waiting for');
 
   // A table where nobody is in the war yet still has to be able to play.
-  const watching = G.newGame();
+  const watching = still();
   G.claim(watching, 'italy', 'tok-it', 'Bruno');
   G.claim(watching, 'usa', 'tok-us', 'Dee');
   eq(G.voters(watching).sort(), ['italy', 'usa'], 'with nobody in the war, everybody votes');
@@ -1498,7 +1526,7 @@ section('the armies march');
   eq(world.forces[UNIT_INDEX.infantry][silesia], menBefore.from, 'and the log can be replayed back to the start');
 
   // ---- orders in the game, and who may read them --------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'tok-de', 'a');
   G.claim(game, 'france', 'tok-fr', 'b');
   eq(game.moves.length, 0, 'a new game has marched nowhere');
@@ -1671,7 +1699,7 @@ section('fighting for a hex');
   );
 
   // ---- a whole day, end to end -------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'de', 'A');
   const silesia = cellFor(50.1, 18.1);
   const polish = [...neighbours(silesia)].find(
@@ -1767,7 +1795,7 @@ section('ground changes hands');
   }
   ok(empty !== undefined, 'there is undefended Polish ground beside a German garrison');
 
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'de', 'A');
   const column = (world.garrisons.byCell.get(from) ?? []).find((c) => isMobile(c.formation));
   G.setOrders(game, 'germany', [{ column: column.id, from, to: empty }]);
@@ -1824,7 +1852,7 @@ section('ground changes hands');
   for (const capture of game.captures) {
     world.ownership.set(capture.cell, capture.from, { reason: 'test' });
   }
-  const quiet = G.newGame();
+  const quiet = still();
   G.claim(quiet, 'germany', 'de2', 'B');
   for (let n = 0; n < 3; n += 1) {
     G.setReady(quiet, 'germany', true);
@@ -1927,7 +1955,7 @@ section('replacements');
   );
 
   // ---- a fortnight of rebuilding ------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'de', 'A');
   // Two bad days, and it is down to two fifths of itself.
   for (let n = 0; n < 2; n += 1) {
@@ -1960,7 +1988,7 @@ section('replacements');
   // week; a nation cannot rebuild its formations in a week, because the
   // factories are what ration it. Ask for everything Germany has and see how
   // much of it a day's plant can actually cover.
-  const whole = G.newGame();
+  const whole = still();
   G.claim(whole, 'germany', 'de2', 'C');
   const all = opening.filter((c) => c.formation.nation === 'germany');
   for (const c of all) {
@@ -2005,7 +2033,7 @@ section('replacements');
   eq(spentBy(game.replacements, 'germany', 0).men, 0, 'and none of it was spent before it happened');
 
   // Nothing was ordered by anybody who did not ask.
-  const quiet = G.newGame();
+  const quiet = still();
   G.claim(quiet, 'france', 'fr', 'B');
   G.setReady(quiet, 'france', true);
   G.advance(quiet, world);
@@ -2143,7 +2171,7 @@ section('what the day brought');
   );
 
   // ---- a day with a battle in it -----------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'de', 'A');
   const german = cellFor(50.1, 18.1);
   const polish = [...neighbours(german)].find(
@@ -2241,7 +2269,7 @@ section('the day closes itself');
   // at all to proceed without them, which is the difference between a demo and
   // something people can play.
   const HOUR = 3600000;
-  const game = G.newGame();
+  const game = still();
   game.opened = 1_000_000;
 
   ok(!G.overdue(game, 1_000_000 + G.DAY_LENGTH_MS + 1), 'an empty table never turns on its own');
@@ -2469,7 +2497,7 @@ section('strategic bombing');
   ok(quiet.total < guard.total, 'and Chicago, which nobody can reach, is not defended like that');
 
   // ---- a raid -------------------------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'uk', 'uk', 'A');
   for (let n = 0; n < 3; n += 1) {
     G.setReady(game, 'uk', true);
@@ -2757,7 +2785,7 @@ section('the war at sea');
   ok(again.afloat, 'and is sailing again afterwards');
 
   // ---- and the whole day, through the game ---------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   const startHulls = fleetsOf(world).reduce((n, f) => n + f.hulls, 0);
   ok(startHulls > 1000, `${startHulls} hulls are on the board on the first morning`);
@@ -2830,7 +2858,7 @@ section('capitulation');
 
   // ---- one day is a raid, two is a surrender -------------------------------
   const paris = capitalCell('france');
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   G.setReady(game, 'germany', true);
   G.advance(game, world);
@@ -2899,7 +2927,7 @@ section('capitulation');
   const ukWas = theirs('uk');
   const germanyWas = theirs('germany');
 
-  const low = G.newGame();
+  const low = still();
   G.claim(low, 'germany', 'germany', 'A');
   G.setReady(low, 'germany', true);
   G.advance(low, other);
@@ -3134,7 +3162,7 @@ section('victory');
   );
 
   // ---- Italy goes first, on Sicily ----------------------------------------
-  const play = G.newGame();
+  const play = still();
   G.claim(play, 'uk', 'uk', 'A');
   const turn = () => {
     G.setReady(play, 'uk', true);
@@ -3192,7 +3220,7 @@ section('victory');
 
   // ---- the other way it could have gone -----------------------------------
   const other = freshBoard();
-  const axis = G.newGame();
+  const axis = still();
   G.claim(axis, 'germany', 'germany', 'A');
   const push = () => {
     G.setReady(axis, 'germany', true);
@@ -3304,7 +3332,7 @@ section('head-on');
   eq(aside.meetings.length, 0, 'and nobody meets anybody');
 
   // ---- what a whole day does with it --------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   game.orders.germany = [{ column: even.c.id, from: even.c.cell, to: even.other.cell }];
   game.orders.neutral = [{ column: even.other.id, from: even.other.cell, to: even.c.cell }];
@@ -3393,7 +3421,7 @@ section('amphibious');
   eq(menIn(null), 0, 'and neither does nothing at all');
 
   // ---- who may go aboard ---------------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'uk', 'uk', 'A');
   G.setReady(game, 'uk', true);
   G.advance(game, world);
@@ -3656,7 +3684,7 @@ section('raising formations');
   );
 
   // ---- a division, end to end ---------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   G.setReady(game, 'germany', true);
   G.advance(game, world);
@@ -3801,7 +3829,7 @@ section('the advance to the front');
   eq(without.length, steps.length - 1, 'and nothing else changes');
 
   // ---- and it stops --------------------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   const perDay = [];
   for (let d = 0; d < 6; d += 1) {
@@ -3821,22 +3849,24 @@ section('the advance to the front');
 
   // ---- and it can be switched off -----------------------------------------
   const quiet = freshBoard();
-  const still = G.newGame();
-  G.claim(still, 'germany', 'germany', 'A');
-  G.setStanding(still, 'germany', false);
-  G.setReady(still, 'germany', true);
-  G.advance(still, quiet);
+  const held = still();
+  G.claim(held, 'germany', 'germany', 'A');
+  G.setStanding(held, 'germany', false);
+  G.setReady(held, 'germany', true);
+  G.advance(held, quiet);
   eq(
-    still.moves.filter((m) => m.advance).length,
+    held.moves.filter((m) => m.advance).length,
     0,
     'a seat that would rather move its own armies is not overruled',
   );
 
-  // An empty seat is not played for by the board either.
+  // An empty seat gets no standing order — it gets a staff instead, which is a
+  // different rule with its own section below. A table that has switched the
+  // staff off gets neither, and the board sits perfectly still.
   const nobody = freshBoard();
-  const empty = G.newGame();
+  const empty = still();
   G.advance(empty, nobody, 0);
-  eq(empty.moves.length, 0, 'and an empty chair does not march anybody');
+  eq(empty.moves.length, 0, 'and with the staff off, an empty chair moves nobody at all');
 }
 
 
@@ -3931,7 +3961,7 @@ section('close support');
   );
 
   // ---- and what it does ----------------------------------------------------
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   G.setStanding(game, 'germany', false);
   G.setOrders(game, 'germany', [], [], [], [], [], [], [], [
@@ -4053,7 +4083,7 @@ section('close support');
   );
 
   const fly = (send) => {
-    const game = G.newGame();
+    const game = still();
     G.claim(game, 'uk', 'uk', 'A');
     G.setStanding(game, 'uk', false);
     for (let n = 0; n < 3; n += 1) {
@@ -4270,7 +4300,7 @@ section('close support');
   const before = fleetsAt(world, {}, 0).find((f) => f.id === kiel.boatBerth);
   ok(before, 'the Kiel U-boat flotilla is a fleet');
 
-  const game = G.newGame();
+  const game = still();
   G.claim(game, 'germany', 'germany', 'A');
   G.setStanding(game, 'germany', false);
   G.setOrders(game, 'germany', [], [], [], [], [], [], [], [], [
@@ -4286,7 +4316,7 @@ section('close support');
   // and `slipsFree` and `menAvailable` both read the record — so the loop that
   // accepts them must not also keep a running total. It did, and a battleship
   // and one flotilla ordered at a five-slip yard came out as eight slips used.
-  const mixed = G.newGame();
+  const mixed = still();
   G.claim(mixed, 'germany', 'germany', 'A');
   G.setStanding(mixed, 'germany', false);
   G.setOrders(mixed, 'germany', [], [], [], [], [], [], [], [], [
@@ -4546,6 +4576,220 @@ section('close support');
     far <= BOMBER_RANGE ? range(beach, ruhr.cell) === null : true,
     'and the same group standing on the beach beside it may go',
   );
+}
+
+
+// ------------------------------------------------------------------ the staff
+//
+// The opponent. Everything above this was written for a table of seven people
+// who all turn up; this is what happens when they do not.
+{
+  console.log('the staff');
+  const world = freshBoard();
+
+  // ---- who gets one --------------------------------------------------------
+  const game = G.newGame();
+  const duty = forcesNeedingStaff(world, game, 0);
+  eq(
+    duty.filter((f) => f.country < 0).length,
+    POWERS.length,
+    'every seat nobody is sitting at gets a staff',
+  );
+  ok(
+    duty.some((f) => f.party === 'Poland'),
+    'and so does Poland, which is a country rather than a seat and is being invaded',
+  );
+  ok(
+    !duty.some((f) => f.party === 'Portugal'),
+    'but not Portugal, which nobody is fighting',
+  );
+  // Most country names on this board belong to a seated nation, and a country
+  // with no neutral ground has nothing for a staff to move.
+  for (const force of duty) {
+    if (force.country < 0) continue;
+    ok(
+      holdings(world, 'neutral', force.country).some((n) => n === 1),
+      `${force.party} has ground of its own to defend`,
+    );
+  }
+
+  const taken = G.newGame();
+  G.claim(taken, 'germany', 'germany', 'A');
+  ok(
+    !forcesNeedingStaff(world, taken, 0).some((f) => f.power === 'germany' && f.country < 0),
+    'a seat with somebody in it does not get one — the player is there',
+  );
+
+  // ---- what it is allowed to move -----------------------------------------
+  eq([...MANOEUVRE].sort().join(' '), 'armor field', 'a staff moves divisions and armour');
+  ok(
+    !MANOEUVRE.has('depot') && !MANOEUVRE.has('air') && !MANOEUVRE.has('security'),
+    'and not depots, air groups or rear-area security',
+  );
+  ok(partyHolding(world, cellFor(52.2, 21.0)) === 'Poland', 'Polish ground answers to Poland');
+  ok(partyHolding(world, cellFor(52.5, 13.4)) === 'germany', 'and German ground to Germany');
+
+  // ---- a day of it ---------------------------------------------------------
+  const positions = new Map(world.garrisons.opening.map((c) => [c.id, c.cell]));
+  const strengths = strengthsAt(world.garrisons.opening, [], 1, []);
+  const work = staffOrders({
+    world,
+    power: 'germany',
+    party: 'germany',
+    day: 1,
+    positions,
+    arrivals: new Map(),
+    strengths,
+    taken: [],
+    aboard: new Map(),
+  });
+  ok(work.attacks.length > 0, `${work.attacks.length} attacks ordered on the first morning`);
+  ok(work.marches.length > 0, `and ${work.marches.length} columns walking towards them`);
+
+  // The property the whole thing rests on: there is no move here a player could
+  // not have made. Every order goes through the same gate a ticked box does.
+  const illegal = [];
+  const columns = new Map(world.garrisons.opening.map((c) => [c.id, c]));
+  for (const move of work.moves) {
+    const why = mayMarch({
+      world,
+      column: columns.get(move.column),
+      to: move.to,
+      power: move.power,
+      day: 1,
+      positions,
+      arrivals: new Map(),
+      ordered: new Set(),
+    });
+    if (why) illegal.push(`${move.column}: ${why}`);
+  }
+  eq(illegal.length, 0, `every one of the ${work.moves.length} orders is one a player could give`);
+
+  // Nothing but divisions and armour, and nothing twice.
+  const kinds = new Set(work.moves.map((m) => columns.get(m.column).formation.type));
+  eq([...kinds].sort().join(' '), 'armor field', 'and it moved nothing else');
+  eq(
+    new Set(work.moves.map((m) => m.column)).size,
+    work.moves.length,
+    'and gave no column two orders',
+  );
+
+  // ---- it does not walk out of its own supply -----------------------------
+  const fed = supplyMap(world, 'germany', 1);
+  const starved = work.marches.filter((m) => !fed[m.to]);
+  eq(
+    starved.length,
+    0,
+    'a staff does not march an army out of the supply on the way to a battle',
+  );
+
+  // ---- and it only attacks when the weight is there ------------------------
+  ok(ODDS >= 1.5, `it wants ${ODDS} to one, with the ground already counted`);
+  const alone = attackOrders({
+    world,
+    power: 'germany',
+    party: 'germany',
+    day: 1,
+    positions,
+    arrivals: new Map(),
+    // A board where every German formation is a tenth of itself has nowhere
+    // near the weight, and the staff sits still rather than feeding it in.
+    strengths: new Map(
+      world.garrisons.opening.map((c) => [
+        c.id,
+        c.formation.nation === 'germany'
+          ? Object.fromEntries(Object.entries(c.strength).map(([k, v]) => [k, v * 0.05]))
+          : c.strength,
+      ]),
+    ),
+    taken: [],
+    aboard: new Map(),
+  });
+  ok(
+    alone.length < work.attacks.length,
+    `${alone.length} attacks from an army at a twentieth strength, against ${work.attacks.length} at full`,
+  );
+
+  // ---- and what it wants from the depots -----------------------------------
+  ok(WORN < 1, `a formation asks for men below ${Math.round(WORN * 100)}% of itself`);
+  const worn = new Map(
+    world.garrisons.opening.map((c) => [
+      c.id,
+      c.formation.nation === 'germany'
+        ? Object.fromEntries(Object.entries(c.strength).map(([k, v]) => [k, v * 0.4]))
+        : c.strength,
+    ]),
+  );
+  const queue = depotOrders({
+    world,
+    power: 'germany',
+    day: 1,
+    positions,
+    strengths: worn,
+    fed,
+  });
+  ok(queue.length > 0, `${queue.length} German formations ask the depots for men`);
+  ok(queue.length <= QUEUE, `and never more than ${QUEUE} in a morning`);
+  eq(
+    depotOrders({ world, power: 'germany', day: 1, positions, strengths, fed }).length,
+    0,
+    'and a whole army at full strength asks for nothing',
+  );
+  ok(
+    queue.every((id) => fed[positions.get(id)]),
+    'nothing out of supply joins the queue — replacements go up the same roads the rations do',
+  );
+}
+
+// ------------------------------------------------------- and it plays a war
+{
+  console.log('the staff plays a war');
+  const world = freshBoard();
+  const game = G.newGame();
+
+  const polish = () => {
+    let n = 0;
+    for (let i = 0; i < TILE_COUNT; i += 1) {
+      if ((world.countryOf[i] ?? -1) < 0) continue;
+      if (world.countries[world.countryOf[i]].name !== 'Poland') continue;
+      if (world.ownership.owner[i] === NATION_INDEX.neutral) n += 1;
+    }
+    return n;
+  };
+  const before = polish();
+  ok(before > 40, `Poland holds ${before} hexes on 1 September`);
+
+  let fell = 0;
+  for (let d = 0; d < 30; d += 1) {
+    G.advance(game, world);
+    if (!fell && polish() === 0) fell = game.day;
+  }
+  ok(fell > 0, 'Poland is overrun by a board playing itself');
+  ok(
+    fell >= 10 && fell <= 40,
+    `and it takes ${fell} days, against the thirty-five it took in 1939`,
+  );
+
+  // The war does not run away with itself, and it does not stop.
+  const late = (game.battles ?? []).filter((b) => b.day > game.day - 5).length;
+  ok(late > 0, `${late} battles fought in the last five days — the war is still going`);
+  const staffMoves = game.moves.filter((m) => m.staff);
+  ok(staffMoves.length > 500, `${staffMoves.length} orders given by staffs over ${game.day} days`);
+
+  // And nothing it did was something a player could not have done.
+  eq(
+    staffMoves.filter((m) => m.from === m.to).length,
+    0,
+    'no column was ordered to march to where it already was',
+  );
+
+  // ---- and it can be switched off ------------------------------------------
+  const quiet = freshBoard();
+  const asleep = G.newGame();
+  G.setStaffing(asleep, false);
+  for (let d = 0; d < 3; d += 1) G.advance(asleep, quiet);
+  eq(asleep.moves.length, 0, 'a table that would rather play all seven seats itself may');
+  eq(asleep.battles.length, 0, 'and nothing happens on the board at all');
 }
 
 console.log(
