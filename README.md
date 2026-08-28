@@ -1767,6 +1767,62 @@ written, quietly halving what a nation could raise in a day. Both are gone, and
 a test now lays a battleship and a flotilla into the same five slips and checks
 that neither is refused.
 
+### A carrier is an airfield that moves
+
+The other half of the ship. A carrier had an attack rating in a fleet action and
+its aircraft could not fly a mission, so it was a battleship with worse guns —
+and once anybody could build one, that gap was wider than it had been.
+
+**An air group goes aboard like an army does.** It embarks from a coast onto a
+fleet in the water beside it, it rides while the ship steams, and it lands on a
+coast beside wherever the ship has got to. None of that needed writing: a column
+aboard is already given a move record each day mirroring the ship, so its
+position is the ship's position and `positionsAt` — which is nine lines and
+knows nothing about ships — goes on being the one answer to where everything is.
+
+Two things are its own.
+
+**The deck is the limit, and it is small.** Seventy-two aircraft a carrier,
+which is an air group of the kind that fought at Midway. Lift is irrelevant: a
+hundred destroyers have room for a fighter group in exactly the sense that a car
+park has room for an aeroplane.
+
+**A group flies four hexes from a deck and ten from a runway.** About two
+hundred and seventy kilometres, which is a carrier strike radius with fuel to
+find the ship again. That is the whole bargain of the thing and it is worth
+saying plainly: **a carrier is not more reach, it is a nearer start.**
+
+### You need a squadron, not a carrier
+
+The first version counted decks one fleet at a time, and **not one air group on
+the board could go aboard anything.** Fighter Command is 150 aircraft and a deck
+is 72; the Royal Navy's seven carriers are spread across six stations one at a
+time. The rule was unusable on the board it was written for, which is the kind
+of thing only measuring finds.
+
+So deck space is counted **across every carrier of one power on one hex**, ships
+in company being one force. That says something true and turns the whole feature
+into an operation:
+
+| carriers in company | places | takes |
+| --- | --- | --- |
+| 1 | 72 | nothing on this board |
+| 2 | 144 | a raised fighter group, at 120 |
+| 3 | 216 | Fighter Command, at 150 |
+| 6 | 432 | Japan's whole first-line air strength, at 350 |
+
+Six decks and four hundred aircraft is the Kido Butai, and gathering them is now
+a thing a player does with sailing orders over several days rather than a number
+in a table.
+
+The first version also refused bombers, on the grounds that a bomber needs a
+runway. That was wrong twice: it barred nearly every air group in the 1939 order
+of battle, almost all of which are mixed — and a carrier air group was mostly
+strike aircraft anyway. The four hundred aeroplanes that flew at Pearl Harbor
+were largely bombers and torpedo planes. What a deck cannot take is a heavy, and
+seventy-two places and four hexes of reach already say that without a rule about
+types.
+
 ## Close support
 
 Aircraft could do exactly three things on this board and none of them was
@@ -2496,6 +2552,8 @@ src/
   game/    calendar.js  events.js                — the date, and the war table
            belligerence.js                       — who may fight whom, and when
            orders.js                             — what a seat may order on a hex
+           amphibious.js                         — armies across water, and the
+                                                   deck an air group flies from
            movement.js                           — marching, resting and replay
            combat.js                             — what an arm is worth, and
                                                    who is left holding the hex
@@ -2524,11 +2582,6 @@ holds each port; nothing yet joins the two.
 
 **Fuel**, which is the one thing a fleet needs that this does not model. A ship
 steams six hexes a day for ever and never puts into port.
-
-**Naval air**, which is the other half of the carrier. A carrier has an attack
-rating in a fleet action and its aircraft cannot fly a mission, so it is a
-battleship with worse guns — and now that anyone can build one, that gap is
-wider than it was.
 
 **Yard expansion.** The slip counts are what existed in 1939 and they never
 change, which understates exactly one country: the United States did not

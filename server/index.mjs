@@ -364,6 +364,7 @@ async function api(req, res, url) {
         aboard,
         strengths: shipping,
         columns,
+        fleets: afloat,
         ordered: boarded,
       });
       if (why) return json(res, 409, { error: why, column: order?.column });

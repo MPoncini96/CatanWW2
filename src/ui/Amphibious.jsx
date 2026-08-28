@@ -3,7 +3,12 @@ import { neighbours } from '../world/sphere.js';
 import { formatUnits } from '../world/forces.js';
 import { formationName } from '../world/deploy.js';
 import {
+  aircraftIn,
   carriedBy,
+  deckAt,
+  deckOf,
+  decksUsedAt,
+  isAirGroup,
   liftOf,
   loadOf,
   mayEmbark,
@@ -60,7 +65,12 @@ export function Amphibious({
   const [carrier, setCarrier] = useState(null);
   const chosenFleet =
     alongside.find((f) => f.id === carrier) ??
-    alongside.slice().sort((a, b) => liftOf(b) - liftOf(a))[0] ??
+    // Biggest lift first, and a squadron with decks counts for something even
+    // when it lifts nothing: six carriers and no transports is the fleet you
+    // want if what is standing on the beach is a fighter group.
+    alongside
+      .slice()
+      .sort((a, b) => liftOf(b) + deckOf(b) * 8 - (liftOf(a) + deckOf(a) * 8))[0] ??
     null;
 
   const picked = useMemo(() => new Set((embarking ?? []).map((e) => e.column)), [embarking]);
@@ -76,6 +86,8 @@ export function Amphibious({
       const have = strengths?.get(column.id) ?? column.strength;
       out.push({
         column,
+        flying: isAirGroup(column.formation),
+        aircraft: aircraftIn(have),
         weight: menIn(have),
         why: mayEmbark({
           world,
@@ -88,6 +100,7 @@ export function Amphibious({
           aboard,
           strengths,
           columns,
+          fleets,
           ordered: new Set([...picked].filter((id) => id !== column.id)),
         }),
       });
@@ -113,7 +126,15 @@ export function Amphibious({
   const room = chosenFleet
     ? liftOf(chosenFleet) - loadOf(chosenFleet.id, aboard ?? new Map(), strengths, columns)
     : 0;
-  const going = here.filter((h) => picked.has(h.column.id)).reduce((n, h) => n + h.weight, 0);
+  // Counted across every fleet of yours on that water: ships in company are
+  // one force and their decks are one deck.
+  const deck = chosenFleet ? deckAt(chosenFleet.cell, power, fleets) : 0;
+  const deckLeft = chosenFleet
+    ? deck - decksUsedAt(chosenFleet.cell, power, fleets, aboard ?? new Map(), strengths, columns)
+    : 0;
+  const chosen = here.filter((h) => picked.has(h.column.id));
+  const going = chosen.filter((h) => !h.flying).reduce((n, h) => n + h.weight, 0);
+  const flying = chosen.filter((h) => h.flying).reduce((n, h) => n + h.aircraft, 0);
 
   return (
     <div className="march">
@@ -124,7 +145,8 @@ export function Amphibious({
             {!alongside.length
               ? 'none of your fleets is in the water beside this hex'
               : mode === 'embark'
-                ? `${chosenFleet?.name} can lift ${Math.round(room).toLocaleString()} more`
+                ? `${chosenFleet?.name} can lift ${Math.round(room).toLocaleString()} more` +
+                  (deck ? ` · deck for ${Math.max(0, deckLeft)} aircraft` : ' · no carrier')
                 : `${loaded.reduce((n, f) => n + f.carrying.length, 0)} formations offshore`}
           </em>
         </h4>
@@ -140,14 +162,20 @@ export function Amphibious({
               {alongside.map((f) => (
                 <option key={f.id} value={f.id}>
                   {f.name} · {liftOf(f).toLocaleString()}
+                  {deckOf(f) ? ` · ${deckOf(f)} deck` : ''}
                 </option>
               ))}
             </select>
           )}
           <span className="march__count">
             {mode === 'embark'
-              ? going
-                ? `${Math.round(going).toLocaleString()} men going aboard`
+              ? going || flying
+                ? [
+                    going ? `${Math.round(going).toLocaleString()} men` : '',
+                    flying ? `${flying} aircraft` : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' and ') + ' going aboard'
                 : 'nobody going aboard'
               : `${landingHere.size} fleet${landingHere.size === 1 ? '' : 's'} landing`}
           </span>
@@ -165,7 +193,7 @@ export function Amphibious({
           <p className="march__none">Nothing of yours is standing on this hex.</p>
         ) : (
           <ul className="march__list">
-            {here.map(({ column, weight, why }) => (
+            {here.map(({ column, weight, aircraft, flying: air, why }) => (
               <li key={column.id} className={why ? 'is-barred' : ''}>
                 <label>
                   <input
@@ -176,7 +204,9 @@ export function Amphibious({
                   />
                   <span className="march__name">{formationName(column.formation)}</span>
                   <span className="march__from">{column.formation.type}</span>
-                  <span className="march__men">{formatUnits(weight)} to lift</span>
+                  <span className="march__men">
+                  {air ? `${aircraft} aircraft` : `${formatUnits(weight)} to lift`}
+                </span>
                 </label>
                 {why && <p className="march__why">{why}</p>}
               </li>

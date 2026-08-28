@@ -2,7 +2,14 @@ import { NATIONS, NATION_INDEX } from '../world/nations.js';
 import { formationName } from '../world/deploy.js';
 import { atWar } from './movement.js';
 import { groundBonus } from './combat.js';
-import { BOMBER_RANGE, airCombat, defenceOf, hexesApart, raidLuck } from './bombing.js';
+import {
+  CARRIER_RANGE,
+  airCombat,
+  defenceOf,
+  hexesApart,
+  raidLuck,
+  reachFrom,
+} from './bombing.js';
 
 // Bombing an army.
 //
@@ -95,9 +102,12 @@ export function mayStrike({ world, column, target, power, day, positions, flown,
   }
 
   const from = positions?.get(column.id) ?? column.cell;
+  const goes = reachFrom(world, from);
   const reach = hexesApart(from, target);
-  if (reach > BOMBER_RANGE) {
-    return `${Math.round(reach)} hexes — a bomber of 1939 goes ${BOMBER_RANGE} and comes back.`;
+  if (reach > goes) {
+    return goes === CARRIER_RANGE
+      ? `${Math.round(reach)} hexes — a group flying off a deck goes ${goes} and finds the ship again.`
+      : `${Math.round(reach)} hexes — a bomber of 1939 goes ${goes} and comes back.`;
   }
   return null;
 }

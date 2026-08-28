@@ -48,6 +48,82 @@ export const LIFT_PER_HULL = 600;
 /** Submarines lift nothing. This should not need saying and the code needs it. */
 const CANNOT_LIFT = new Set(['submarines']);
 
+/**
+ * Aircraft one carrier can land, feed and turn round.
+ *
+ * A fleet carrier of the period ran seventy to ninety, and the number that
+ * mattered was never the hangar — it was the deck. Seventy-two is an air group
+ * of the kind that fought at Midway, and it means a squadron of six carriers is
+ * about four hundred aircraft, which is what the Kido Butai actually was.
+ */
+export const DECK_PER_CARRIER = 72;
+
+/** Is this formation aircraft rather than men? */
+export function isAirGroup(formation) {
+  return formation?.type === 'air';
+}
+
+/**
+ * Deck space on a fleet.
+ *
+ * Carriers only, which is the whole rule. A hundred destroyers have room for a
+ * fighter group in exactly the sense that a car park has room for an
+ * aeroplane.
+ */
+export function deckOf(fleet) {
+  if (!fleet || fleet.cargo) return 0;
+  return Math.floor((fleet.ships?.carriers ?? 0) * DECK_PER_CARRIER);
+}
+
+/**
+ * And deck space at an anchorage, which is what actually decides it.
+ *
+ * Every carrier of one power sitting on one hex, because ships in company are
+ * one force and their decks are one deck. This is not a convenience: with one
+ * carrier to a station, no air group on the board fits on any single fleet —
+ * Fighter Command is 150 aircraft and a deck is 72 — so a rule counting fleets
+ * one at a time makes the whole thing unusable.
+ *
+ * Counting the hex instead says something true and turns it into an operation:
+ * **you need a carrier squadron, not a carrier.** Two decks take a raised
+ * fighter group, three take Fighter Command, and six take four hundred
+ * aircraft, which is what the Kido Butai was.
+ */
+export function deckAt(cell, power, fleets) {
+  let deck = 0;
+  for (const fleet of fleets ?? []) {
+    if (fleet.power !== power || fleet.cell !== cell || !fleet.afloat) continue;
+    deck += deckOf(fleet);
+  }
+  return deck;
+}
+
+/** And what is already parked on it, across every fleet in company. */
+export function decksUsedAt(cell, power, fleets, aboard, strengths, columns) {
+  let aircraft = 0;
+  for (const fleet of fleets ?? []) {
+    if (fleet.power !== power || fleet.cell !== cell) continue;
+    aircraft += decksUsed(fleet.id, aboard, strengths, columns);
+  }
+  return aircraft;
+}
+
+/** Aircraft in a formation, counted as aircraft rather than as tonnage. */
+export function aircraftIn(strength) {
+  return Math.round((strength?.fighters ?? 0) + (strength?.bombers ?? 0));
+}
+
+/** And how much of a fleet's deck is already spoken for. */
+export function decksUsed(fleetId, aboard, strengths, columns) {
+  let aircraft = 0;
+  for (const id of carriedBy(fleetId, aboard)) {
+    const column = columns?.get(id);
+    if (!isAirGroup(column?.formation)) continue;
+    aircraft += aircraftIn(strengths?.get(id) ?? column?.strength ?? {});
+  }
+  return aircraft;
+}
+
 /** What a fleet can carry. */
 export function liftOf(fleet) {
   if (!fleet || fleet.cargo) return 0;
@@ -80,11 +156,19 @@ export function carriedBy(fleetId, aboard) {
   return out;
 }
 
-/** How many men a fleet has aboard already. */
+/**
+ * How many men a fleet has aboard already.
+ *
+ * Air groups are not counted. They are not cargo — they are flying off the
+ * carriers, and a squadron does not lose its lift because its own aircraft are
+ * on their own decks.
+ */
 export function loadOf(fleetId, aboard, strengths, columns) {
   let men = 0;
   for (const id of carriedBy(fleetId, aboard)) {
-    const have = strengths?.get(id) ?? columns.get(id)?.strength ?? {};
+    const column = columns?.get(id);
+    if (isAirGroup(column?.formation)) continue;
+    const have = strengths?.get(id) ?? column?.strength ?? {};
     men += menIn(have);
   }
   return men;
@@ -128,6 +212,10 @@ export function mayEmbark({
   aboard,
   strengths,
   columns,
+  // Every fleet on the board, so that carriers in company can be counted as
+  // one deck. Optional: without it the rule falls back to the single fleet,
+  // which is right for cargo and too strict for aircraft.
+  fleets,
   ordered,
 }) {
   if (!power) return 'Nobody is sitting at this seat.';
@@ -161,6 +249,32 @@ export function mayEmbark({
   }
 
   const have = strengths?.get(column.id) ?? column.strength;
+
+  // An air group is not cargo. It flies onto the carriers and off them again,
+  // which is the one thing a ship can do that no hex can: a carrier is an
+  // aerodrome that is somewhere else next week.
+  //
+  // Bombers are allowed, and the first version of this refused them on the
+  // grounds that a bomber needs a runway. That was wrong twice over: it barred
+  // every air group on the board, since almost all of them are mixed, and a
+  // carrier air group was mostly strike aircraft anyway — the four hundred
+  // aeroplanes that flew at Pearl Harbor were largely bombers and torpedo
+  // planes. What a deck cannot take is a heavy, and the deck limit and the
+  // four-hex reach already say that without a rule about types.
+  if (isAirGroup(column.formation)) {
+    const deck = fleets ? deckAt(fleet.cell, power, fleets) : deckOf(fleet);
+    if (!deck) return `${fleet.name} has no carrier for ${name} to land on.`;
+    const used = fleets
+      ? decksUsedAt(fleet.cell, power, fleets, aboard ?? new Map(), strengths, columns)
+      : decksUsed(fleet.id, aboard ?? new Map(), strengths, columns);
+    const space = deck - used;
+    const wants = aircraftIn(have);
+    if (wants > space) {
+      return `${Math.max(0, space)} places on the decks here; ${name} is ${wants} aircraft.`;
+    }
+    return null;
+  }
+
   const room = liftOf(fleet) - loadOf(fleet.id, aboard ?? new Map(), strengths, columns);
   const needsRoom = menIn(have);
   if (needsRoom > room) {

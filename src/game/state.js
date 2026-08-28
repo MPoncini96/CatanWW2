@@ -441,6 +441,8 @@ export function advance(game, world = null, now = 0) {
           aboard: holds,
           strengths: shipStrengths,
           columns: shipColumns,
+          // Every fleet afloat, so carriers in company count as one deck.
+          fleets: beforeSailing,
           ordered: new Set(),
         });
         if (why) {

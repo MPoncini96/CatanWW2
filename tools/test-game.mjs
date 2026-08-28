@@ -89,6 +89,15 @@ import { placeOf, reportFor } from '../src/game/report.js';
 import { drawOrders } from '../src/render/orders.js';
 import { YARDS_1939, yardsOf } from '../src/world/shipyards.js';
 import {
+  DECK_PER_CARRIER,
+  aircraftIn,
+  deckAt,
+  deckOf,
+  decksUsedAt,
+  isAirGroup,
+} from '../src/game/amphibious.js';
+import { CARRIER_RANGE, reachFrom } from '../src/game/bombing.js';
+import {
   HULLS,
   HULL_INDEX,
   costOf as hullCost,
@@ -173,6 +182,7 @@ import {
   mayEmbark,
   mayLand,
   menIn,
+  ridingMoves,
 } from '../src/game/amphibious.js';
 import { FORCES_1939, UNITS, UNIT_INDEX } from '../src/world/forces.js';
 import { FORMATIONS, ZONES } from '../src/world/oob1939.js';
@@ -4343,6 +4353,198 @@ section('close support');
   ok(
     game.log.some((e) => e.id.startsWith('commissioned:')) === false,
     'and nothing is announced on the day it was ordered',
+  );
+}
+
+
+// ---------------------------------------------------------- the moving airfield
+//
+// The one thing a ship can do that no hex can.
+{
+  console.log('carriers as airfields');
+  const world = board();
+  const fleets = fleetsAt(world, {}, 0);
+  const positions = new Map(world.garrisons.opening.map((c) => [c.id, c.cell]));
+  const columns = new Map(world.garrisons.opening.map((c) => [c.id, c]));
+
+  // ---- a deck is carriers and nothing else --------------------------------
+  const withCarriers = fleets.filter((f) => (f.ships.carriers ?? 0) > 0);
+  ok(withCarriers.length >= 10, `${withCarriers.length} fleets have a carrier in them`);
+  const scapa = fleets.find((f) => f.name === 'Scapa Flow');
+  eq(
+    deckOf(scapa),
+    Math.floor(scapa.ships.carriers) * DECK_PER_CARRIER,
+    `Scapa Flow's ${Math.round(scapa.ships.carriers)} carriers are ${deckOf(scapa)} places`,
+  );
+  const boats = fleets.find((f) => f.id.endsWith('-flotilla'));
+  eq(deckOf(boats), 0, 'and a submarine flotilla is not an aerodrome');
+  const cruisers = fleets.find((f) => f.power === 'germany' && !(f.ships.carriers > 0) && f.hulls > 0);
+  eq(deckOf(cruisers), 0, 'nor is a squadron of cruisers, however many of them there are');
+
+  // ---- which is why the carriers have to be concentrated -------------------
+  const raf = world.garrisons.opening.find(
+    (c) => isAirGroup(c.formation) && c.formation.nation === 'uk',
+  );
+  ok(raf, 'the RAF has an air group');
+  ok(
+    aircraftIn(raf.strength) > DECK_PER_CARRIER,
+    `${raf.formation.name} is ${aircraftIn(raf.strength)} aircraft and one deck is ${DECK_PER_CARRIER}`,
+  );
+
+  const beach = raf.cell;
+  const water = [...neighbours(beach)].find((j) => TERRAIN[world.biome[j]].water);
+  ok(water !== undefined, 'and it is standing on a coast');
+
+  const ask = (fleet, all) =>
+    mayEmbark({
+      world,
+      column: raf,
+      fleet,
+      power: 'uk',
+      day: 3,
+      positions,
+      arrivals: new Map(),
+      aboard: new Map(),
+      strengths: null,
+      columns,
+      fleets: all,
+      ordered: new Set(),
+    });
+
+  const one = { ...withCarriers.find((f) => f.power === 'uk'), cell: water };
+  ok(
+    ask(one, [one])?.includes('places on the decks'),
+    'one carrier has nowhere to put a group of a hundred and fifty',
+  );
+
+  // Every Royal Navy carrier steamed to the same water, which is the operation
+  // this rule exists to make necessary.
+  const together = fleets.map((f) =>
+    f.power === 'uk' && deckOf(f) > 0 ? { ...f, cell: water } : f,
+  );
+  const squadron = together.filter((f) => f.cell === water && deckOf(f) > 0);
+  ok(squadron.length >= 5, `${squadron.length} carrier fleets in company`);
+  eq(
+    deckAt(water, 'uk', together),
+    squadron.reduce((n, f) => n + deckOf(f), 0),
+    `${deckAt(water, 'uk', together)} places across the squadron`,
+  );
+  eq(ask(squadron[0], together), null, 'and the group goes aboard');
+  eq(
+    decksUsedAt(water, 'uk', together, new Map(), null, columns),
+    0,
+    'nothing is parked on them yet',
+  );
+  const parked = new Map([[raf.id, squadron[0].id]]);
+  eq(
+    decksUsedAt(water, 'uk', together, parked, null, columns),
+    aircraftIn(raf.strength),
+    'and once it is, the places are gone',
+  );
+
+  // A bomber group is not refused. The first version of this barred them, and
+  // it barred nearly every air group on the board — almost all of them are
+  // mixed, and a carrier air group was mostly strike aircraft anyway: the four
+  // hundred aeroplanes that flew at Pearl Harbor were largely bombers and
+  // torpedo planes.
+  const kido = world.garrisons.opening.find(
+    (c) => isAirGroup(c.formation) && c.formation.nation === 'japan' && (c.strength.bombers ?? 0) > 0,
+  );
+  ok(kido, 'the Japanese air groups of 1939 carry bombs as well as guns');
+  const jbeach = kido.cell;
+  const jwater = [...neighbours(jbeach)].find((j) => TERRAIN[world.biome[j]].water);
+  const kidoButai = fleets.map((f) =>
+    f.power === 'japan' && deckOf(f) > 0 ? { ...f, cell: jwater } : f,
+  );
+  const decks = deckAt(jwater, 'japan', kidoButai);
+  ok(decks >= aircraftIn(kido.strength), `${decks} places for ${aircraftIn(kido.strength)} aircraft`);
+  eq(
+    mayEmbark({
+      world,
+      column: kido,
+      fleet: kidoButai.find((f) => f.cell === jwater && deckOf(f) > 0),
+      power: 'japan',
+      day: 3,
+      positions,
+      arrivals: new Map(),
+      aboard: new Map(),
+      strengths: null,
+      columns,
+      fleets: kidoButai,
+      ordered: new Set(),
+    }),
+    null,
+    'and a group carrying bombs goes aboard like any other',
+  );
+
+  // ---- aboard, at sea, and flying -----------------------------------------
+  //
+  // The whole loop, because each half of it working proves nothing about the
+  // other. A group that goes aboard has to end up where the ship is, and a
+  // group where the ship is has to be able to fly from there.
+  const carried = new Map([[raf.id, squadron[0].id]]);
+  const steamed = squadron[0].cell;
+  const moved = ridingMoves({
+    day: 4,
+    fleets: together,
+    aboard: carried,
+    positions: new Map([[raf.id, beach]]),
+  });
+  eq(moved.length, 1, 'a group aboard is given a move mirroring the ship');
+  eq(moved[0].to, steamed, 'onto the water the ship is on');
+  eq(moved[0].riding, squadron[0].id, 'and the record says which ship it is riding');
+  eq(
+    positionsAt([raf], moved, 4).get(raf.id),
+    steamed,
+    'so the one answer to where everything is puts it at sea, knowing nothing about ships',
+  );
+
+  // And from there it flies, at a deck's range rather than an aerodrome's.
+  const short = mayStrike({
+    world,
+    column: { ...raf, strength: { bombers: 100 } },
+    target: beach,
+    power: 'uk',
+    day: 4,
+    positions: new Map([[raf.id, steamed]]),
+    flown: new Set(),
+    ordered: new Set(),
+  });
+  ok(
+    short === null || !short.includes('hexes —'),
+    `a group at sea may go for a hex one away: ${short ?? 'and it may'}`,
+  );
+
+  // ---- and what it is worth ------------------------------------------------
+  eq(reachFrom(world, beach), BOMBER_RANGE, 'a group on an aerodrome flies ten hexes');
+  eq(reachFrom(world, water), CARRIER_RANGE, 'and one on a deck flies four');
+  ok(CARRIER_RANGE < BOMBER_RANGE, 'a carrier is not more reach, it is a nearer start');
+
+  // Which is the whole bargain, said as a rule a player runs into: the same
+  // group, flying at the same target, is refused from the water and allowed
+  // from the ground when the target is more than four hexes off.
+  const flyer = { ...raf, strength: { bombers: 100 } };
+  const range = (from, target) =>
+    mayRaid({
+      world,
+      column: flyer,
+      target,
+      power: 'uk',
+      day: 3,
+      positions: new Map([[flyer.id, from]]),
+      raids: [],
+      ordered: new Set(),
+    });
+  const ruhr = world.works.find((w) => w.name.startsWith('Ruhr'));
+  const far = hexesApart(water, ruhr.cell);
+  ok(far > CARRIER_RANGE, `the Ruhr is ${Math.round(far)} hexes from that water`);
+  ok(
+    range(water, ruhr.cell)?.includes('off a deck'),
+    'a group on a deck is told it goes four and finds the ship again',
+  );
+  ok(
+    far <= BOMBER_RANGE ? range(beach, ruhr.cell) === null : true,
+    'and the same group standing on the beach beside it may go',
   );
 }
 

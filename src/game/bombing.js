@@ -1,6 +1,6 @@
 import { grid } from '../world/sphere.js';
-import { NATION_INDEX, NATIONS } from '../world/nations.js';
 import { formationName } from '../world/deploy.js';
+import { NATION_INDEX, NATIONS, SEA } from '../world/nations.js';
 import { atWar } from './movement.js';
 
 // Strategic bombing.
@@ -160,11 +160,35 @@ export function mayRaid({ world, column, target, power, day, positions, raids, o
     return 'There is no works or yard on that hex to put out of action.';
   }
 
+  const goes = reachFrom(world, from);
   const reach = hexesApart(from, target);
-  if (reach > BOMBER_RANGE) {
-    return `${Math.round(reach)} hexes — a bomber of 1939 goes ${BOMBER_RANGE} and comes back.`;
+  if (reach > goes) {
+    return goes === CARRIER_RANGE
+      ? `${Math.round(reach)} hexes — a group flying off a deck goes ${goes} and finds the ship again.`
+      : `${Math.round(reach)} hexes — a bomber of 1939 goes ${goes} and comes back.`;
   }
   return null;
+}
+
+/**
+ * How far a group flies from a deck, as against from an aerodrome.
+ *
+ * Four hexes is about two hundred and seventy kilometres, which is a carrier
+ * strike radius with fuel enough to find the ship again. A land bomber goes
+ * ten, and the whole point of a carrier is that it does not have to: it brings
+ * the aerodrome to within four hexes of whatever you wanted bombed.
+ */
+export const CARRIER_RANGE = 4;
+
+/**
+ * How far a group flies from where it happens to be standing this morning.
+ *
+ * Ten hexes from an aerodrome and four from a deck. A carrier is a shorter
+ * range and a movable one, which is the whole bargain of the thing: it does not
+ * reach further, it starts closer.
+ */
+export function reachFrom(world, cell) {
+  return world?.ownership?.owner?.[cell] === SEA ? CARRIER_RANGE : BOMBER_RANGE;
 }
 
 /**
