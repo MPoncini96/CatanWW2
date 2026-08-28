@@ -2316,15 +2316,13 @@ its name promised: it shut the panel and left every box that had been ticked
 still ticked, so a panel opened by mistake put orders on the map behind it.
 
 There is now one confirming button — **Save & close**, which sends the orders to
-the server, shuts the panel and lets go of the hex — and **Cancel**, which puts
-back what the server last confirmed and shuts, keeping the hex. The server's
-copy is the only truth about what has been ordered, which is why it is what gets
-restored rather than a snapshot taken on opening.
+the server — and **Cancel**, which puts back what the server last confirmed. The
+server's copy is the only truth about what has been ordered, which is why it is
+what gets restored rather than a snapshot taken on opening.
 
-The asymmetry over the hex is deliberate. Saving is the end of what you were
-doing with that ground, so leaving it ringed in gold with its dossier open says
-the opposite. Giving up on a panel usually means you are about to open a
-different one on the same hex.
+Both shut the panel and let go of the hex. Either way you have finished with
+that ground for the moment, and a panel that closes while the hex stays ringed
+in gold with its dossier open reads as though something is still in progress.
 
 Clicking the selected hex a second time deselects it. The way out of a selection
 used to be finding somewhere you did not care about and clicking that, which is
@@ -2390,16 +2388,24 @@ verified.
 
 ## Not built yet
 
-Shipyards, which now have something to do: hulls can be lost, so they can be
-replaced, and the yards are the obvious next thing the factories should learn to
-build. Blockade of the coasts, as against of the trade routes — sea supply is
-still assumed rather than earned, so East Prussia and Libya feed themselves
-across water nobody controls. Fighter sweeps and escorts: a fighter presently
-defends and never flies. Fuel, which is the one thing a fleet needs that this
-does not model — a ship steams six hexes a day for ever and never puts into
-port. Raising new formations, as against rebuilding the ones in the order of
-battle. And a way to win or lose, which the game still does not have: a nation
-reduced to nothing simply holds no hexes. The board carries terrain, movement cost (`TERRAIN[].move`),
-population, six resource outputs and an owner per hex, exposes `neighbours()`
-for pathfinding — six of them, all equidistant — marks which hexes are cities, and will log every transfer of
-territory — but nothing drives them yet.
+**Shipyards.** This is the sharpest gap left. A fleet can be sunk, a convoy can
+be sunk, and the yards of six naval powers sit on the board doing nothing —
+`raising.js` can put six kinds of formation into the field and not one of them
+floats. Every hull lost in this war is lost for good, which makes the sea a
+resource that only ever runs down.
+
+**Blockade of the coasts**, as against of the trade routes. Sea supply is still
+assumed rather than earned, so East Prussia and Libya feed themselves across
+water nobody controls. The convoys model the Atlantic and the map models who
+holds each port; nothing yet joins the two.
+
+**Fuel**, which is the one thing a fleet needs that this does not model. A ship
+steams six hexes a day for ever and never puts into port.
+
+**Naval air**, which is the other half of the carrier. A carrier has an
+attack rating in a fleet action and its aircraft cannot fly a mission, so it is
+a battleship with worse guns.
+
+The board carries terrain, movement cost (`TERRAIN[].move`), population, six
+resource outputs and an owner per hex, exposes `neighbours()` for pathfinding —
+six of them, all equidistant — and marks which hexes are cities.

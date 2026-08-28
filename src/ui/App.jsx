@@ -537,6 +537,11 @@ export default function App() {
         for (const [put, was] of restore) put(was ?? []);
         setOrderError(null);
         shut(null);
+        // And let go of the hex, exactly as saving does. Either way you have
+        // finished with that ground for now, and a panel that shuts while the
+        // hex stays ringed in gold with its dossier open reads as though
+        // something is still in progress.
+        viewRef.current?.clearSelection();
       },
     [],
   );
@@ -574,8 +579,7 @@ export default function App() {
       setSailAt(null);
       // And let go of the hex. Saving is the end of what you were doing with
       // it, so leaving it ringed in gold with its dossier open says the
-      // opposite. Cancel deliberately does not do this: giving up on one panel
-      // is usually the prelude to opening another on the same ground.
+      // opposite. Cancel does the same, from the other direction.
       viewRef.current?.clearSelection();
     } catch (err) {
       setOrderError(err.message);
