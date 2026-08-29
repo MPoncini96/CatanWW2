@@ -1,8 +1,12 @@
 import { TILE_COUNT, neighbours } from '../world/sphere.js';
 import { NATION_INDEX, NATIONS, SEA } from '../world/nations.js';
 import { enemiesOf, mayFight } from './belligerence.js';
+import { UNPLAYED } from './players.js';
+import { CAPITAL_CELLS } from '../world/capitals.js';
 import { isMobile, mayMarch } from './movement.js';
 import { groundBonus, strengthOf } from './combat.js';
+import { airCombat, defenceOf, hexesApart, mayRaid, reachFrom } from './bombing.js';
+import { mayStrike } from './strike.js';
 import { supplyFor } from './supply.js';
 import { TEMPLATE_INDEX, menIn as menInTemplate } from './raising.js';
 
@@ -31,9 +35,16 @@ import { TEMPLATE_INDEX, menIn as menInTemplate } from './raising.js';
 // a hex is enough, it goes forward. So an unseated power gathers divisions
 // against a border for a week and then attacks, which is what a staff does.
 //
-// **It does not fly, sail, or land.** Those are the three things an automaton
-// looks stupid doing, and leaving them out is honest: an unseated navy sitting
-// in port is defensible, one blundering into the Atlantic is not.
+// **It flies, but it does not sail or land.** A mission is one day and goes
+// nowhere — no pathfinding, no plan spread over a week — which is exactly why
+// an automaton cannot look stupid doing it, and why this came first. A navy
+// wandering the Atlantic and an amphibious landing are the two that can, and
+// they are left out.
+//
+// Leaving the air out was the larger hole. Every air system on this board —
+// strategic bombing, close support, escort, the flak, the carriers — was
+// entirely one-sided the moment a seat was empty: a player bombed and was never
+// bombed back.
 
 /**
  * Odds the staff wants before it goes forward.
@@ -132,6 +143,14 @@ export function forcesNeedingStaff(world, game, day) {
     if (game.seats[power]) continue;
     out.push({ power, country: -1, party: power });
   }
+  // And the powers that have no chair to sit in. France is the only one, and
+  // it is unseated permanently rather than because nobody turned up — so it is
+  // the one power that always gets a staff, and the only army on the board that
+  // would otherwise never move whatever the table did.
+  for (const power of UNPLAYED) {
+    if (NATION_INDEX[power] === undefined) continue;
+    out.push({ power, country: -1, party: power });
+  }
   // Only the neutrals with somebody to fight *and* something to fight with.
   //
   // Both halves matter. Most country names on this board belong to a seated
@@ -193,13 +212,27 @@ export function holdings(world, power, country) {
  */
 export const MANOEUVRE = new Set(['field', 'armor']);
 
-/** Every column this force can give marching orders to. */
+/**
+ * Every column this force can give marching orders to.
+ *
+ * Nothing standing on a capital. A garrison on a capital is a garrison *of* the
+ * capital, and marching it off to feed the front is how a government falls —
+ * the first version had Poland march two of Warsaw's four columns out on the
+ * first morning, dropping the city's defence from a hundred and eleven thousand
+ * to sixteen, and Warsaw was gone on the fifth day against the twenty-six it
+ * held for in 1939.
+ *
+ * Blunt on purpose. Losing a capital is what the whole capitulation system
+ * keys on, so the one hex a staff must never leave open is easy to name.
+ */
 export function forcesOf(world, power, country) {
+  const capitals = CAPITAL_CELLS();
   const out = [];
   for (const column of world.garrisons.opening) {
     if (column.formation.nation !== power) continue;
     if (!MANOEUVRE.has(column.formation.type)) continue;
     if (country >= 0 && homeCountry(world, column) !== country) continue;
+    if (capitals.has(column.cell)) continue;
     out.push(column);
   }
   return out;
@@ -272,6 +305,10 @@ function partyOf(world, column) {
 
 /**
  * Whoever is standing on a hex that this force may fight.
+ *
+ * Used by `airOrders` above as well, which reads earlier in the file than this
+ * is declared. That is a plain function declaration and hoists; the ordering is
+ * by subject rather than by dependency.
  *
  * Not simply "everybody who is not mine": a hex can hold two allies, and the
  * question a staff asks before it attacks is what will shoot back.
@@ -359,6 +396,13 @@ export function attackOrders({
       const them = partyHolding(world, j);
       if (!them || !mayFight(day, party, them)) continue;
       const against = defendersOn(world, j, party, day, where);
+      // Empty ground you cannot feed an army on is not a prize, it is the
+      // march rule dodged. An attack may go into supply it does not have —
+      // you take the position and the depots follow — but walking into a hex
+      // nobody is defending is a march, and marches stay inside the net. The
+      // first version let France walk twenty-four undefended hexes into
+      // Germany and starve on every one of them.
+      if (!against.length && !supplied[j]) continue;
       const standing =
         strengthOf(against, 'defend', strengths) * groundBonus(world, j, from);
       const odds = weight / Math.max(1, standing);
@@ -463,7 +507,13 @@ export function marchOrders({
  * day from four hundred milliseconds to two seconds.
  */
 export function staffDay(world, positions, day) {
-  return { standing: standingAt(world, positions), supplied: new Map(), day };
+  return {
+    standing: standingAt(world, positions),
+    supplied: new Map(),
+    // What the air defence over a hex is worth to each power that might ask.
+    priced: new Map(),
+    day,
+  };
 }
 
 /** The supply map for a nation, made once and kept for the day. */
@@ -474,6 +524,217 @@ function fedFor(shared, world, power, day) {
   const map = supplyFor(world, power, day);
   shared.supplied.set(power, map);
   return map;
+}
+
+/**
+ * Bombers over one hex past which more bombers do nothing.
+ *
+ * A strike is capped at eight per cent of what is standing on a hex however
+ * much is sent, and the cap starts binding around a hundred and seventy against
+ * a full-strength position. Everything past that is aircraft lost for nothing,
+ * so the staff spreads them over the next target instead.
+ */
+export const SATURATED = 200;
+
+/** And the same for a works, which is shut for longer the more gets through. */
+export const SATURATED_WORKS = 320;
+
+/**
+ * How much of an air force goes up on any one morning.
+ *
+ * The first version sent everything that could fly, every day, and flew three
+ * air forces into the ground doing it: Bomber Command went from 550 aircraft to
+ * 70 in six weeks, and by the fortieth day there was nothing left to raid with.
+ * A raid on a defended target costs a tenth to a quarter of what is sent, which
+ * is a real price for a decision made now and then and ruinous as a habit.
+ *
+ * A third, so a group flies about every third day. Air forces husbanded their
+ * strength exactly this way and for exactly this reason.
+ */
+export const SORTIE = 1 / 3;
+
+/**
+ * And what a mission has to cost before it is not worth flying.
+ *
+ * Fourteen per cent of the bombers sent. Above that the staff would be trading
+ * its air force for a factory shut for a week, which is the trade every bomber
+ * command in the war got wrong at least once and none of them got wrong twice.
+ */
+export const COSTLY = 0.14;
+
+/** Every air group of this force that could fly today. */
+function airGroups(world, power, country, positions, aboard, flown, ordered) {
+  const out = [];
+  for (const column of world.garrisons.opening) {
+    if (column.formation.nation !== power) continue;
+    if (column.formation.type !== 'air') continue;
+    if (country >= 0 && homeCountry(world, column) !== country) continue;
+    if (aboard?.has(column.id) || flown?.has(column.id) || ordered?.has(column.id)) continue;
+    if (positions.get(column.id) === undefined) continue;
+    out.push(column);
+  }
+  // By id, so the same board gives the same missions on every machine.
+  return out.sort((a, b) => (a.id < b.id ? -1 : 1));
+}
+
+/**
+ * The missions this force flies today.
+ *
+ * Two kinds, in the order a staff would want them.
+ *
+ * **The air goes in before the infantry does.** Every hex the staff is
+ * attacking this morning is a hex worth bombing first, which is the whole
+ * reason strikes are resolved ahead of the battles. Targets are taken heaviest
+ * first, because that is where softening is worth most, and each is filled only
+ * to the point where another bomber would achieve nothing.
+ *
+ * **Then the works.** Whatever has not been given a battle to support goes for
+ * the largest factory it can reach and come back from.
+ *
+ * Fighters go last and only to targets that are already having bombs dropped on
+ * them, because a fighter over a hex nobody is bombing is a fighter spending
+ * its one sortie of the day on nothing.
+ *
+ * @returns {{striking: Array, raiding: Array}} orders in the shape a seat gives
+ */
+export function airOrders({
+  world,
+  power,
+  country = -1,
+  party,
+  day,
+  positions,
+  strengths,
+  attacks,
+  aboard,
+  flown,
+  standing,
+  shared,
+}) {
+  const all = airGroups(world, power, country, positions, aboard, flown, null);
+  if (!all.length) return { striking: [], raiding: [] };
+  // Only a share of it goes up. The rest is being serviced, which is where
+  // most of an air force was on most days.
+  const groups = all.slice(0, Math.max(1, Math.round(all.length * SORTIE)));
+  const where = standing ?? standingAt(world, positions);
+
+  const striking = [];
+  const raiding = [];
+  const spent = new Set();
+  const bombersOver = new Map();
+  const bombs = (column) =>
+    (strengths?.get(column.id) ?? column.strength).bombers ?? 0;
+
+  // ---- what the infantry is going for this morning -------------------------
+  const targets = [...new Set((attacks ?? []).map((m) => m.to))];
+  targets.sort((a, b) => {
+    const weigh = (cell) =>
+      strengthOf(defendersOn(world, cell, party, day, where), 'defend', strengths);
+    return weigh(b) - weigh(a) || a - b;
+  });
+
+  // What a mission over this hex would cost. An escort is not counted: the
+  // staff decides whether the bombers can be spared before it decides who goes
+  // with them, which is the pessimistic way round.
+  //
+  // Kept for the whole day rather than for one force, because `defenceOf`
+  // walks every column on the board and measures the distance to each: pricing
+  // fifty-three works afresh for each of eight forces took six hundred
+  // milliseconds a morning, four hundred times what the rest of this costs.
+  const priced = shared?.priced ?? new Map();
+  const tooDear = (target, weight) => {
+    const key = `${power}@${target}`;
+    if (!priced.has(key)) {
+      priced.set(key, defenceOf(world, target, power, positions, strengths, day));
+    }
+    const against = priced.get(key);
+    const share = airCombat({
+      guardFighters: against.fighters,
+      guardFlak: against.flak,
+      escort: 0,
+      bombers: weight,
+    }).bomberShare;
+    return share > COSTLY;
+  };
+
+  const send = (column, target, into, check) => {
+    const why = check(column, target);
+    if (why) return false;
+    spent.add(column.id);
+    into.push({ column: column.id, target });
+    bombersOver.set(target, (bombersOver.get(target) ?? 0) + bombs(column));
+    return true;
+  };
+
+  const strikeCheck = (column, target) =>
+    mayStrike({
+      world,
+      column: { ...column, strength: strengths?.get(column.id) ?? column.strength },
+      target,
+      power,
+      day,
+      positions,
+      flown: flown ?? new Set(),
+      ordered: spent,
+    });
+
+  for (const target of targets) {
+    for (const column of groups) {
+      if (spent.has(column.id) || !bombs(column)) continue;
+      if ((bombersOver.get(target) ?? 0) >= SATURATED) break;
+      // Priced against everything going, not against this group alone: a
+      // formation saturates a defence that would destroy a squadron, so the
+      // question is whether the whole raid is worth it.
+      if (tooDear(target, (bombersOver.get(target) ?? 0) + bombs(column))) continue;
+      send(column, target, striking, strikeCheck);
+    }
+  }
+
+  // ---- and then the factories ---------------------------------------------
+  const works = [...(world.works ?? [])].sort((a, b) => b.output - a.output || a.cell - b.cell);
+  const raidCheck = (column, target) =>
+    mayRaid({
+      world,
+      column: { ...column, strength: strengths?.get(column.id) ?? column.strength },
+      target,
+      power,
+      day,
+      positions,
+      raids: [],
+      ordered: spent,
+    });
+
+  for (const column of groups) {
+    if (spent.has(column.id) || !bombs(column)) continue;
+    const from = positions.get(column.id);
+    const goes = reachFrom(world, from);
+    // The four biggest it can reach, and no further down the list. A staff
+    // that priced every works on the board until it found an affordable one
+    // spent its whole morning on arithmetic about factories in Siberia.
+    const near = works.filter((site) => hexesApart(from, site.cell) <= goes).slice(0, 4);
+    for (const site of near) {
+      if ((bombersOver.get(site.cell) ?? 0) >= SATURATED_WORKS) continue;
+      if (tooDear(site.cell, (bombersOver.get(site.cell) ?? 0) + bombs(column))) continue;
+      if (send(column, site.cell, raiding, raidCheck)) break;
+    }
+  }
+
+  // ---- and the escorts, where there is something to escort -----------------
+  const escorted = new Map();
+  for (const order of striking) escorted.set(order.target, striking);
+  for (const order of raiding) escorted.set(order.target, raiding);
+  for (const column of groups) {
+    if (spent.has(column.id)) continue;
+    const from = positions.get(column.id);
+    const goes = reachFrom(world, from);
+    for (const [target, into] of escorted) {
+      if (hexesApart(from, target) > goes) continue;
+      const check = into === striking ? strikeCheck : raidCheck;
+      if (send(column, target, into, check)) break;
+    }
+  }
+
+  return { striking, raiding };
 }
 
 /**

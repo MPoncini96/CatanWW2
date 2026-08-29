@@ -11,6 +11,7 @@ import { economyFor } from '../world/economy.js';
 import { collisionsAt } from './combat.js';
 import { advanceOrders } from './frontward.js';
 import {
+  airOrders,
   depotOrders,
   forcesNeedingStaff,
   raisingOrders,
@@ -366,8 +367,16 @@ export function advance(game, world = null, now = 0) {
     // Where everything is standing, and each nation's supply, worked out once
     // for all of them rather than once each.
     const shared = onDuty.length ? staffDay(world, positions, game.day) : null;
+    // Who flew last night and is being turned round this morning. One list for
+    // the whole pass, because a group flies one mission a day whichever it is.
+    const turnedRound = new Set(
+      [
+        ...(game.raids ?? []).filter((r) => r.day === game.day - 1),
+        ...(game.strikes ?? []).filter((r) => r.day === game.day - 1),
+      ].flatMap((r) => r.columns ?? []),
+    );
     for (const force of onDuty) {
-      const { moves } = staffOrders({
+      const { moves, attacks } = staffOrders({
         world,
         power: force.power,
         country: force.country,
@@ -385,6 +394,35 @@ export function advance(game, world = null, now = 0) {
         taken.push(move.column);
       }
       staffMoves += moves.length;
+
+      // And the air, which goes in ahead of the infantry it is supporting —
+      // strikes are resolved before the battles, so a hex bombed this morning
+      // is assaulted this afternoon.
+      const flying = airOrders({
+        world,
+        power: force.power,
+        country: force.country,
+        party: force.party,
+        day: game.day,
+        positions,
+        strengths,
+        attacks,
+        aboard,
+        flown: turnedRound,
+        standing: shared?.standing,
+        shared,
+      });
+      for (const order of flying.striking) turnedRound.add(order.column);
+      for (const order of flying.raiding) turnedRound.add(order.column);
+      if (flying.striking.length) {
+        game.striking[force.power] = [
+          ...(game.striking[force.power] ?? []),
+          ...flying.striking,
+        ];
+      }
+      if (flying.raiding.length) {
+        game.raiding[force.power] = [...(game.raiding[force.power] ?? []), ...flying.raiding];
+      }
 
       // And the two things that are not marching. An army that can only ever
       // get smaller is not an opponent for long: the depots put men back into

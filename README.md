@@ -1867,16 +1867,29 @@ at all.
 
 ### And three things it will not do
 
+**It never strips a capital.** Nothing standing on one is given a marching
+order, because losing a capital is what the whole capitulation system keys on
+and a garrison on a capital is a garrison *of* it. Blunt on purpose, and it was
+found the hard way: Poland marched two of Warsaw's four columns out on the first
+morning, took the city's defence from a hundred and eleven thousand to sixteen,
+and lost Warsaw on the fifth day. Pinned, Warsaw holds, Poland loses about two
+hexes a day, the advance stalls in front of the city for three weeks, and the
+government falls on **day 41** — against the twenty-six days Warsaw held in 1939
+and the thirty-five to the surrender.
+
 **It does not move anything but divisions and armour.** The first version moved
 everything, and marching the depots forward broke the supply web behind the army
 that needed it — forty-three island garrisons starved on the first morning. Air
 groups belong on aerodromes and rear-area security is holding the rear areas.
 All of it still defends the hex it is standing on, which is what it was for.
 
-**It does not march out of its own supply.** An attack may go anywhere — you
-take the hex and the depots follow — but walking to the front may not. Without
-that rule one column in six was starving by the fortieth day on ground nobody
-had fought over.
+**It does not march out of its own supply**, and it does not walk into empty
+ground it cannot feed an army on either. An attack into a *defended* hex may go
+anywhere — you take the position and the depots follow — but an undefended hex
+is a march by another name, and marches stay inside the net. Without the first
+rule one column in six was starving by the fortieth day on ground nobody had
+fought over; without the second, France walked twenty-four undefended hexes into
+Germany and starved on every one of them.
 
 **It does not attack while it is starving.** This is the rule that stops a front
 running away from its own depots for ever: outrun the supply and the attacks
@@ -1884,9 +1897,67 @@ stop, and they start again when it catches up. It also weighs itself honestly �
 telling `strengthOf` which of its own columns are being fed, which the first
 version did not, so it attacked at odds it did not have.
 
-It does not fly, sail, or land, either. Those are the three things an automaton
-looks stupid doing, and leaving them out is honest: an unseated navy sitting in
-port is defensible, one blundering into the Atlantic is not.
+It does not sail or land. A navy wandering the Atlantic and an amphibious
+landing are the two an automaton can still look stupid doing, and leaving them
+out is honest: an unseated navy sitting in port is defensible.
+
+### It flies
+
+Leaving the air out was the larger hole. Every air system on this board —
+strategic bombing, close support, escort, the flak, the carriers — was
+**entirely one-sided the moment a seat was empty**: a player bombed and was
+never bombed back.
+
+A mission is one day and goes nowhere. No pathfinding, no plan spread over a
+week, so there is very little for an automaton to be stupid about — which is why
+this came before the navy rather than after it.
+
+**The air goes in before the infantry does.** Every hex the staff is attacking
+this morning is a hex worth bombing first, which is the whole reason strikes are
+resolved ahead of the battles. Targets are taken heaviest first, and each is
+filled only to the point where another bomber would achieve nothing — a strike
+is capped at eight per cent of a hex whatever is sent, and the cap starts biting
+around a hundred and seventy aircraft. Whatever has no battle to support goes
+for the largest factory it can reach and come back from. Fighters go last and
+only to targets already being bombed, since a fighter over a hex nobody is
+bombing has spent its one sortie of the day on nothing.
+
+**A third of an air force flies on any morning**, and this is the number that
+mattered. The first version sent everything that could fly, every day, and flew
+three air forces into the ground doing it:
+
+| | day 0 | day 40, flying everything | day 40, flying a third |
+| --- | --- | --- | --- |
+| Bomber Command | 550 | 70 | 343 |
+| The Luftwaffe | 1,600 | 906 | 1,171 |
+| The Armée de l'Air | 600 | 265 | 407 |
+
+A raid on a defended target costs a tenth to a quarter of what is sent. That is
+a real price for a decision taken now and then, and ruinous as a daily habit —
+by the fortieth day there was nothing left to raid with, which is why the raids
+simply stopped. Air forces husbanded their strength exactly this way and for
+exactly this reason.
+
+**And it will not fly a mission costing more than fourteen per cent** of the
+bombers sent, priced with `airCombat` against the fighters and flak actually
+over the target, and priced for the whole raid rather than for one group —
+because a formation saturates a defence that would destroy a squadron.
+
+Forty days of a board playing itself now gives 69 raids and 18 strikes, still
+two a day at the end rather than none, 628 bombers lost rather than 1,391, and —
+the point of the whole thing — **Germany bombed 58 times by people nobody is
+sitting at**.
+
+### France fights
+
+France has no seat and never will: it is a thing that happens to you rather than
+a thing you play, and that is the design of 1940 here. But it used to sit in the
+Maginot and not move a division while every other empty chair massed and
+attacked, so the one army that is supposed to make 1940 expensive was the only
+one on the board doing nothing at all — which reads as a bug rather than as a
+decision.
+
+It gets a staff like any unseated power. What it does not get is a seat.
 
 ### The countries, not only the seats
 

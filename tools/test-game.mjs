@@ -97,11 +97,15 @@ import {
   isAirGroup,
 } from '../src/game/amphibious.js';
 import { CARRIER_RANGE, reachFrom } from '../src/game/bombing.js';
+import { CAPITAL_CELLS } from '../src/world/capitals.js';
 import {
   MANOEUVRE,
   ODDS,
   QUEUE,
   WORN,
+  COSTLY,
+  SORTIE,
+  airOrders,
   attackOrders,
   depotOrders,
   forcesNeedingStaff,
@@ -4592,8 +4596,12 @@ section('close support');
   const duty = forcesNeedingStaff(world, game, 0);
   eq(
     duty.filter((f) => f.country < 0).length,
-    POWERS.length,
-    'every seat nobody is sitting at gets a staff',
+    POWERS.length + 1,
+    'every seat nobody is sitting at gets a staff, and France, which has no seat to sit at',
+  );
+  ok(
+    duty.some((f) => f.power === 'france'),
+    'France is unseated permanently rather than because nobody turned up, so it always gets one',
   );
   ok(
     duty.some((f) => f.party === 'Poland'),
@@ -4710,6 +4718,130 @@ section('close support');
     `${alone.length} attacks from an army at a twentieth strength, against ${work.attacks.length} at full`,
   );
 
+  // ---- and it never strips a capital ---------------------------------------
+  //
+  // The one hex a staff must not leave open, because losing it is what the
+  // whole capitulation system keys on. The first version marched two of
+  // Warsaw's four columns out on the first morning, took the city's defence
+  // from a hundred and eleven thousand to sixteen, and lost Warsaw on the
+  // fifth day against the twenty-six it held for in 1939.
+  const capitals = CAPITAL_CELLS();
+  eq(
+    work.moves.filter((m) => capitals.has(m.from)).length,
+    0,
+    'nothing is marched off a capital',
+  );
+  const polish = staffOrders({
+    world,
+    power: 'neutral',
+    country: world.countries.findIndex((c) => c.name === 'Poland'),
+    party: 'Poland',
+    day: 1,
+    positions,
+    arrivals: new Map(),
+    strengths,
+    taken: [],
+    aboard: new Map(),
+  });
+  ok(polish.moves.length > 0, `Poland gives ${polish.moves.length} orders of its own`);
+  eq(
+    polish.moves.filter((m) => capitals.has(m.from)).length,
+    0,
+    'and not one of them takes a division out of Warsaw',
+  );
+
+  // ---- and it flies ---------------------------------------------------------
+  //
+  // The hole this closed was the largest one left: every air system on the
+  // board — bombing, close support, escort, the flak, the carriers — was
+  // one-sided the moment a seat was empty, and a player bombed without ever
+  // being bombed back.
+  const flying = airOrders({
+    world,
+    power: 'germany',
+    party: 'germany',
+    day: 1,
+    positions,
+    strengths,
+    attacks: work.attacks,
+    aboard: new Map(),
+    flown: new Set(),
+  });
+  const sorties = [...flying.striking, ...flying.raiding];
+  ok(sorties.length > 0, `${sorties.length} missions ordered on the first morning`);
+
+  // Everything it orders is something a seat could have ordered.
+  const barred = [];
+  for (const order of flying.striking) {
+    const why = mayStrike({
+      world,
+      column: { ...columns.get(order.column), strength: strengths.get(order.column) },
+      target: order.target,
+      power: 'germany',
+      day: 1,
+      positions,
+      flown: new Set(),
+      ordered: new Set(),
+    });
+    if (why) barred.push(`strike ${order.column}: ${why}`);
+  }
+  for (const order of flying.raiding) {
+    const why = mayRaid({
+      world,
+      column: { ...columns.get(order.column), strength: strengths.get(order.column) },
+      target: order.target,
+      power: 'germany',
+      day: 1,
+      positions,
+      raids: [],
+      ordered: new Set(),
+    });
+    if (why) barred.push(`raid ${order.column}: ${why}`);
+  }
+  eq(barred.length, 0, 'every mission is one a player could have ordered');
+  eq(
+    new Set(sorties.map((o) => o.column)).size,
+    sorties.length,
+    'and no group is sent on two missions in a morning',
+  );
+  ok(
+    sorties.every((o) => columns.get(o.column).formation.type === 'air'),
+    'and nothing but an air group is sent to fly',
+  );
+
+  // Only a share of the air force goes up. Flying everything every day took
+  // Bomber Command from 550 aircraft to 70 in six weeks and left nothing to
+  // raid with; a third is what an air force husbanding itself looks like.
+  ok(SORTIE > 0 && SORTIE < 1, `${Math.round(SORTIE * 100)}% of an air force flies on a morning`);
+  const airborne = world.garrisons.opening.filter(
+    (c) => c.formation.nation === 'germany' && c.formation.type === 'air',
+  );
+  ok(
+    sorties.length <= Math.max(1, Math.round(airborne.length * SORTIE)),
+    `${sorties.length} of ${airborne.length} German groups flew, and the rest are being serviced`,
+  );
+
+  // And it will not fly into a defence that would eat it.
+  ok(COSTLY < 0.25, `a mission costing over ${Math.round(COSTLY * 100)}% of the bombers is refused`);
+  const overLondon = airOrders({
+    world,
+    power: 'germany',
+    party: 'germany',
+    day: 1,
+    positions,
+    strengths,
+    // A works with every fighter in the Royal Air Force sitting on top of it is
+    // not a target, it is a way of losing an air force.
+    attacks: [{ to: cellFor(51.5, -0.13) }],
+    aboard: new Map(),
+    flown: new Set(),
+  });
+  eq(
+    overLondon.striking.length,
+    0,
+    'nothing is sent against a hex Germany is not even at war with yet',
+  );
+
   // ---- and what it wants from the depots -----------------------------------
   ok(WORN < 1, `a formation asks for men below ${Math.round(WORN * 100)}% of itself`);
   const worn = new Map(
@@ -4760,17 +4892,37 @@ section('close support');
   ok(before > 40, `Poland holds ${before} hexes on 1 September`);
 
   let fell = 0;
-  for (let d = 0; d < 30; d += 1) {
+  let stalled = 0;
+  for (let d = 0; d < 50; d += 1) {
+    const was = polish();
     G.advance(game, world);
     if (!fell && polish() === 0) fell = game.day;
+    if (!fell && polish() === was) stalled += 1;
   }
   ok(fell > 0, 'Poland is overrun by a board playing itself');
   ok(
-    fell >= 10 && fell <= 40,
+    fell >= 20 && fell <= 60,
     `and it takes ${fell} days, against the thirty-five it took in 1939`,
   );
+  // The shape matters as much as the number. A capital that is never stripped
+  // to feed the front is a capital that has to be besieged, and the advance
+  // stalls in front of it before it goes in.
+  ok(stalled > 0, `and the advance stalled on ${stalled} of those days before it broke through`);
 
   // The war does not run away with itself, and it does not stop.
+  // The air war runs, and it runs in both directions.
+  const flown = [...(game.raids ?? []), ...(game.strikes ?? [])];
+  ok(flown.length > 10, `${flown.length} missions flown by boards playing themselves`);
+  const bombed = new Set(flown.map((r) => r.against).filter(Boolean));
+  ok(
+    bombed.size > 1,
+    `and ${bombed.size} different powers were on the receiving end of them`,
+  );
+  ok(
+    flown.some((r) => (r.escort ?? 0) > 0),
+    'some of them went with an escort',
+  );
+
   const late = (game.battles ?? []).filter((b) => b.day > game.day - 5).length;
   ok(late > 0, `${late} battles fought in the last five days — the war is still going`);
   const staffMoves = game.moves.filter((m) => m.staff);
