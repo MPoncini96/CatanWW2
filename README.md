@@ -1883,13 +1883,30 @@ that needed it — forty-three island garrisons starved on the first morning. Ai
 groups belong on aerodromes and rear-area security is holding the rear areas.
 All of it still defends the hex it is standing on, which is what it was for.
 
-**It does not march out of its own supply**, and it does not walk into empty
-ground it cannot feed an army on either. An attack into a *defended* hex may go
-anywhere — you take the position and the depots follow — but an undefended hex
-is a march by another name, and marches stay inside the net. Without the first
-rule one column in six was starving by the fortieth day on ground nobody had
-fought over; without the second, France walked twenty-four undefended hexes into
-Germany and starved on every one of them.
+**It does not march out of its own supply.** An attack may go anywhere — you
+take the position and the depots follow — but walking to the front may not.
+Without that rule one column in six was starving by the fortieth day on ground
+nobody had fought over.
+
+There was a second rule here and it had to be taken out again, which is worth
+writing down because the failure was invisible for a long time. It refused an
+*undefended* hex outside our own supply, on the grounds that walking into empty
+ground is a march by another name. **Enemy ground is never inside your supply
+map** — supply will not conduct through ground held by somebody you are
+fighting — so the rule did not mean "too far", it meant "held by the enemy", and
+it forbade every advance into an undefended hex for ever.
+
+Four hundred days of a board playing itself froze on the thirty-fourth:
+twenty-one thousand battles, and not one hex changing hands after Poland fell.
+Nothing looked broken from inside a day — the armies were fed, the fighting went
+on, the reports read normally. It only showed up by running the war out and
+looking at the map.
+
+What actually bounds an advance is the first rule: an attack has to *start* from
+a supplied hex, so a spearhead may go one hex past the railhead and no further,
+because tomorrow it is standing outside supply itself and will not attack again
+until the depots catch up. That is a rule about overreach rather than a rule
+about frontiers.
 
 **It does not attack while it is starving.** This is the rule that stops a front
 running away from its own depots for ever: outrun the supply and the attacks

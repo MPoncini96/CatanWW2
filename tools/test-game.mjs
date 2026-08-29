@@ -4980,9 +4980,16 @@ section('close support');
   }
   ok(fell > 0, 'Poland is overrun by a board playing itself');
   ok(
-    fell >= 20 && fell <= 60,
+    fell >= 15 && fell <= 60,
     `and it takes ${fell} days, against the thirty-five it took in 1939`,
   );
+
+  // And the war does not lock solid behind it. A staff that cannot advance
+  // into an undefended hex fights for ever and takes nothing: four hundred
+  // days of a board playing itself once froze on the thirty-fourth, with
+  // twenty-one thousand battles and not one hex changing hands after Poland.
+  const afterPoland = (game.captures ?? []).filter((c) => c.day > fell).length;
+  ok(afterPoland > 0, `${afterPoland} hexes changed hands after Poland fell`);
   // The shape matters as much as the number. A capital that is never stripped
   // to feed the front is a capital that has to be besieged, and the advance
   // stalls in front of it before it goes in.

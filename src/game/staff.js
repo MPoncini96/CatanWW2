@@ -405,13 +405,22 @@ export function attackOrders({
       const them = partyHolding(world, j);
       if (!them || !mayFight(day, party, them)) continue;
       const against = defendersOn(world, j, party, day, where);
-      // Empty ground you cannot feed an army on is not a prize, it is the
-      // march rule dodged. An attack may go into supply it does not have —
-      // you take the position and the depots follow — but walking into a hex
-      // nobody is defending is a march, and marches stay inside the net. The
-      // first version let France walk twenty-four undefended hexes into
-      // Germany and starve on every one of them.
-      if (!against.length && !supplied[j]) continue;
+      // There was a rule here refusing an undefended hex outside our own
+      // supply, on the grounds that walking into empty ground is a march by
+      // another name and marches stay inside the net. It deadlocked the war.
+      //
+      // Enemy ground is *never* inside your supply map — `supplyMap` will not
+      // conduct through ground held by somebody you are fighting — so the rule
+      // did not mean "too far", it meant "held by the enemy", and it forbade
+      // every advance into an undefended hex for ever. Four hundred days of a
+      // board playing itself froze on the thirty-fourth: twenty-one thousand
+      // battles, and not one hex changing hands after Poland fell.
+      //
+      // What actually bounds an advance is already above — a hex the attack
+      // starts from has to be in supply. So a spearhead may go one hex past
+      // the railhead and no further, because tomorrow it is standing outside
+      // supply itself and will not attack again until the depots catch up.
+      // That is a rule about overreach rather than a rule about frontiers.
       const standing =
         strengthOf(against, 'defend', strengths) * groundBonus(world, j, from);
       const odds = weight / Math.max(1, standing);
