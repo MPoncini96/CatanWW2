@@ -219,7 +219,7 @@ function greatCircle(a, b) {
  * 67 km to the hex, and a ship on this board goes through them the way a ship
  * did, without the water being drawn.
  */
-function waterPath(from, to, isWater, budget = 4000) {
+export function waterPath(from, to, isWater, budget = 4000) {
   if (from === to) return [];
   const cameFrom = new Map([[from, -1]]);
   let frontier = [from];

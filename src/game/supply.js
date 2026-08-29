@@ -151,12 +151,19 @@ const CACHE = new WeakMap();
 
 /** The supply map, worked out once and kept until something moves. */
 export function supplyFor(world, nation, day) {
-  // One entry per nation, thrown away whole the moment the day or the map
-  // changes. The first version kept a single slot for the entire board, which
-  // was right when one nation asked per day and useless once several did: eight
-  // nations asking in turn missed every time and flooded a hundred and fourteen
-  // thousand cells eight times over, at a hundred and forty milliseconds a day.
-  const stamp = `${day}|${world.ownership.version}`;
+  // One entry per nation, for one day.
+  //
+  // Two things were wrong with keying this on the map as well. It was slow —
+  // ground changes hands all through a day's resolution, so the cache was
+  // thrown away after every capture and a single day flooded a hundred and
+  // fourteen thousand cells thirty-six times, which was half of what the day
+  // cost. And it was incoherent: supply is what could be got to a hex **this
+  // morning**, and an army's rations should not flicker on and off as hexes
+  // fall around it during the afternoon's fighting.
+  //
+  // So it is a fact about the day, worked out once and held. The map it was
+  // read off is the map everything else in that day was decided on.
+  const stamp = `${day}`;
   let per = CACHE.get(world);
   if (per?.stamp !== stamp) {
     per = { stamp, maps: new Map() };

@@ -103,8 +103,14 @@ import {
   ODDS,
   QUEUE,
   WORN,
+  AT_SEA,
   COSTLY,
+  ON_STATION,
   SORTIE,
+  fleetIsFor,
+  navalOrders,
+  steerTo,
+  waterMap,
   airOrders,
   attackOrders,
   depotOrders,
@@ -144,6 +150,7 @@ import {
   fleetsAt,
   fleetsOf,
   mayShip,
+  navigable,
   resolveNavalDay,
 } from '../src/game/naval.js';
 import { RELIEF_DAYS, ROUTES_1939, convoyCell, deliveredBy } from '../src/world/convoys.js';
@@ -4842,6 +4849,78 @@ section('close support');
     'nothing is sent against a hex Germany is not even at war with yet',
   );
 
+  // ---- and it goes to sea ---------------------------------------------------
+  //
+  // Two jobs and no more, because they are the two that need no judgement
+  // about where a war is going: submarines hunt trade and destroyers screen it.
+  // Everything else stays at its anchorage, which is where a fleet in being
+  // spent its war and a great deal better than a battle squadron wandering the
+  // Atlantic on an automaton's initiative.
+  const afloat = fleetsAt(world, {}, 0);
+  const boats = afloat.find((f) => f.power === 'germany' && f.ships.submarines > 5);
+  ok(boats, 'Germany has a U-boat flotilla');
+  eq(fleetIsFor(boats), 'raiding', 'a flotilla of submarines is a raiding force');
+  const screen = afloat.find(
+    (f) => !f.cargo && f.ships.destroyers > 5 && fleetIsFor(f) === 'escorting',
+  );
+  ok(screen, `and ${screen?.name} is an escort group`);
+  const battleFleet = afloat.find((f) => !f.cargo && f.hulls > 3 && !fleetIsFor(f));
+  ok(battleFleet, `and ${battleFleet?.name ?? 'a mixed squadron'} is neither, so it stays put`);
+
+  // A path over water, not a bearing. Every U-boat base in this war is behind a
+  // strait, and no compass heading finds the Kattegat.
+  const water = waterMap(world);
+  const lane = afloat.find((f) => f.cargo && f.power === 'uk');
+  ok(lane, 'Britain has trade at sea');
+  const step = steerTo(world, boats.cell, lane.cell, water);
+  ok(step !== null && step !== undefined, 'a flotilla in the Baltic can find its way to the Atlantic');
+  ok(water[step] === 1, 'and every hex of the way is water');
+  ok(
+    hexesApart(boats.cell, step) <= FLEET_SPEED,
+    `and the first day of it is ${hexesApart(boats.cell, step).toFixed(1)} hexes, inside a day's steaming`,
+  );
+  ok(
+    hexesApart(step, lane.cell) < hexesApart(boats.cell, lane.cell),
+    'and it is nearer the convoy than where it started',
+  );
+
+  // It weighs the screen before it closes, the way the action itself will.
+  ok(AT_SEA > 1, `a raider wants ${AT_SEA} to one before it goes in`);
+  const orders = navalOrders({
+    world,
+    power: 'germany',
+    party: 'germany',
+    day: 3,
+    fleets: afloat,
+    isWater: water,
+    ordered: new Set(),
+  });
+  ok(orders.length > 0, `${orders.length} German fleets put to sea`);
+  const byId = new Map(afloat.map((f) => [f.id, f]));
+  ok(
+    orders.every((o) => fleetIsFor(byId.get(o.fleet))),
+    'and every one of them is a raider or an escort — no battle squadron sails',
+  );
+  ok(
+    orders.every((o) => navigable(world, o.to)),
+    'and every one is sent to water',
+  );
+  eq(
+    navalOrders({
+      world,
+      power: 'neutral',
+      country: 0,
+      party: 'Poland',
+      day: 3,
+      fleets: afloat,
+      isWater: water,
+      ordered: new Set(),
+    }).length,
+    0,
+    'a country inside the pooled neutral has no navy of its own to order',
+  );
+  ok(ON_STATION > 0, `an escort already within ${ON_STATION} hexes of its trade stays on station`);
+
   // ---- and what it wants from the depots -----------------------------------
   ok(WORN < 1, `a formation asks for men below ${Math.round(WORN * 100)}% of itself`);
   const worn = new Map(
@@ -4921,6 +5000,22 @@ section('close support');
   ok(
     flown.some((r) => (r.escort ?? 0) > 0),
     'some of them went with an escort',
+  );
+
+  // And the war at sea runs, without either side throwing its fleet away.
+  ok((game.sailings ?? []).length > 50, `${(game.sailings ?? []).length} fleets put to sea`);
+  const sunk = (game.sinkings ?? []).length;
+  ok(sunk > 0, `${sunk} convoys were sunk by boards playing themselves`);
+  const boatsLeft = fleetsAt(world, game, game.day)
+    .filter((f) => f.power === 'germany' && !f.cargo)
+    .reduce((n, f) => n + (f.ships.submarines ?? 0), 0);
+  const boatsWere = fleetsAt(world, {}, 0)
+    .filter((f) => f.power === 'germany' && !f.cargo)
+    .reduce((n, f) => n + (f.ships.submarines ?? 0), 0);
+  ok(
+    boatsLeft > boatsWere * 0.6,
+    `and Germany still has ${Math.round(boatsLeft)} of ${Math.round(boatsWere)} U-boats — ` +
+      'a boat that cannot beat the screen slips away rather than closing with it',
   );
 
   const late = (game.battles ?? []).filter((b) => b.day > game.day - 5).length;

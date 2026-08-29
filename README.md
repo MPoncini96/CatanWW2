@@ -1897,9 +1897,8 @@ stop, and they start again when it catches up. It also weighs itself honestly �
 telling `strengthOf` which of its own columns are being fed, which the first
 version did not, so it attacked at odds it did not have.
 
-It does not sail or land. A navy wandering the Atlantic and an amphibious
-landing are the two an automaton can still look stupid doing, and leaving them
-out is honest: an unseated navy sitting in port is defensible.
+It does not put an army ashore. An amphibious landing is the one an automaton
+can still look stupid doing, and leaving it out is honest.
 
 ### It flies
 
@@ -1948,6 +1947,47 @@ two a day at the end rather than none, 628 bombers lost rather than 1,391, and �
 the point of the whole thing — **Germany bombed 58 times by people nobody is
 sitting at**.
 
+### It goes to sea
+
+Two jobs and no more, because they are the two that need no judgement about
+where a war is going: **submarines hunt trade, and destroyers screen it.**
+
+**Anything with a capital ship in it stays at its anchorage.** That rule had to
+be written twice. Counting hulls alone made Scapa Flow an escort group — 47
+destroyers against 4 battleships and 2 carriers is 93% destroyers by number —
+and sent the Home Fleet off to shepherd convoys with a battleship in tow. Once
+capital ships disqualify a fleet outright, what is left is the nineteen small
+stations that actually did this work: Simonstown, Aden, Trincomalee, Dakar,
+Casablanca. A fleet in being stays in being.
+
+**It steers by a path over water, not by a bearing.** Greedy steering works in
+the open ocean and pins a fleet against the first coast it meets, and every
+U-boat base in this war is behind a strait — Kiel is in the Baltic and the way
+out is the Kattegat, which no compass heading finds. One wrinkle worth writing
+down: six steps along a path round a headland can leave a fleet more than six
+hexes from where it started, and `mayShip` measures the second. The first
+version handed the day an order it then refused, and the fleet sat still.
+
+**A raider weighs the screen before it closes**, and weighs it the way the
+action itself will. This is the rule that decides the whole thing, and getting
+it wrong in each direction produced:
+
+| | actions in 40 days | convoys sunk | German U-boats, 57 at the start |
+| --- | --- | --- | --- |
+| going for the nearest lane whatever guards it | 16 | 3 | **30** |
+| wanting 1.4 to one, convoy not counted | 0 | 0 | 57 |
+| wanting 1.2 to one, weighed properly | 9 | 8 | 52 |
+
+The middle row is the interesting failure. `resolveSea` counts a convoy as a
+ship of its own kind — that is what `COUNTERS` means by a submarine being worth
+three against `convoys` — and the check was weighing only the destroyers and
+cruisers escorting it. Every lane looked like a screen with nothing behind it
+worth having, so no boat ever sailed.
+
+The first row is the other failure and the more instructive: Germany lost 27
+U-boats in six weeks against the **nine it lost in the whole of 1939**. A boat
+that cannot beat the screen slips away and waits, which is what it did.
+
 ### France fights
 
 France has no seat and never will: it is a thing that happens to you rather than
@@ -1989,6 +2029,25 @@ A board with nobody sitting at any seat, left to run:
 
 A day of that costs about a second against about half a second for a board where
 nothing at all is happening. Most of the difference is the war, not the staff.
+
+### Supply is a fact about the morning
+
+Found while measuring the staff, and it turned out to be the largest single
+cost in a day. `supplyFor` cached one map per nation, keyed on the day *and on
+the ownership map* — and ground changes hands all through a day's resolution,
+so the cache was thrown away after every capture. A single day flooded a
+hundred and fourteen thousand cells **thirty-six times**, which was half of
+what the day cost.
+
+Keying it on the day alone is both faster and more coherent. Supply is what
+could be got to a hex this morning; an army's rations should not flicker on and
+off as hexes fall around it during the afternoon's fighting, and the map it was
+read off is the map everything else in that day was decided on.
+
+A day went from about 2,600 milliseconds to about 1,000. The shape is worth
+knowing too: the cost is **flat** from the fifth day to the forty-fifth rather
+than growing with the length of the record, so a game does not get slower as it
+goes on.
 
 ### And a table can switch it off
 

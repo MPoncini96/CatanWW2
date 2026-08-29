@@ -7,6 +7,9 @@ import { isMobile, mayMarch } from './movement.js';
 import { groundBonus, strengthOf } from './combat.js';
 import { airCombat, defenceOf, hexesApart, mayRaid, reachFrom } from './bombing.js';
 import { mayStrike } from './strike.js';
+import { FLEET_SPEED, fleetStrength, mayShip, navigable } from './naval.js';
+import { waterPath } from '../world/convoys.js';
+import { SHIPS } from '../world/navies.js';
 import { supplyFor } from './supply.js';
 import { TEMPLATE_INDEX, menIn as menInTemplate } from './raising.js';
 
@@ -35,7 +38,7 @@ import { TEMPLATE_INDEX, menIn as menInTemplate } from './raising.js';
 // a hex is enough, it goes forward. So an unseated power gathers divisions
 // against a border for a week and then attacks, which is what a staff does.
 //
-// **It flies, but it does not sail or land.** A mission is one day and goes
+// **It flies, and it goes to sea, but it does not land.** A mission is one day and goes
 // nowhere — no pathfinding, no plan spread over a week — which is exactly why
 // an automaton cannot look stupid doing it, and why this came first. A navy
 // wandering the Atlantic and an amphibious landing are the two that can, and
@@ -44,7 +47,13 @@ import { TEMPLATE_INDEX, menIn as menInTemplate } from './raising.js';
 // Leaving the air out was the larger hole. Every air system on this board —
 // strategic bombing, close support, escort, the flak, the carriers — was
 // entirely one-sided the moment a seat was empty: a player bombed and was never
-// bombed back.
+// bombed back. The sea had the same hole and the same answer.
+//
+// At sea it does two things and no more, because they are the two that need no
+// judgement about where a war is going: **submarines hunt trade, and destroyers
+// screen it.** Everything else stays at its anchorage, which is where a fleet
+// in being spends its war and is a great deal better than a battle squadron
+// wandering the Atlantic on an automaton's initiative.
 
 /**
  * Odds the staff wants before it goes forward.
@@ -512,6 +521,9 @@ export function staffDay(world, positions, day) {
     supplied: new Map(),
     // What the air defence over a hex is worth to each power that might ask.
     priced: new Map(),
+    // And where a ship may float, which does not change from one force to the
+    // next and costs a walk of the whole board to work out.
+    water: waterMap(world),
     day,
   };
 }
@@ -735,6 +747,180 @@ export function airOrders({
   }
 
   return { striking, raiding };
+}
+
+/**
+ * How much of a fleet has to be one kind of ship before that is what it is for.
+ *
+ * Three fifths. A flotilla that is nearly all submarines is a raiding force
+ * whatever else is tied up alongside it, and one that is nearly all destroyers
+ * is an escort group. Anything more mixed than that is a battle squadron, and a
+ * battle squadron stays where it is.
+ */
+export const OF_A_KIND = 0.6;
+
+/**
+ * Odds a raider wants before it goes for a convoy.
+ *
+ * The same rule as on land and for the same reason. A U-boat that closes with
+ * a well-screened convoy is fighting destroyers, and a destroyer is worth three
+ * times a submarine to a submarine — the first version sent every flotilla at
+ * the nearest lane whatever was guarding it, and Germany lost twenty-seven
+ * U-boats in six weeks against the nine it lost in the whole of 1939.
+ *
+ * A boat that cannot win slips away and waits, which is what it did.
+ */
+export const AT_SEA = 1.2;
+
+/**
+ * How near an escort group stays to the trade it is screening.
+ *
+ * Eight hexes is about a day and a half's steaming — near enough to come up
+ * when something happens, and far enough that a flotilla already on station
+ * does not spend the war shuffling one hex a day after a convoy it is
+ * effectively sitting on. It also stops a hundred and twenty-six fleets asking
+ * for a route across an ocean every morning, which was most of what a day
+ * cost.
+ */
+export const ON_STATION = 8;
+
+/**
+ * What a fleet is for, or null if it is a battle squadron.
+ *
+ * **Anything with a capital ship in it is a battle squadron**, however many
+ * destroyers are tied up alongside. Counting hulls alone made Scapa Flow an
+ * escort group — forty-seven destroyers against four battleships and two
+ * carriers is ninety-three per cent destroyers by number — and sent the Home
+ * Fleet off to shepherd convoys with the King George V in tow. What is left
+ * once the capital ships are excluded is the nineteen small stations that
+ * actually did this work: Simonstown, Aden, Trincomalee, Dakar, Casablanca.
+ */
+export function fleetIsFor(fleet) {
+  const hulls = SHIPS.reduce((n, s) => n + (fleet.ships?.[s.id] ?? 0), 0);
+  if (hulls < 1) return null;
+  if ((fleet.ships.battleships ?? 0) + (fleet.ships.carriers ?? 0) > 0) return null;
+  if ((fleet.ships.submarines ?? 0) / hulls >= OF_A_KIND) return 'raiding';
+  if ((fleet.ships.destroyers ?? 0) / hulls >= OF_A_KIND) return 'escorting';
+  return null;
+}
+
+/**
+ * The next hex on the way to somewhere, over water.
+ *
+ * A real path rather than a step towards the compass bearing. Greedy steering
+ * works in the open ocean and pins a fleet against the first coast it meets,
+ * and every U-boat base in this war is behind a strait — Kiel is in the Baltic
+ * and the way out is the Kattegat, which no bearing will find.
+ */
+export function steerTo(world, from, to, isWater, speed = FLEET_SPEED) {
+  if (from === to) return null;
+  const path = waterPath(from, to, isWater, 12000);
+  if (!path?.length) return null;
+  // Steps along the path are not the same as hexes apart. Six moves round a
+  // headland can leave a fleet more than six hexes from where it started, and
+  // `mayShip` measures the second — so back down the path until the day's
+  // steaming actually fits inside a day's steaming. Without this the order was
+  // simply refused and the fleet sat still.
+  for (let k = Math.min(path.length, speed); k >= 1; k -= 1) {
+    if (hexesApart(from, path[k - 1]) <= speed) return path[k - 1];
+  }
+  return null;
+}
+
+/**
+ * The sailing orders this force gives today.
+ *
+ * Submarines steer for the nearest convoy of somebody they are fighting;
+ * destroyers steer for the nearest convoy of their own. Neither needs to know
+ * anything it should not: a convoy runs to a published schedule and the whole
+ * Atlantic war was fought over where that schedule went.
+ *
+ * @returns {Array<{fleet: string, to: number}>} orders in the shape a seat gives
+ */
+export function navalOrders({
+  world,
+  power,
+  country = -1,
+  party,
+  day,
+  fleets,
+  isWater,
+  ordered,
+}) {
+  // A country inside the pooled neutral has no navy of its own to give orders
+  // to — the fleets on this board belong to nations.
+  if (country >= 0) return [];
+  const water = isWater ?? waterMap(world);
+  const out = [];
+  const taken = new Set(ordered ?? []);
+
+  const convoys = (fleets ?? []).filter((f) => f.cargo && f.afloat);
+  const theirs = convoys.filter((c) => c.power !== power && mayFight(day, party, c.power));
+  const ours = convoys.filter((c) => c.power === power);
+
+  const mine = (fleets ?? [])
+    .filter((f) => f.power === power && f.afloat && !f.cargo && !taken.has(f.id))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+  for (const fleet of mine) {
+    const job = fleetIsFor(fleet);
+    if (!job) continue;
+    const hunting = job === 'raiding' ? theirs : ours;
+    if (!hunting.length) continue;
+
+    // An escort already covering something stays where it is.
+    if (job === 'escorting') {
+      const covered = hunting.some((c) => hexesApart(fleet.cell, c.cell) <= ON_STATION);
+      if (covered) continue;
+    }
+
+    // The nearest one it is willing to go for, ties by id so the same board
+    // gives the same orders on every machine.
+    let target = null;
+    let nearest = Infinity;
+    for (const convoy of hunting) {
+      const away = hexesApart(fleet.cell, convoy.cell);
+      if (away >= nearest) continue;
+      // A raider weighs the screen before it closes. An escort does not: it is
+      // joining its own trade, not attacking it.
+      if (job === 'raiding') {
+        // Weighed the way the action itself will weigh it. A convoy counts as
+        // a ship of its own kind — that is what a submarine is worth three
+        // times against — and leaving it out of the sum made every lane look
+        // like a destroyer screen with nothing behind it, so no boat ever went.
+        const trade = { ...convoy.ships, convoys: 1 };
+        const attack = fleetStrength(fleet.ships, 'attack', trade);
+        const screen = fleetStrength(convoy.ships, 'defend', fleet.ships);
+        if (attack < AT_SEA * Math.max(1, screen)) continue;
+      }
+      nearest = away;
+      target = convoy;
+    }
+    if (!target || target.cell === fleet.cell) continue;
+
+    const to = steerTo(world, fleet.cell, target.cell, water);
+    if (to === null || to === undefined || !navigable(world, to)) continue;
+    const why = mayShip({
+      world,
+      fleet,
+      to,
+      power,
+      day,
+      positions: new Map((fleets ?? []).map((f) => [f.id, f.cell])),
+      ordered: taken,
+    });
+    if (why) continue;
+    taken.add(fleet.id);
+    out.push({ fleet: fleet.id, to, hunting: target.id });
+  }
+  return out;
+}
+
+/** Which hexes a ship can float on. Built once a day and handed round. */
+export function waterMap(world) {
+  const water = new Uint8Array(TILE_COUNT);
+  for (let i = 0; i < TILE_COUNT; i += 1) water[i] = navigable(world, i) ? 1 : 0;
+  return water;
 }
 
 /**

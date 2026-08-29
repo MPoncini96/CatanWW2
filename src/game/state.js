@@ -14,6 +14,7 @@ import {
   airOrders,
   depotOrders,
   forcesNeedingStaff,
+  navalOrders,
   raisingOrders,
   staffDay,
   staffOrders,
@@ -367,6 +368,11 @@ export function advance(game, world = null, now = 0) {
     // Where everything is standing, and each nation's supply, worked out once
     // for all of them rather than once each.
     const shared = onDuty.length ? staffDay(world, positions, game.day) : null;
+    // Where every fleet is this morning, before anybody has been told to sail.
+    // Convoys are in here too, which is the whole point: their schedule is
+    // published and the Atlantic war was fought over where it went.
+    const atSea = onDuty.length ? fleetsAt(world, game, game.day) : [];
+    const weighed = new Set();
     // Who flew last night and is being turned round this morning. One list for
     // the whole pass, because a group flies one mission a day whichever it is.
     const turnedRound = new Set(
@@ -422,6 +428,27 @@ export function advance(game, world = null, now = 0) {
       }
       if (flying.raiding.length) {
         game.raiding[force.power] = [...(game.raiding[force.power] ?? []), ...flying.raiding];
+      }
+
+      // And the sea. Submarines for somebody else's trade, destroyers for their
+      // own; a battle squadron stays at its anchorage, which is where a fleet
+      // in being spent its war.
+      const sailing = navalOrders({
+        world,
+        power: force.power,
+        country: force.country,
+        party: force.party,
+        day: game.day,
+        fleets: atSea,
+        isWater: shared?.water,
+        ordered: weighed,
+      });
+      if (sailing.length) {
+        for (const order of sailing) weighed.add(order.fleet);
+        game.sailing[force.power] = [
+          ...(game.sailing[force.power] ?? []),
+          ...sailing.map((o) => ({ fleet: o.fleet, to: o.to })),
+        ];
       }
 
       // And the two things that are not marching. An army that can only ever
